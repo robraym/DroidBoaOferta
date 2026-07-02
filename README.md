@@ -24,8 +24,8 @@ O histórico comparativo de 30/90 dias e uma extração mais ampla de condiçõe
 Crie uma aplicação em [my.telegram.org](https://my.telegram.org) e acrescente ao arquivo local `local.properties`:
 
 ```properties
-telegram.api_id=12345678
-telegram.api_hash=seu_api_hash
+telegram.api_id=SEU_ID
+telegram.api_hash=SEU_HASH
 ```
 
 O arquivo `local.properties` não é versionado. O binário nativo incluído é a interface JSON/JNI da TDLib oficial, compilada para `arm64-v8a` a partir do commit `a17f87c4cff7b90b278d12b91ba0614383aaee82`.
