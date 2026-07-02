@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Boa Oferta</string>
+    <string name="app_slogan">Só avisa quando vale a pena.</string>
+    <string name="telegram_setup_screen_title">Telegram</string>
+    <string name="telegram_choose_groups_short">Marque os grupos e canais de promoções.</string>
+    <string name="telegram_status_connecting">Preparando conexão</string>
+    <string name="telegram_wait_message">Aguarde enquanto o Boa Oferta inicia a conexão local com o Telegram.</string>
+    <string name="telegram_status_credentials">Credenciais necessárias</string>
+    <string name="telegram_credentials_message">Adicione telegram.api_id e telegram.api_hash ao arquivo local.properties e gere o aplicativo novamente. Essas credenciais são obtidas em my.telegram.org.</string>
+    <string name="telegram_status_login">Entrar no Telegram</string>
+    <string name="telegram_phone_message">Informe seu número com o código do país. Exemplo: +55 11 99999 9999.</string>
+    <string name="telegram_phone_hint">Número de telefone</string>
+    <string name="telegram_email_message">O Telegram solicitou um endereço de e-mail para continuar.</string>
+    <string name="telegram_email_hint">E-mail</string>
+    <string name="telegram_status_verification">Confirmar acesso</string>
+    <string name="telegram_code_message">Digite o código enviado pelo Telegram. Nunca compartilhe esse código com outras pessoas.</string>
+    <string name="telegram_email_code_message">Digite o código enviado para o seu e-mail.</string>
+    <string name="telegram_code_hint">Código de confirmação</string>
+    <string name="telegram_status_password">Verificação em duas etapas</string>
+    <string name="telegram_password_message">Digite a senha adicional configurada na sua conta do Telegram.</string>
+    <string name="telegram_password_hint">Senha do Telegram</string>
+    <string name="telegram_status_connected">Telegram conectado</string>
+    <string name="telegram_groups_message">Escolha os grupos e canais de promoções que o Boa Oferta poderá acompanhar.</string>
+    <string name="telegram_no_groups">Nenhum grupo ou canal foi encontrado na lista principal.</string>
+    <string name="telegram_groups_saved">Grupos salvos</string>
+    <string name="telegram_status_disconnected">Telegram desconectado</string>
+    <string name="telegram_disconnected_message">A sessão foi encerrada. Abra esta tela novamente para reconectar.</string>
+    <string name="telegram_status_attention">Ação necessária</string>
+    <string name="telegram_unsupported_auth_message">O Telegram solicitou uma etapa de acesso ainda não suportada por esta primeira versão.</string>
+    <string name="telegram_native_error">Não foi possível iniciar a biblioteca local do Telegram.</string>
+    <string name="telegram_unknown_error">Erro desconhecido do Telegram.</string>
+    <string name="telegram_error_format">Telegram: %1$s</string>
+    <string name="telegram_required_field">Preencha este campo</string>
+    <string name="action_continue">Continuar</string>
+    <string name="action_confirm">Confirmar</string>
+    <string name="action_enter">Entrar</string>
+    <string name="action_save_groups">Salvar grupos escolhidos</string>
+    <string name="dashboard_status_choose_groups">Escolha suas fontes</string>
+    <string name="dashboard_status_choose_groups_summary">Selecione os grupos de promoções.</string>
+    <string name="dashboard_status_add_interest">Crie um alerta de preço</string>
+    <string name="dashboard_status_add_interest_summary">Escolha um produto e o valor máximo.</string>
+    <string name="dashboard_status_active">Monitor ativo</string>
+    <string name="dashboard_status_active_summary">%1$s • %2$s</string>
+    <plurals name="dashboard_groups_count">
+        <item quantity="one">%d grupo</item>
+        <item quantity="other">%d grupos</item>
+    </plurals>
+    <plurals name="dashboard_interests_count">
+        <item quantity="one">%d alerta</item>
+        <item quantity="other">%d alertas</item>
+    </plurals>
+    <plurals name="dashboard_alerts_configured">
+        <item quantity="one">%d alerta configurado</item>
+        <item quantity="other">%d alertas configurados</item>
+    </plurals>
+    <string name="dashboard_status_paused">Monitor pausado</string>
+    <string name="dashboard_status_paused_summary">Nenhuma mensagem está sendo avaliada.</string>
+    <string name="dashboard_groups_title">Grupos do Telegram</string>
+    <string name="dashboard_no_groups">Nenhum selecionado</string>
+    <plurals name="dashboard_groups_selected">
+        <item quantity="one">%d grupo selecionado</item>
+        <item quantity="other">%d grupos selecionados</item>
+    </plurals>
+    <string name="dashboard_create_alert_title">Criar alerta de preço</string>
+    <string name="dashboard_create_alert_summary">Produto e valor máximo para avisar.</string>
+    <string name="alerts_screen_title">Alertas</string>
+    <string name="alerts_screen_summary">Gerencie os produtos e valores máximos que o Boa Oferta deve acompanhar.</string>
+    <string name="dashboard_alerts_title">Alertas configurados</string>
+    <string name="dashboard_interests_title">Alertas configurados</string>
+    <string name="dashboard_no_interests">Nenhum alerta criado.</string>
+    <string name="dashboard_interest_limit">Avisar até %1$s</string>
+    <string name="dashboard_interest_single_line">%1$s • até %2$s</string>
+    <string name="dashboard_offers_title">Ofertas dentro do limite</string>
+    <string name="dashboard_no_offers">Ainda não apareceu nenhuma oferta dentro dos valores configurados.</string>
+    <string name="dashboard_offer_summary">%1$s • %2$s • %3$s</string>
+    <string name="action_change">Alterar</string>
+    <string name="action_manage">Gerenciar</string>
+    <string name="action_add">Adicionar</string>
+    <string name="action_add_product">+ Produto</string>
+    <string name="action_add_alert">Adicionar</string>
+    <string name="action_remove">Remover</string>
+    <string name="action_pause">Pausar</string>
+    <string name="action_activate">Ativar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_save">Salvar</string>
+    <string name="action_remove_interest">Remover interesse</string>
+    <string name="interest_dialog_title">Novo alerta de preço</string>
+    <string name="interest_dialog_summary">Informe o produto e o valor máximo para receber aviso.</string>
+    <string name="interest_term_hint">Produto ou palavra-chave</string>
+    <string name="interest_price_hint">Preço máximo em reais</string>
+    <string name="interest_term_required">Informe o que você procura</string>
+    <string name="interest_price_required">Informe um preço máximo válido</string>
+    <string name="telegram_source_unknown">Grupo do Telegram</string>
+    <string name="offer_channel_name">Boas ofertas</string>
+    <string name="offer_channel_description">Alertas de ofertas que passaram nos seus filtros</string>
+    <string name="offer_notification_explanation">%1$s está abaixo do seu limite de %2$s • %3$s</string>
+    <string name="monitor_channel_name">Monitor de ofertas</string>
+    <string name="monitor_channel_description">Mantém a conexão local com os grupos escolhidos</string>
+    <string name="monitor_service_title">Boa Oferta está monitorando</string>
+    <string name="monitor_service_summary">Somente os grupos e produtos escolhidos por você.</string>
+    <string name="icon_percent" translatable="false">%</string>
+    <string name="icon_telegram_letter" translatable="false">T</string>
+    <string name="icon_back" translatable="false">‹</string>
+</resources>
