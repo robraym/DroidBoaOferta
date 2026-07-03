@@ -236,6 +236,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 .putStringSet(PREF_SELECTED_GROUPS, selected)
                 .apply();
         selectedGroupIds = selected;
+        TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
         Toast.makeText(this, R.string.telegram_groups_saved, Toast.LENGTH_SHORT).show();
         finish();
     }

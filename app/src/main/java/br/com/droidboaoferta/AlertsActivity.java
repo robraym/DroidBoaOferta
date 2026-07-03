@@ -210,6 +210,7 @@ public class AlertsActivity extends AppCompatActivity {
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
                     .apply();
+            TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
             dialog.dismiss();
             renderInterests();
         });

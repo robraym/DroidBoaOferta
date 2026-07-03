@@ -451,6 +451,7 @@ public class MainActivity extends AppCompatActivity {
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
                     .apply();
+            TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
             dialog.dismiss();
             refreshDashboard();
         });

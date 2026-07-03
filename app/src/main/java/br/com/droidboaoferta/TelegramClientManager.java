@@ -103,6 +103,13 @@ final class TelegramClientManager {
         }
     }
 
+    void refreshSelectedGroupsHistory() {
+        requestedHistoryChatIds.clear();
+        if (state == State.READY) {
+            loadSelectedGroupsHistory();
+        }
+    }
+
     State getState() {
         return state;
     }
