@@ -14,6 +14,11 @@ public class ArchivedOffersActivity extends StoredOffersActivity {
     }
 
     @Override
+    int getBottomNavigationItem() {
+        return BottomNavigationController.ITEM_ARCHIVED;
+    }
+
+    @Override
     List<ObservedOffer> getOffers(OfferRepository repository) {
         return repository.getArchived();
     }

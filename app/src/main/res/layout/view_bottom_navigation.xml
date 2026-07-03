@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bottom_navigation"
+    android:layout_width="match_parent"
+    android:layout_height="78dp"
+    android:background="@color/background"
+    android:orientation="vertical">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
+
+        <LinearLayout
+            android:id="@+id/nav_home"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <View
+                android:id="@+id/nav_home_indicator"
+                android:layout_width="48dp"
+                android:layout_height="3dp"
+                android:background="@drawable/bg_bottom_nav_indicator"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:id="@+id/nav_home_icon"
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:layout_marginTop="11dp"
+                android:contentDescription="@string/bottom_nav_home"
+                android:src="@drawable/ic_offer_tag" />
+
+            <TextView
+                android:id="@+id/nav_home_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="@string/bottom_nav_home"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/nav_sources"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <View
+                android:id="@+id/nav_sources_indicator"
+                android:layout_width="56dp"
+                android:layout_height="3dp"
+                android:background="@drawable/bg_bottom_nav_indicator"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:id="@+id/nav_sources_icon"
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:layout_marginTop="11dp"
+                android:contentDescription="@string/bottom_nav_sources"
+                android:src="@drawable/ic_telegram_source" />
+
+            <TextView
+                android:id="@+id/nav_sources_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="@string/bottom_nav_sources"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/nav_alerts"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <View
+                android:id="@+id/nav_alerts_indicator"
+                android:layout_width="56dp"
+                android:layout_height="3dp"
+                android:background="@drawable/bg_bottom_nav_indicator"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:id="@+id/nav_alerts_icon"
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:layout_marginTop="11dp"
+                android:contentDescription="@string/bottom_nav_alerts"
+                android:src="@drawable/ic_price_alert" />
+
+            <TextView
+                android:id="@+id/nav_alerts_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="@string/bottom_nav_alerts"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/nav_archived"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <View
+                android:id="@+id/nav_archived_indicator"
+                android:layout_width="56dp"
+                android:layout_height="3dp"
+                android:background="@drawable/bg_bottom_nav_indicator"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:id="@+id/nav_archived_icon"
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:layout_marginTop="11dp"
+                android:contentDescription="@string/bottom_nav_archived"
+                android:src="@drawable/ic_archive" />
+
+            <TextView
+                android:id="@+id/nav_archived_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="@string/bottom_nav_archived"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/nav_trash"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <View
+                android:id="@+id/nav_trash_indicator"
+                android:layout_width="56dp"
+                android:layout_height="3dp"
+                android:background="@drawable/bg_bottom_nav_indicator"
+                android:visibility="invisible" />
+
+            <ImageView
+                android:id="@+id/nav_trash_icon"
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:layout_marginTop="11dp"
+                android:contentDescription="@string/bottom_nav_trash"
+                android:src="@drawable/ic_trash_outline" />
+
+            <TextView
+                android:id="@+id/nav_trash_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="@string/bottom_nav_trash"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

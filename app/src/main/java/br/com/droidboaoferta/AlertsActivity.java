@@ -37,6 +37,7 @@ public class AlertsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_alerts);
+        BottomNavigationController.setup(this, BottomNavigationController.ITEM_ALERTS);
 
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);

@@ -164,4 +164,6 @@
             android:textColorHint="@color/text_secondary"
             android:textSize="18sp" />
     </LinearLayout>
+
+    <include layout="@layout/view_bottom_navigation" />
 </LinearLayout>

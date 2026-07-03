@@ -14,6 +14,11 @@ public class TrashedOffersActivity extends StoredOffersActivity {
     }
 
     @Override
+    int getBottomNavigationItem() {
+        return BottomNavigationController.ITEM_TRASH;
+    }
+
+    @Override
     List<ObservedOffer> getOffers(OfferRepository repository) {
         return repository.getTrashed();
     }

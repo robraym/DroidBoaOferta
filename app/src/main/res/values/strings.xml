@@ -3,7 +3,7 @@
     <string name="app_name">Boa Oferta</string>
     <string name="app_slogan">Só avisa quando vale a pena.</string>
     <string name="telegram_setup_screen_title">Telegram</string>
-    <string name="telegram_choose_groups_short">Marque os grupos e canais de promoções.</string>
+    <string name="telegram_choose_groups_short">Escolha os grupos de promoções.</string>
     <string name="telegram_status_connecting">Preparando conexão</string>
     <string name="telegram_wait_message">Aguarde enquanto o Boa Oferta inicia a conexão local com o Telegram.</string>
     <string name="telegram_status_credentials">Credenciais necessárias</string>
@@ -23,7 +23,6 @@
     <string name="telegram_status_connected">Telegram conectado</string>
     <string name="telegram_groups_message">Escolha os grupos e canais de promoções que o Boa Oferta poderá acompanhar.</string>
     <string name="telegram_no_groups">Nenhum grupo ou canal foi encontrado na lista principal.</string>
-    <string name="telegram_groups_saved">Grupos salvos</string>
     <string name="telegram_status_disconnected">Telegram desconectado</string>
     <string name="telegram_disconnected_message">A sessão foi encerrada. Abra esta tela novamente para reconectar.</string>
     <string name="telegram_status_attention">Ação necessária</string>
@@ -35,7 +34,6 @@
     <string name="action_continue">Continuar</string>
     <string name="action_confirm">Confirmar</string>
     <string name="action_enter">Entrar</string>
-    <string name="action_save_groups">Salvar grupos escolhidos</string>
     <string name="dashboard_status_choose_groups">Escolha suas fontes</string>
     <string name="dashboard_status_choose_groups_summary">Selecione os grupos de promoções.</string>
     <string name="dashboard_status_add_interest">Crie um alerta de preço</string>
@@ -93,7 +91,7 @@
     <string name="alerts_screen_summary">Produtos e preços máximos para avisar.</string>
     <string name="alerts_list_title">Alertas salvos</string>
     <string name="settings_screen_title">Configurações</string>
-    <string name="settings_navigation_hint">Para alterar grupos, alertas, arquivadas ou lixeira, volte ao Perfil.</string>
+    <string name="settings_navigation_hint">Para alterar Telegram, alertas, salvas ou lixeira, use o rodapé.</string>
     <string name="settings_theme_title">Tema</string>
     <string name="theme_system">Conforme configurado no sistema</string>
     <string name="theme_light">Claro</string>
@@ -126,11 +124,16 @@
     <string name="dashboard_offer_summary">%1$s • %2$s • %3$s</string>
     <string name="dashboard_offer_single_line">%1$s • %2$s • %3$s</string>
     <string name="dashboard_offer_meta">%1$s • %2$s</string>
-    <string name="archived_screen_title">Arquivadas</string>
-    <string name="archived_empty">Nenhuma oferta arquivada.</string>
+    <string name="archived_screen_title">Salvas</string>
+    <string name="archived_empty">Nenhuma oferta salva.</string>
     <string name="trash_screen_title">Lixeira</string>
     <string name="trash_empty">Nenhuma oferta na lixeira.</string>
-    <string name="offer_archived">Oferta arquivada</string>
+    <string name="bottom_nav_home">Início</string>
+    <string name="bottom_nav_sources">Telegram</string>
+    <string name="bottom_nav_alerts">Alertas</string>
+    <string name="bottom_nav_archived">Salvas</string>
+    <string name="bottom_nav_trash">Lixeira</string>
+    <string name="offer_archived">Oferta salva</string>
     <string name="offer_trashed">Oferta enviada para a lixeira</string>
     <string name="offers_trashed">Ofertas enviadas para a lixeira</string>
     <string name="trash_all_dialog_title">Enviar ofertas para a lixeira?</string>
@@ -156,7 +159,7 @@
     <string name="action_trash_all_offers">Enviar todas para a lixeira</string>
     <string name="action_restore_offer">Restaurar oferta</string>
     <string name="action_restore_all_offers">Restaurar todas as ofertas</string>
-    <string name="action_unarchive_offer">Desarquivar oferta</string>
+    <string name="action_unarchive_offer">Remover das salvas</string>
     <string name="action_edit_interest">Editar alerta</string>
     <string name="action_remove_interest">Remover alerta</string>
     <string name="interest_dialog_title">Novo alerta de preço</string>

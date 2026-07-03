@@ -125,14 +125,6 @@
 
             <include layout="@layout/row_profile_settings" />
 
-            <include layout="@layout/row_profile_groups" />
-
-            <include layout="@layout/row_profile_alerts" />
-
-            <include layout="@layout/row_profile_archived" />
-
-            <include layout="@layout/row_profile_trash" />
-
             <include layout="@layout/row_profile_terms" />
 
             <include layout="@layout/row_profile_logout" />

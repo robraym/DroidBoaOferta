@@ -36,7 +36,6 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private LinearLayout groupsContainer;
     private LinearLayout groupsSearchBar;
     private EditText groupsSearchInput;
-    private Button saveGroupsButton;
     private List<TelegramGroup> availableGroups = Collections.emptyList();
     private Set<String> selectedGroupIds;
 
@@ -44,6 +43,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_telegram_setup);
+        BottomNavigationController.setup(this, BottomNavigationController.ITEM_SOURCES);
 
         statusText = findViewById(R.id.text_telegram_status);
         instructionsText = findViewById(R.id.text_telegram_instructions);
@@ -54,10 +54,8 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         groupsContainer = findViewById(R.id.container_groups);
         groupsSearchBar = findViewById(R.id.search_groups_bar);
         groupsSearchInput = findViewById(R.id.input_search_groups);
-        saveGroupsButton = findViewById(R.id.button_save_groups);
 
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
-        saveGroupsButton.setOnClickListener(view -> saveSelectedGroups());
         continueButton.setOnClickListener(view -> submitAuthenticationValue());
         groupsSearchInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
@@ -113,7 +111,6 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         statusSection.setVisibility(ready ? View.GONE : View.VISIBLE);
         groupsScroll.setVisibility(ready ? View.VISIBLE : View.GONE);
         groupsSearchBar.setVisibility(ready ? View.VISIBLE : View.GONE);
-        saveGroupsButton.setVisibility(ready ? View.VISIBLE : View.GONE);
 
         switch (state) {
             case STARTING:
@@ -210,6 +207,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 } else {
                     selectedGroupIds.remove(groupId);
                 }
+                persistSelectedGroups();
             });
             groupsContainer.addView(checkBox, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -279,7 +277,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         continueButton.postDelayed(() -> continueButton.setEnabled(true), 1200);
     }
 
-    private void saveSelectedGroups() {
+    private void persistSelectedGroups() {
         Set<String> selected = new HashSet<>(selectedGroupIds);
         getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
@@ -287,8 +285,6 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 .apply();
         selectedGroupIds = selected;
         TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
-        Toast.makeText(this, R.string.telegram_groups_saved, Toast.LENGTH_SHORT).show();
-        finish();
     }
 
     private void showStatus(int statusResource, int messageResource) {

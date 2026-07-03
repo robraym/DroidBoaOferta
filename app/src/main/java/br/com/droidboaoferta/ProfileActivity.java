@@ -59,18 +59,6 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         findViewById(R.id.row_settings).setOnClickListener(view -> startActivity(
                 new Intent(this, SettingsActivity.class)
         ));
-        findViewById(R.id.row_groups).setOnClickListener(view -> startActivity(
-                new Intent(this, TelegramSetupActivity.class)
-        ));
-        findViewById(R.id.row_alerts).setOnClickListener(view -> startActivity(
-                new Intent(this, AlertsActivity.class)
-        ));
-        findViewById(R.id.row_archived).setOnClickListener(view -> startActivity(
-                new Intent(this, ArchivedOffersActivity.class)
-        ));
-        findViewById(R.id.row_trash).setOnClickListener(view -> startActivity(
-                new Intent(this, TrashedOffersActivity.class)
-        ));
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         logoutRow.setOnClickListener(view -> showLogoutConfirmation());
         appVersion.setText(getString(R.string.profile_app_version, BuildConfig.VERSION_NAME));
