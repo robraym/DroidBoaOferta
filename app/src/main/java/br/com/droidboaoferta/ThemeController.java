@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import androidx.appcompat.app.AppCompatDelegate;
 
 final class ThemeController {
-    static final String MODE_SYSTEM = "system";
     static final String MODE_LIGHT = "light";
     static final String MODE_DARK = "dark";
 
@@ -17,13 +16,16 @@ final class ThemeController {
     }
 
     static String getSavedMode(Context context) {
-        return prefs(context).getString(THEME_MODE, MODE_SYSTEM);
+        return prefs(context).getString(THEME_MODE, MODE_DARK);
     }
 
     static void saveMode(Context context, String mode) {
+        long changedAt = System.currentTimeMillis();
         prefs(context).edit()
                 .putString(THEME_MODE, mode)
                 .apply();
+        CloudSyncStore.rememberThemeChanged(context, changedAt);
+        CloudSyncStore.markLocalChanged(context);
         applyMode(mode);
     }
 
@@ -36,33 +38,13 @@ final class ThemeController {
             case MODE_LIGHT:
                 return R.string.theme_light;
             case MODE_DARK:
-                return R.string.theme_dark;
-            case MODE_SYSTEM:
             default:
-                return R.string.theme_system;
+                return R.string.theme_dark;
         }
     }
 
     static int getDialogIndex(String mode) {
-        switch (mode) {
-            case MODE_LIGHT:
-                return 1;
-            case MODE_DARK:
-                return 2;
-            case MODE_SYSTEM:
-            default:
-                return 0;
-        }
-    }
-
-    static String modeFromDialogIndex(int index) {
-        if (index == 1) {
-            return MODE_LIGHT;
-        }
-        if (index == 2) {
-            return MODE_DARK;
-        }
-        return MODE_SYSTEM;
+        return MODE_LIGHT.equals(mode) ? 0 : 1;
     }
 
     private static void applyMode(String mode) {
@@ -71,11 +53,8 @@ final class ThemeController {
                 AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
                 break;
             case MODE_DARK:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-                break;
-            case MODE_SYSTEM:
             default:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
                 break;
         }
     }

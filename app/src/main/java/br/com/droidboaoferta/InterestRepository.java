@@ -14,10 +14,12 @@ final class InterestRepository {
     private static final String PREFS = "offer_preferences";
     private static final String KEY_INTERESTS = "interests";
 
+    private final Context context;
     private final SharedPreferences preferences;
 
     InterestRepository(Context context) {
-        preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        this.context = context.getApplicationContext();
+        preferences = this.context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     List<Interest> getAll() {
@@ -41,16 +43,21 @@ final class InterestRepository {
 
     void add(String term, double maximumPrice) {
         List<Interest> interests = new ArrayList<>(getAll());
-        interests.add(new Interest(System.currentTimeMillis(), term.trim(), maximumPrice));
+        long now = System.currentTimeMillis();
+        long id = now;
+        interests.add(new Interest(id, term.trim(), maximumPrice));
+        CloudSyncStore.rememberInterestChanged(context, id, now);
         save(interests);
     }
 
     void update(long id, String term, double maximumPrice) {
         List<Interest> interests = new ArrayList<>(getAll());
+        long now = System.currentTimeMillis();
         for (int index = 0; index < interests.size(); index++) {
             Interest interest = interests.get(index);
             if (interest.getId() == id) {
                 interests.set(index, new Interest(id, term.trim(), maximumPrice));
+                CloudSyncStore.rememberInterestChanged(context, id, now);
                 break;
             }
         }
@@ -60,6 +67,7 @@ final class InterestRepository {
     void remove(long id) {
         List<Interest> interests = new ArrayList<>(getAll());
         interests.removeIf(interest -> interest.getId() == id);
+        CloudSyncStore.rememberInterestDeleted(context, id, System.currentTimeMillis());
         save(interests);
     }
 
@@ -73,6 +81,7 @@ final class InterestRepository {
                         .put("maximum_price", interest.getMaximumPrice()));
             }
             preferences.edit().putString(KEY_INTERESTS, array.toString()).apply();
+            CloudSyncStore.markLocalChanged(context);
         } catch (Exception ignored) {
             // Os valores são primitivos e não devem falhar ao serem serializados.
         }

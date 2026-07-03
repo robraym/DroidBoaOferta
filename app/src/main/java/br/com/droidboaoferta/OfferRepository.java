@@ -21,10 +21,12 @@ final class OfferRepository {
     private static final int MAX_OFFERS = 30;
     private static final int MAX_PROCESSED_MESSAGES = 500;
 
+    private final Context context;
     private final SharedPreferences preferences;
 
     OfferRepository(Context context) {
-        preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        this.context = context.getApplicationContext();
+        preferences = this.context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     synchronized boolean markOfferProcessed(long chatId, long messageId, long interestId) {
@@ -78,15 +80,21 @@ final class OfferRepository {
     }
 
     synchronized void archive(String id) {
-        moveOffer(id, KEY_OFFERS, KEY_ARCHIVED_OFFERS);
+        if (moveOffer(id, KEY_OFFERS, KEY_ARCHIVED_OFFERS)) {
+            CloudSyncStore.markLocalChanged(context);
+        }
     }
 
     synchronized void unarchive(String id) {
-        moveOffer(id, KEY_ARCHIVED_OFFERS, KEY_OFFERS);
+        if (moveOffer(id, KEY_ARCHIVED_OFFERS, KEY_OFFERS)) {
+            CloudSyncStore.markLocalChanged(context);
+        }
     }
 
     synchronized void trash(String id) {
-        moveOffer(id, KEY_OFFERS, KEY_TRASHED_OFFERS);
+        if (moveOffer(id, KEY_OFFERS, KEY_TRASHED_OFFERS)) {
+            CloudSyncStore.markLocalChanged(context);
+        }
     }
 
     synchronized boolean trashAllRecent() {
@@ -101,15 +109,20 @@ final class OfferRepository {
         }
         saveOffers(KEY_OFFERS, new ArrayList<>());
         saveOffers(KEY_TRASHED_OFFERS, trimOffers(sortByObservedAt(trashed)));
+        CloudSyncStore.markLocalChanged(context);
         return true;
     }
 
     synchronized void trashArchived(String id) {
-        moveOffer(id, KEY_ARCHIVED_OFFERS, KEY_TRASHED_OFFERS);
+        if (moveOffer(id, KEY_ARCHIVED_OFFERS, KEY_TRASHED_OFFERS)) {
+            CloudSyncStore.markLocalChanged(context);
+        }
     }
 
     synchronized void restoreTrashed(String id) {
-        moveOffer(id, KEY_TRASHED_OFFERS, KEY_OFFERS);
+        if (moveOffer(id, KEY_TRASHED_OFFERS, KEY_OFFERS)) {
+            CloudSyncStore.markLocalChanged(context);
+        }
     }
 
     synchronized void restoreAllTrashed() {
@@ -124,18 +137,24 @@ final class OfferRepository {
         }
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(recent)));
         saveOffers(KEY_TRASHED_OFFERS, new ArrayList<>());
+        CloudSyncStore.markLocalChanged(context);
     }
 
     synchronized void deleteArchived(String id) {
-        removeOffer(id, KEY_ARCHIVED_OFFERS);
+        if (removeOffer(id, KEY_ARCHIVED_OFFERS)) {
+            CloudSyncStore.markLocalChanged(context);
+        }
     }
 
     synchronized void deleteTrashed(String id) {
-        removeOffer(id, KEY_TRASHED_OFFERS);
+        if (removeOffer(id, KEY_TRASHED_OFFERS)) {
+            CloudSyncStore.markLocalChanged(context);
+        }
     }
 
     synchronized void clearTrashed() {
         saveOffers(KEY_TRASHED_OFFERS, new ArrayList<>());
+        CloudSyncStore.markLocalChanged(context);
     }
 
     List<ObservedOffer> getRecent() {
@@ -150,7 +169,7 @@ final class OfferRepository {
         return readOffers(KEY_TRASHED_OFFERS);
     }
 
-    private void moveOffer(String id, String fromKey, String toKey) {
+    private boolean moveOffer(String id, String fromKey, String toKey) {
         List<ObservedOffer> from = new ArrayList<>(readOffers(fromKey));
         ObservedOffer target = null;
         for (ObservedOffer offer : from) {
@@ -160,7 +179,7 @@ final class OfferRepository {
             }
         }
         if (target == null) {
-            return;
+            return false;
         }
         from.removeIf(offer -> offer.getId().equals(id));
         List<ObservedOffer> to = new ArrayList<>(readOffers(toKey));
@@ -168,12 +187,17 @@ final class OfferRepository {
         to.add(0, target);
         saveOffers(fromKey, from);
         saveOffers(toKey, trimOffers(to));
+        return true;
     }
 
-    private void removeOffer(String id, String key) {
+    private boolean removeOffer(String id, String key) {
         List<ObservedOffer> offers = new ArrayList<>(readOffers(key));
-        offers.removeIf(offer -> offer.getId().equals(id));
+        boolean removed = offers.removeIf(offer -> offer.getId().equals(id));
+        if (!removed) {
+            return false;
+        }
         saveOffers(key, offers);
+        return true;
     }
 
     private List<ObservedOffer> trimOffers(List<ObservedOffer> offers) {

@@ -1,7 +1,10 @@
 package br.com.droidboaoferta;
 
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
@@ -20,6 +23,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
@@ -32,6 +36,12 @@ abstract class StoredOffersActivity extends AppCompatActivity {
     private LinearLayout offersContainer;
     private EditText searchInput;
     private ImageButton headerAction;
+    private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            renderOffers();
+        }
+    };
 
     abstract int getTitleResource();
 
@@ -158,6 +168,24 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         } else {
             headerAction.setVisibility(View.GONE);
         }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        TelegramClientManager.getInstance().start(this);
+        ContextCompat.registerReceiver(
+                this,
+                syncReceiver,
+                new IntentFilter(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+        );
+    }
+
+    @Override
+    protected void onStop() {
+        unregisterReceiver(syncReceiver);
+        super.onStop();
     }
 
     @Override

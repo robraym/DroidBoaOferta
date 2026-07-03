@@ -94,8 +94,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        TelegramClientManager.getInstance().start(this);
         IntentFilter filter = new IntentFilter(OfferMonitor.ACTION_OFFER_FOUND);
         filter.addAction(MonitorStatusStore.ACTION_STATUS_CHANGED);
+        filter.addAction(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED);
         ContextCompat.registerReceiver(
                 this,
                 offerReceiver,
@@ -646,6 +648,7 @@ public class MainActivity extends AppCompatActivity {
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
                     .apply();
+            CloudSyncStore.markLocalChanged(this);
             TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
             dialog.dismiss();
             refreshDashboard();
@@ -701,6 +704,7 @@ public class MainActivity extends AppCompatActivity {
                 .edit()
                 .putBoolean(MONITOR_ENABLED, enabled)
                 .apply();
+        CloudSyncStore.markLocalChanged(this);
         refreshDashboard();
     }
 

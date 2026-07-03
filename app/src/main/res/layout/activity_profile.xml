@@ -49,22 +49,22 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:minHeight="92dp"
+            android:minHeight="84dp"
             android:orientation="horizontal"
-            android:paddingStart="18dp"
-            android:paddingTop="14dp"
-            android:paddingEnd="14dp"
-            android:paddingBottom="14dp">
+            android:paddingStart="14dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="12dp">
 
             <TextView
                 android:id="@+id/text_profile_avatar"
-                android:layout_width="58dp"
-                android:layout_height="58dp"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
                 android:background="@drawable/bg_profile_avatar"
                 android:gravity="center"
                 android:text="@string/icon_telegram_letter"
                 android:textColor="@color/button_text"
-                android:textSize="28sp" />
+                android:textSize="25sp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -81,7 +81,7 @@
                     android:ellipsize="end"
                     android:text="@string/profile_telegram_disconnected"
                     android:textColor="@color/text_primary"
-                    android:textSize="19sp"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -120,12 +120,46 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="vertical">
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card_compact"
+            android:orientation="vertical"
+            android:padding="6dp">
 
-            <include layout="@layout/row_profile_settings" />
+            <include layout="@layout/row_profile_theme" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="52dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/divider" />
+
+            <include layout="@layout/row_profile_monitor" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="52dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/divider" />
+
+            <include layout="@layout/row_profile_sync" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="52dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/divider" />
 
             <include layout="@layout/row_profile_terms" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="52dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/divider" />
 
             <include layout="@layout/row_profile_logout" />
         </LinearLayout>

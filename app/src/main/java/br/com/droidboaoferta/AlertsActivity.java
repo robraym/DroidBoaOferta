@@ -1,6 +1,10 @@
 package br.com.droidboaoferta;
 
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
@@ -19,6 +23,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
 import java.util.List;
@@ -32,6 +37,12 @@ public class AlertsActivity extends AppCompatActivity {
     private OfferRepository offerRepository;
     private LinearLayout interestsContainer;
     private EditText interestsSearchInput;
+    private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            renderInterests();
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +69,24 @@ public class AlertsActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         renderInterests();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        TelegramClientManager.getInstance().start(this);
+        ContextCompat.registerReceiver(
+                this,
+                syncReceiver,
+                new IntentFilter(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+        );
+    }
+
+    @Override
+    protected void onStop() {
+        unregisterReceiver(syncReceiver);
+        super.onStop();
     }
 
     private void renderInterests() {
@@ -317,6 +346,7 @@ public class AlertsActivity extends AppCompatActivity {
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
                     .apply();
+            CloudSyncStore.markLocalChanged(this);
             TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
             dialog.dismiss();
             renderInterests();

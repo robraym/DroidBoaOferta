@@ -64,11 +64,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
             }
         });
 
-        SharedPreferences preferences = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        selectedGroupIds = new HashSet<>(preferences.getStringSet(
-                PREF_SELECTED_GROUPS,
-                new HashSet<>()
-        ));
+        loadSelectedGroupsFromPreferences();
 
         clientManager = TelegramClientManager.getInstance();
     }
@@ -94,7 +90,10 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
 
     @Override
     public void onGroupsLoaded(List<TelegramGroup> groups) {
-        runOnUiThread(() -> renderGroups(groups));
+        runOnUiThread(() -> {
+            loadSelectedGroupsFromPreferences();
+            renderGroups(groups);
+        });
     }
 
     @Override
@@ -278,13 +277,26 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     }
 
     private void persistSelectedGroups() {
+        SharedPreferences preferences = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        Set<String> previous = new HashSet<>(preferences.getStringSet(
+                PREF_SELECTED_GROUPS,
+                new HashSet<>()
+        ));
         Set<String> selected = new HashSet<>(selectedGroupIds);
-        getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit()
+        preferences.edit()
                 .putStringSet(PREF_SELECTED_GROUPS, selected)
                 .apply();
         selectedGroupIds = selected;
+        CloudSyncStore.rememberSelectedGroupsChanged(this, previous, selected);
         TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
+    }
+
+    private void loadSelectedGroupsFromPreferences() {
+        SharedPreferences preferences = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        selectedGroupIds = new HashSet<>(preferences.getStringSet(
+                PREF_SELECTED_GROUPS,
+                new HashSet<>()
+        ));
     }
 
     private void showStatus(int statusResource, int messageResource) {

@@ -8,12 +8,12 @@
     android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="4dp"
-    android:paddingEnd="4dp">
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp">
 
     <ImageView
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
         android:contentDescription="@string/profile_action_disconnect"
         android:padding="7dp"
         android:src="@drawable/ic_logout" />
@@ -21,9 +21,9 @@
     <TextView
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="14dp"
+        android:layout_marginStart="12dp"
         android:layout_weight="1"
         android:text="@string/profile_action_disconnect"
         android:textColor="@color/text_primary"
-        android:textSize="17sp" />
+        android:textSize="16sp" />
 </LinearLayout>
