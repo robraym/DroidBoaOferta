@@ -66,6 +66,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         super.onStart();
         clientManager.setListener(this);
         clientManager.start(this);
+        clientManager.refreshGroups();
     }
 
     @Override

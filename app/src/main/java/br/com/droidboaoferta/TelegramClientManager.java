@@ -96,6 +96,14 @@ final class TelegramClientManager {
         }
     }
 
+    void refreshGroups() {
+        if (state != State.READY) {
+            return;
+        }
+        groupChatIds.clear();
+        loadGroups();
+    }
+
     void setMessageListener(MessageListener messageListener) {
         this.messageListener = messageListener;
         if (messageListener != null && state == State.READY) {
@@ -205,10 +213,12 @@ final class TelegramClientManager {
         } else if ("updateNewChat".equals(type)) {
             JSONObject chat = result.getJSONObject("chat");
             chats.put(chat.getLong("id"), chat);
+            publishAvailableGroups();
         } else if ("updateChatTitle".equals(type)) {
             JSONObject chat = chats.get(result.getLong("chat_id"));
             if (chat != null) {
                 chat.put("title", result.getString("title"));
+                publishAvailableGroups();
             }
         } else if ("updateNewMessage".equals(type)) {
             publishMessage(result.getJSONObject("message"));
@@ -342,7 +352,13 @@ final class TelegramClientManager {
         for (int index = 0; index < chatIds.length(); index++) {
             groupChatIds.add(chatIds.optLong(index));
         }
+        publishAvailableGroups();
+    }
 
+    private void publishAvailableGroups() {
+        if (state != State.READY) {
+            return;
+        }
         List<TelegramGroup> availableGroups = new ArrayList<>();
         for (long chatId : groupChatIds) {
             JSONObject chat = chats.get(chatId);

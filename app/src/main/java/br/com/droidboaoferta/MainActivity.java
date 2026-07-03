@@ -66,20 +66,11 @@ public class MainActivity extends AppCompatActivity {
 
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);
-        statusTitle = findViewById(R.id.text_monitor_status_title);
-        statusSummary = findViewById(R.id.text_monitor_status_summary);
-        monitorToggle = findViewById(R.id.button_monitor_toggle);
-        groupsSummary = findViewById(R.id.text_groups_summary);
-        alertsSummary = findViewById(R.id.text_alerts_summary);
         offersContainer = findViewById(R.id.container_offers);
 
-        findViewById(R.id.row_groups).setOnClickListener(view -> startActivity(
-                new Intent(this, TelegramSetupActivity.class)
+        findViewById(R.id.button_settings).setOnClickListener(view -> startActivity(
+                new Intent(this, SettingsActivity.class)
         ));
-        findViewById(R.id.row_alerts).setOnClickListener(view -> startActivity(
-                new Intent(this, AlertsActivity.class)
-        ));
-        monitorToggle.setOnClickListener(view -> toggleMonitor());
     }
 
     @Override
@@ -112,53 +103,13 @@ public class MainActivity extends AppCompatActivity {
         List<Interest> interests = interestRepository.getAll();
         boolean monitorEnabled = isMonitorEnabled();
 
-        if (groupCount == 0) {
-            groupsSummary.setText(R.string.dashboard_no_groups);
-        } else {
-            groupsSummary.setText(getResources().getQuantityString(
-                    R.plurals.dashboard_groups_selected,
-                    groupCount,
-                    groupCount
-            ));
-        }
-        renderInterests(interests);
         renderOffers(offerRepository.getRecent());
 
-        if (groupCount == 0) {
-            statusTitle.setText(R.string.dashboard_status_choose_groups);
-            statusSummary.setText(R.string.dashboard_status_choose_groups_summary);
-            monitorToggle.setVisibility(View.GONE);
+        if (groupCount == 0 || interests.isEmpty() || !monitorEnabled) {
             stopService(new Intent(this, OfferMonitorService.class));
-        } else if (interests.isEmpty()) {
-            statusTitle.setText(R.string.dashboard_status_add_interest);
-            statusSummary.setText(R.string.dashboard_status_add_interest_summary);
-            monitorToggle.setVisibility(View.GONE);
-            stopService(new Intent(this, OfferMonitorService.class));
-        } else if (monitorEnabled) {
-            requestNotificationPermissionIfNeeded();
-            statusTitle.setText(R.string.dashboard_status_active);
-            String groupCountText = getResources().getQuantityString(
-                    R.plurals.dashboard_groups_count,
-                    groupCount,
-                    groupCount
-            );
-            String interestCountText = getResources().getQuantityString(
-                    R.plurals.dashboard_interests_count,
-                    interests.size(),
-                    interests.size()
-            );
-            ContextCompat.startForegroundService(this, new Intent(this, OfferMonitorService.class));
-            statusSummary.setText(buildActiveMonitorSummary(groupCountText, interestCountText));
-            monitorToggle.setImageResource(R.drawable.ic_pause);
-            monitorToggle.setContentDescription(getString(R.string.action_pause));
-            monitorToggle.setVisibility(View.VISIBLE);
         } else {
-            statusTitle.setText(R.string.dashboard_status_paused);
-            statusSummary.setText(R.string.dashboard_status_paused_summary);
-            monitorToggle.setImageResource(R.drawable.ic_play);
-            monitorToggle.setContentDescription(getString(R.string.action_activate));
-            monitorToggle.setVisibility(View.VISIBLE);
-            stopService(new Intent(this, OfferMonitorService.class));
+            requestNotificationPermissionIfNeeded();
+            ContextCompat.startForegroundService(this, new Intent(this, OfferMonitorService.class));
         }
     }
 
@@ -269,63 +220,79 @@ public class MainActivity extends AppCompatActivity {
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
         SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", new Locale("pt", "BR"));
-        int limit = Math.min(offers.size(), 5);
+        int limit = offers.size();
         for (int index = 0; index < limit; index++) {
             ObservedOffer offer = offers.get(index);
-            String summary = getString(
+            String contentDescription = getString(
                     R.string.dashboard_offer_summary,
                     currency.format(offer.getPrice()),
                     offer.getSource(),
                     timeFormat.format(new Date(offer.getObservedAt()))
             );
-            LinearLayout row = createDataRow(
+            LinearLayout row = createOfferRow(
                     offer.getInterest(),
-                    summary,
-                    "%",
-                    R.color.action
+                    currency.format(offer.getPrice()),
+                    getString(
+                            R.string.dashboard_offer_meta,
+                            offer.getSource(),
+                            timeFormat.format(new Date(offer.getObservedAt()))
+                    ),
+                    contentDescription
             );
             if (!offer.getLink().isEmpty()) {
-                row.setBackgroundResource(R.drawable.bg_card_pressed);
                 row.setOnClickListener(view -> startActivity(
                         new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getLink()))
                 ));
             }
-            offersContainer.addView(row);
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            if (index > 0) {
+                rowParams.topMargin = dp(6);
+            }
+            offersContainer.addView(row, rowParams);
         }
     }
 
-    private LinearLayout createDataRow(String title, String summary, String iconText, int iconColor) {
+    private LinearLayout createOfferRow(String title, String price, String meta, String contentDescription) {
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(8), dp(7), dp(6), dp(7));
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setBackgroundResource(R.drawable.bg_offer_row);
+        row.setClickable(true);
+        row.setFocusable(true);
+        row.setPadding(dp(12), dp(9), dp(12), dp(8));
+        row.setContentDescription(contentDescription);
 
-        TextView icon = new TextView(this);
-        icon.setText(iconText);
-        icon.setTextColor(Color.WHITE);
-        icon.setTextSize(14);
-        icon.setGravity(Gravity.CENTER);
-        android.graphics.drawable.GradientDrawable iconBackground = new android.graphics.drawable.GradientDrawable();
-        iconBackground.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        iconBackground.setColor(getColor(iconColor));
-        icon.setBackground(iconBackground);
-        row.addView(icon, new LinearLayout.LayoutParams(dp(32), dp(32)));
+        LinearLayout mainLine = new LinearLayout(this);
+        mainLine.setOrientation(LinearLayout.HORIZONTAL);
+        mainLine.setGravity(Gravity.CENTER_VERTICAL);
 
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        texts.setPadding(dp(12), 0, dp(6), 0);
         TextView titleView = new TextView(this);
         titleView.setText(title);
         titleView.setTextColor(getColor(R.color.text_primary));
-        titleView.setTextSize(16);
-        texts.addView(titleView);
-        TextView summaryView = new TextView(this);
-        summaryView.setText(summary);
-        summaryView.setTextColor(getColor(R.color.text_secondary));
-        summaryView.setTextSize(13);
-        summaryView.setPadding(0, dp(1), 0, 0);
-        texts.addView(summaryView);
-        row.addView(texts, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        titleView.setTextSize(15);
+        titleView.setSingleLine(true);
+        titleView.setEllipsize(TextUtils.TruncateAt.END);
+        mainLine.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView priceView = new TextView(this);
+        priceView.setText(price);
+        priceView.setTextColor(getColor(R.color.action));
+        priceView.setTextSize(15);
+        priceView.setSingleLine(true);
+        priceView.setPadding(dp(10), 0, 0, 0);
+        mainLine.addView(priceView);
+        row.addView(mainLine);
+
+        TextView metaView = new TextView(this);
+        metaView.setText(meta);
+        metaView.setTextColor(getColor(R.color.text_secondary));
+        metaView.setTextSize(12);
+        metaView.setSingleLine(true);
+        metaView.setEllipsize(TextUtils.TruncateAt.END);
+        metaView.setPadding(0, dp(2), 0, 0);
+        row.addView(metaView);
         return row;
     }
 

@@ -92,6 +92,7 @@
     <string name="alerts_screen_title">Alertas</string>
     <string name="alerts_screen_summary">Produtos e preços máximos para avisar.</string>
     <string name="alerts_list_title">Alertas salvos</string>
+    <string name="settings_screen_title">Configurações</string>
     <string name="dashboard_alerts_title">Alertas configurados</string>
     <string name="dashboard_interests_title">Alertas configurados</string>
     <string name="dashboard_no_interests">Nenhum alerta criado.</string>
@@ -100,6 +101,8 @@
     <string name="dashboard_offers_title">Ofertas dentro do limite</string>
     <string name="dashboard_no_offers">Ainda não apareceu nenhuma oferta dentro dos valores configurados.</string>
     <string name="dashboard_offer_summary">%1$s • %2$s • %3$s</string>
+    <string name="dashboard_offer_single_line">%1$s • %2$s • %3$s</string>
+    <string name="dashboard_offer_meta">%1$s • %2$s</string>
     <string name="action_change">Alterar</string>
     <string name="action_manage">Gerenciar</string>
     <string name="action_add">Adicionar</string>
