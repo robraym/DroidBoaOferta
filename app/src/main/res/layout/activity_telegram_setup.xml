@@ -123,6 +123,42 @@
             android:orientation="vertical" />
     </ScrollView>
 
+    <LinearLayout
+        android:id="@+id/search_groups_bar"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginStart="70dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="70dp"
+        android:background="@drawable/bg_search_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@string/search_hint"
+            android:src="@drawable/ic_search" />
+
+        <EditText
+            android:id="@+id/input_search_groups"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="@string/search_hint"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:singleLine="true"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary"
+            android:textSize="18sp" />
+    </LinearLayout>
+
     <Button
         android:id="@+id/button_save_groups"
         android:layout_width="match_parent"

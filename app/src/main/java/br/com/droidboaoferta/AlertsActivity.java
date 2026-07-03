@@ -4,8 +4,10 @@ import android.app.Dialog;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -27,7 +29,9 @@ public class AlertsActivity extends AppCompatActivity {
     private static final String MONITOR_ENABLED = "monitor_enabled";
 
     private InterestRepository interestRepository;
+    private OfferRepository offerRepository;
     private LinearLayout interestsContainer;
+    private EditText interestsSearchInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,10 +39,18 @@ public class AlertsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_alerts);
 
         interestRepository = new InterestRepository(this);
+        offerRepository = new OfferRepository(this);
         interestsContainer = findViewById(R.id.container_interests);
+        interestsSearchInput = findViewById(R.id.input_search_interests);
 
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
         findViewById(R.id.button_add_interest).setOnClickListener(view -> showInterestDialog(null));
+        interestsSearchInput.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable editable) {
+                renderInterests();
+            }
+        });
     }
 
     @Override
@@ -48,7 +60,10 @@ public class AlertsActivity extends AppCompatActivity {
     }
 
     private void renderInterests() {
-        List<Interest> interests = interestRepository.getAll();
+        List<Interest> interests = filterInterests(
+                interestRepository.getAll(),
+                interestsSearchInput.getText().toString()
+        );
         interestsContainer.removeAllViews();
         if (interests.isEmpty()) {
             interestsContainer.addView(createEmptyText(R.string.dashboard_no_interests));
@@ -74,6 +89,23 @@ public class AlertsActivity extends AppCompatActivity {
                 interestsContainer.addView(createDivider());
             }
         }
+    }
+
+    private List<Interest> filterInterests(List<Interest> interests, String query) {
+        String normalizedQuery = OfferTextParser.normalize(query);
+        if (normalizedQuery.isEmpty()) {
+            return interests;
+        }
+        NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
+        List<Interest> filtered = new java.util.ArrayList<>();
+        for (Interest interest : interests) {
+            String text = interest.getTerm() + " " + currency.format(interest.getMaximumPrice())
+                    + " " + interest.getMaximumPrice();
+            if (OfferTextParser.normalize(text).contains(normalizedQuery)) {
+                filtered.add(interest);
+            }
+        }
+        return filtered;
     }
 
     private LinearLayout createInterestRow(String text) {
@@ -173,6 +205,8 @@ public class AlertsActivity extends AppCompatActivity {
         confirm.setTextColor(getColor(R.color.danger));
         confirm.setOnClickListener(view -> {
             interestRepository.remove(interest.getId());
+            offerRepository.clearProcessedForInterest(interest.getId());
+            offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
             dialog.dismiss();
             renderInterests();
         });
@@ -273,9 +307,11 @@ public class AlertsActivity extends AppCompatActivity {
             }
             if (editing) {
                 interestRepository.update(interestToEdit.getId(), term, maximumPrice);
+                offerRepository.clearProcessedForInterest(interestToEdit.getId());
             } else {
                 interestRepository.add(term, maximumPrice);
             }
+            offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
             getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
@@ -338,5 +374,15 @@ public class AlertsActivity extends AppCompatActivity {
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private abstract static class SimpleTextWatcher implements TextWatcher {
+        @Override
+        public void beforeTextChanged(CharSequence text, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(CharSequence text, int start, int before, int count) {
+        }
     }
 }

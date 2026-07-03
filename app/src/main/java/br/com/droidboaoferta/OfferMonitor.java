@@ -72,6 +72,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
             }
 
             ObservedOffer offer = new ObservedOffer(
+                    interest.getId(),
                     interest.getTerm(),
                     sourceTitle,
                     price,

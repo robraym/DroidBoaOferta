@@ -13,8 +13,10 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.net.Uri;
+import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -60,8 +62,10 @@ public class MainActivity extends AppCompatActivity {
     private TextView alertsSummary;
     private LinearLayout offersContainer;
     private ImageButton trashAllOffersButton;
+    private EditText offersSearchInput;
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
+    private List<ObservedOffer> displayedOffers = Collections.emptyList();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,12 +75,19 @@ public class MainActivity extends AppCompatActivity {
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);
         offersContainer = findViewById(R.id.container_offers);
+        offersSearchInput = findViewById(R.id.input_search_offers);
 
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
         ));
         trashAllOffersButton = findViewById(R.id.button_trash_all_offers);
         trashAllOffersButton.setOnClickListener(view -> trashAllOffers());
+        offersSearchInput.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable editable) {
+                renderOffers(displayedOffers);
+            }
+        });
     }
 
     @Override
@@ -283,17 +294,19 @@ public class MainActivity extends AppCompatActivity {
 
     private void renderOffers(List<ObservedOffer> offers) {
         offersContainer.removeAllViews();
+        displayedOffers = offers;
+        List<ObservedOffer> visibleOffers = filterOffers(offers, offersSearchInput.getText().toString());
         trashAllOffersButton.setVisibility(offers.isEmpty() ? View.GONE : View.VISIBLE);
-        if (offers.isEmpty()) {
+        if (visibleOffers.isEmpty()) {
             offersContainer.addView(createEmptyText(R.string.dashboard_no_offers));
             return;
         }
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
         SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", new Locale("pt", "BR"));
-        int limit = offers.size();
+        int limit = visibleOffers.size();
         for (int index = 0; index < limit; index++) {
-            ObservedOffer offer = offers.get(index);
+            ObservedOffer offer = visibleOffers.get(index);
             String contentDescription = getString(
                     R.string.dashboard_offer_summary,
                     currency.format(offer.getPrice()),
@@ -318,6 +331,23 @@ public class MainActivity extends AppCompatActivity {
                 offersContainer.addView(createOfferDivider());
             }
         }
+    }
+
+    private List<ObservedOffer> filterOffers(List<ObservedOffer> offers, String query) {
+        String normalizedQuery = OfferTextParser.normalize(query);
+        if (normalizedQuery.isEmpty()) {
+            return offers;
+        }
+        NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
+        List<ObservedOffer> filtered = new java.util.ArrayList<>();
+        for (ObservedOffer offer : offers) {
+            String text = offer.getInterest() + " " + offer.getSource() + " "
+                    + currency.format(offer.getPrice()) + " " + offer.getPrice();
+            if (OfferTextParser.normalize(text).contains(normalizedQuery)) {
+                filtered.add(offer);
+            }
+        }
+        return filtered;
     }
 
     private FrameLayout createSwipeContainer(View foreground) {
@@ -697,5 +727,15 @@ public class MainActivity extends AppCompatActivity {
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private abstract static class SimpleTextWatcher implements TextWatcher {
+        @Override
+        public void beforeTextChanged(CharSequence text, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(CharSequence text, int start, int before, int count) {
+        }
     }
 }

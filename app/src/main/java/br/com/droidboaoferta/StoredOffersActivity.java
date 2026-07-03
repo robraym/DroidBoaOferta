@@ -6,13 +6,16 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -27,6 +30,7 @@ import java.util.Locale;
 abstract class StoredOffersActivity extends AppCompatActivity {
     private OfferRepository offerRepository;
     private LinearLayout offersContainer;
+    private EditText searchInput;
     private ImageButton headerAction;
 
     abstract int getTitleResource();
@@ -121,8 +125,15 @@ abstract class StoredOffersActivity extends AppCompatActivity {
 
         offerRepository = new OfferRepository(this);
         offersContainer = findViewById(R.id.container_offers);
+        searchInput = findViewById(R.id.input_search_stored_offers);
         ((TextView) findViewById(R.id.text_screen_title)).setText(getTitleResource());
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
+        searchInput.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable editable) {
+                renderOffers();
+            }
+        });
         headerAction = findViewById(R.id.button_header_action);
         if (hasHeaderAction()) {
             headerAction.setImageResource(getHeaderActionIcon());
@@ -153,18 +164,19 @@ abstract class StoredOffersActivity extends AppCompatActivity {
     private void renderOffers() {
         offersContainer.removeAllViews();
         List<ObservedOffer> offers = getOffers(offerRepository);
+        List<ObservedOffer> visibleOffers = filterOffers(offers, searchInput.getText().toString());
         if (headerAction != null) {
             headerAction.setVisibility(hasHeaderAction() && !offers.isEmpty() ? View.VISIBLE : View.GONE);
         }
-        if (offers.isEmpty()) {
+        if (visibleOffers.isEmpty()) {
             offersContainer.addView(createEmptyText());
             return;
         }
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
         SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", new Locale("pt", "BR"));
-        for (int index = 0; index < offers.size(); index++) {
-            ObservedOffer offer = offers.get(index);
+        for (int index = 0; index < visibleOffers.size(); index++) {
+            ObservedOffer offer = visibleOffers.get(index);
             LinearLayout row = createOfferRow(
                     offer,
                     currency.format(offer.getPrice()),
@@ -176,10 +188,27 @@ abstract class StoredOffersActivity extends AppCompatActivity {
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
             offersContainer.addView(row, params);
-            if (index < offers.size() - 1) {
+            if (index < visibleOffers.size() - 1) {
                 offersContainer.addView(createOfferDivider());
             }
         }
+    }
+
+    private List<ObservedOffer> filterOffers(List<ObservedOffer> offers, String query) {
+        String normalizedQuery = OfferTextParser.normalize(query);
+        if (normalizedQuery.isEmpty()) {
+            return offers;
+        }
+        NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
+        List<ObservedOffer> filtered = new java.util.ArrayList<>();
+        for (ObservedOffer offer : offers) {
+            String text = offer.getInterest() + " " + offer.getSource() + " "
+                    + currency.format(offer.getPrice()) + " " + offer.getPrice();
+            if (OfferTextParser.normalize(text).contains(normalizedQuery)) {
+                filtered.add(offer);
+            }
+        }
+        return filtered;
     }
 
     private void showHeaderConfirmationDialog() {
@@ -451,5 +480,15 @@ abstract class StoredOffersActivity extends AppCompatActivity {
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private abstract static class SimpleTextWatcher implements TextWatcher {
+        @Override
+        public void beforeTextChanged(CharSequence text, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(CharSequence text, int start, int before, int count) {
+        }
     }
 }

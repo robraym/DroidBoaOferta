@@ -121,6 +121,7 @@
     <string name="dashboard_interest_limit">Avisar até %1$s</string>
     <string name="dashboard_interest_single_line">%1$s • até %2$s</string>
     <string name="dashboard_offers_title">Ofertas dentro do limite</string>
+    <string name="search_hint">Pesquisar</string>
     <string name="dashboard_no_offers">Ainda não apareceu nenhuma oferta dentro dos valores configurados.</string>
     <string name="dashboard_offer_summary">%1$s • %2$s • %3$s</string>
     <string name="dashboard_offer_single_line">%1$s • %2$s • %3$s</string>

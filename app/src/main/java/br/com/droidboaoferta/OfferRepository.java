@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 final class OfferRepository {
     private static final String PREFS = "offer_preferences";
@@ -42,8 +43,38 @@ final class OfferRepository {
 
     synchronized void add(ObservedOffer offer) {
         List<ObservedOffer> offers = new ArrayList<>(getRecent());
+        offers.removeIf(item -> isSameObservedOffer(item, offer));
         offers.add(0, offer);
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(offers)));
+    }
+
+    synchronized void clearProcessedForInterest(long interestId) {
+        List<String> processed = new ArrayList<>(readProcessedMessages());
+        String suffix = ":" + interestId;
+        processed.removeIf(item -> item.endsWith(suffix));
+        preferences.edit().putString(KEY_PROCESSED_MESSAGES, new JSONArray(processed).toString()).apply();
+    }
+
+    synchronized void reconcileRecentWithInterests(List<Interest> interests) {
+        List<ObservedOffer> recent = new ArrayList<>(readOffers(KEY_OFFERS));
+        List<ObservedOffer> reconciled = new ArrayList<>();
+        for (ObservedOffer offer : recent) {
+            Interest matchingInterest = findMatchingInterest(offer, interests);
+            if (matchingInterest == null || offer.getPrice() > matchingInterest.getMaximumPrice()) {
+                continue;
+            }
+            reconciled.add(new ObservedOffer(
+                    offer.getId(),
+                    matchingInterest.getId(),
+                    matchingInterest.getTerm(),
+                    offer.getSource(),
+                    offer.getPrice(),
+                    matchingInterest.getMaximumPrice(),
+                    offer.getObservedAt(),
+                    offer.getLink()
+            ));
+        }
+        saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(reconciled)));
     }
 
     synchronized void archive(String id) {
@@ -163,6 +194,7 @@ final class OfferRepository {
             for (ObservedOffer item : offers) {
                 array.put(new JSONObject()
                         .put("id", item.getId())
+                        .put("interest_id", item.getInterestId())
                         .put("interest", item.getInterest())
                         .put("source", item.getSource())
                         .put("price", item.getPrice())
@@ -183,6 +215,7 @@ final class OfferRepository {
                 JSONObject item = array.getJSONObject(index);
                 offers.add(new ObservedOffer(
                         item.optString("id", ""),
+                        item.optLong("interest_id", 0L),
                         item.getString("interest"),
                         item.getString("source"),
                         item.getDouble("price"),
@@ -195,6 +228,34 @@ final class OfferRepository {
             return Collections.emptyList();
         }
         return offers;
+    }
+
+    private Interest findMatchingInterest(ObservedOffer offer, List<Interest> interests) {
+        for (Interest interest : interests) {
+            if (offer.getInterestId() != 0L && offer.getInterestId() == interest.getId()) {
+                return interest;
+            }
+        }
+        String normalizedOfferTerm = OfferTextParser.normalize(offer.getInterest());
+        for (Interest interest : interests) {
+            if (normalizedOfferTerm.equals(OfferTextParser.normalize(interest.getTerm()))) {
+                return interest;
+            }
+        }
+        return null;
+    }
+
+    private boolean isSameObservedOffer(ObservedOffer first, ObservedOffer second) {
+        return first.getInterestId() == second.getInterestId()
+                && normalize(first.getInterest()).equals(normalize(second.getInterest()))
+                && normalize(first.getSource()).equals(normalize(second.getSource()))
+                && Double.compare(first.getPrice(), second.getPrice()) == 0
+                && first.getObservedAt() == second.getObservedAt()
+                && first.getLink().equals(second.getLink());
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private List<String> readProcessedMessages() {

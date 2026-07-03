@@ -3,7 +3,9 @@ package br.com.droidboaoferta;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -15,6 +17,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,7 +34,10 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private LinearLayout statusSection;
     private ScrollView groupsScroll;
     private LinearLayout groupsContainer;
+    private LinearLayout groupsSearchBar;
+    private EditText groupsSearchInput;
     private Button saveGroupsButton;
+    private List<TelegramGroup> availableGroups = Collections.emptyList();
     private Set<String> selectedGroupIds;
 
     @Override
@@ -46,11 +52,19 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         statusSection = findViewById(R.id.section_telegram_status);
         groupsScroll = findViewById(R.id.scroll_groups);
         groupsContainer = findViewById(R.id.container_groups);
+        groupsSearchBar = findViewById(R.id.search_groups_bar);
+        groupsSearchInput = findViewById(R.id.input_search_groups);
         saveGroupsButton = findViewById(R.id.button_save_groups);
 
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
         saveGroupsButton.setOnClickListener(view -> saveSelectedGroups());
         continueButton.setOnClickListener(view -> submitAuthenticationValue());
+        groupsSearchInput.addTextChangedListener(new SimpleTextWatcher() {
+            @Override
+            public void afterTextChanged(Editable editable) {
+                renderGroups(availableGroups);
+            }
+        });
 
         SharedPreferences preferences = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         selectedGroupIds = new HashSet<>(preferences.getStringSet(
@@ -98,6 +112,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         boolean ready = state == TelegramClientManager.State.READY;
         statusSection.setVisibility(ready ? View.GONE : View.VISIBLE);
         groupsScroll.setVisibility(ready ? View.VISIBLE : View.GONE);
+        groupsSearchBar.setVisibility(ready ? View.VISIBLE : View.GONE);
         saveGroupsButton.setVisibility(ready ? View.VISIBLE : View.GONE);
 
         switch (state) {
@@ -165,8 +180,10 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     }
 
     private void renderGroups(List<TelegramGroup> groups) {
+        availableGroups = groups;
+        List<TelegramGroup> visibleGroups = filterGroups(groups, groupsSearchInput.getText().toString());
         groupsContainer.removeAllViews();
-        if (groups.isEmpty()) {
+        if (visibleGroups.isEmpty()) {
             TextView emptyView = new TextView(this);
             emptyView.setText(R.string.telegram_no_groups);
             emptyView.setTextColor(getColor(R.color.text_secondary));
@@ -175,8 +192,8 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
             return;
         }
 
-        for (int index = 0; index < groups.size(); index++) {
-            TelegramGroup group = groups.get(index);
+        for (int index = 0; index < visibleGroups.size(); index++) {
+            TelegramGroup group = visibleGroups.get(index);
             CheckBox checkBox = new CheckBox(this);
             String groupId = Long.toString(group.getId());
             checkBox.setTag(groupId);
@@ -187,14 +204,35 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
             checkBox.setMinHeight(dp(44));
             checkBox.setPadding(dp(6), 0, dp(6), 0);
             checkBox.setChecked(selectedGroupIds.contains(groupId));
+            checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                if (isChecked) {
+                    selectedGroupIds.add(groupId);
+                } else {
+                    selectedGroupIds.remove(groupId);
+                }
+            });
             groupsContainer.addView(checkBox, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             ));
-            if (index < groups.size() - 1) {
+            if (index < visibleGroups.size() - 1) {
                 groupsContainer.addView(createDivider());
             }
         }
+    }
+
+    private List<TelegramGroup> filterGroups(List<TelegramGroup> groups, String query) {
+        String normalizedQuery = OfferTextParser.normalize(query);
+        if (normalizedQuery.isEmpty()) {
+            return groups;
+        }
+        List<TelegramGroup> filtered = new java.util.ArrayList<>();
+        for (TelegramGroup group : groups) {
+            if (OfferTextParser.normalize(group.getTitle()).contains(normalizedQuery)) {
+                filtered.add(group);
+            }
+        }
+        return filtered;
     }
 
     private View createDivider() {
@@ -242,13 +280,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     }
 
     private void saveSelectedGroups() {
-        Set<String> selected = new HashSet<>();
-        for (int index = 0; index < groupsContainer.getChildCount(); index++) {
-            View child = groupsContainer.getChildAt(index);
-            if (child instanceof CheckBox && ((CheckBox) child).isChecked()) {
-                selected.add((String) child.getTag());
-            }
-        }
+        Set<String> selected = new HashSet<>(selectedGroupIds);
         getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putStringSet(PREF_SELECTED_GROUPS, selected)
@@ -279,5 +311,15 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private abstract static class SimpleTextWatcher implements TextWatcher {
+        @Override
+        public void beforeTextChanged(CharSequence text, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(CharSequence text, int start, int before, int count) {
+        }
     }
 }
