@@ -41,7 +41,32 @@
     <string name="dashboard_status_add_interest">Crie um alerta de preço</string>
     <string name="dashboard_status_add_interest_summary">Escolha um produto e o valor máximo.</string>
     <string name="dashboard_status_active">Monitor ativo</string>
-    <string name="dashboard_status_active_summary">%1$s • %2$s</string>
+    <string name="dashboard_status_active_summary">%1$s - %2$s</string>
+    <string name="dashboard_telegram_ready">Telegram conectado</string>
+    <string name="dashboard_telegram_connected_for">Conectado ao Telegram %1$s</string>
+    <string name="dashboard_telegram_starting">Conectando ao Telegram</string>
+    <string name="dashboard_telegram_missing_credentials">Credenciais ausentes</string>
+    <string name="dashboard_telegram_login_pending">Login pendente</string>
+    <string name="dashboard_telegram_closed">Telegram fechado</string>
+    <string name="dashboard_telegram_attention">Ação pendente</string>
+    <string name="dashboard_monitor_starting">Monitor iniciando</string>
+    <string name="dashboard_waiting_messages">Nenhuma mensagem analisada ainda</string>
+    <string name="dashboard_last_message_format">Última mensagem: %1$s</string>
+    <string name="dashboard_last_analysis_format">Última análise: %1$s</string>
+    <string name="dashboard_notifications_blocked">Notificações bloqueadas</string>
+    <string name="time_now">agora</string>
+    <plurals name="time_minutes_ago">
+        <item quantity="one">há %d min</item>
+        <item quantity="other">há %d min</item>
+    </plurals>
+    <plurals name="time_hours_ago">
+        <item quantity="one">há %d h</item>
+        <item quantity="other">há %d h</item>
+    </plurals>
+    <plurals name="time_days_ago">
+        <item quantity="one">há %d dia</item>
+        <item quantity="other">há %d dias</item>
+    </plurals>
     <plurals name="dashboard_groups_count">
         <item quantity="one">%d grupo</item>
         <item quantity="other">%d grupos</item>

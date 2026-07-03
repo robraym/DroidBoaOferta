@@ -64,7 +64,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:text="@string/dashboard_status_choose_groups_summary"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />

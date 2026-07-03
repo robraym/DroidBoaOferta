@@ -86,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         IntentFilter filter = new IntentFilter(OfferMonitor.ACTION_OFFER_FOUND);
+        filter.addAction(MonitorStatusStore.ACTION_STATUS_CHANGED);
         ContextCompat.registerReceiver(
                 this,
                 offerReceiver,
@@ -146,15 +147,11 @@ public class MainActivity extends AppCompatActivity {
                     interests.size(),
                     interests.size()
             );
-            statusSummary.setText(getString(
-                    R.string.dashboard_status_active_summary,
-                    groupCountText,
-                    interestCountText
-            ));
+            ContextCompat.startForegroundService(this, new Intent(this, OfferMonitorService.class));
+            statusSummary.setText(buildActiveMonitorSummary(groupCountText, interestCountText));
             monitorToggle.setImageResource(R.drawable.ic_pause);
             monitorToggle.setContentDescription(getString(R.string.action_pause));
             monitorToggle.setVisibility(View.VISIBLE);
-            ContextCompat.startForegroundService(this, new Intent(this, OfferMonitorService.class));
         } else {
             statusTitle.setText(R.string.dashboard_status_paused);
             statusSummary.setText(R.string.dashboard_status_paused_summary);
@@ -175,6 +172,92 @@ public class MainActivity extends AppCompatActivity {
                 interests.size(),
                 interests.size()
         ));
+    }
+
+    private String buildActiveMonitorSummary(String groupCountText, String interestCountText) {
+        MonitorStatusStore.Snapshot snapshot = MonitorStatusStore.read(this);
+        String configuration = getString(
+                R.string.dashboard_status_active_summary,
+                groupCountText,
+                interestCountText
+        );
+        String runtime = getTelegramConnectionText(snapshot);
+        return configuration + "\n" + runtime;
+    }
+
+    private String getTelegramConnectionText(MonitorStatusStore.Snapshot snapshot) {
+        TelegramClientManager.State state;
+        try {
+            state = TelegramClientManager.State.valueOf(snapshot.telegramState);
+        } catch (IllegalArgumentException exception) {
+            state = TelegramClientManager.State.STARTING;
+        }
+        if (state == TelegramClientManager.State.READY) {
+            long connectedAt = snapshot.telegramConnectedAt == 0L
+                    ? System.currentTimeMillis()
+                    : snapshot.telegramConnectedAt;
+            return getString(R.string.dashboard_telegram_connected_for, formatRelativeTime(connectedAt));
+        }
+        return getTelegramStateText(snapshot.telegramState);
+    }
+
+    private String getTelegramStateText(String stateName) {
+        TelegramClientManager.State state;
+        try {
+            state = TelegramClientManager.State.valueOf(stateName);
+        } catch (IllegalArgumentException exception) {
+            state = TelegramClientManager.State.STARTING;
+        }
+        switch (state) {
+            case READY:
+                return getString(R.string.dashboard_telegram_ready);
+            case MISSING_CREDENTIALS:
+                return getString(R.string.dashboard_telegram_missing_credentials);
+            case WAITING_PHONE:
+            case WAITING_EMAIL:
+            case WAITING_EMAIL_CODE:
+            case WAITING_CODE:
+            case WAITING_PASSWORD:
+                return getString(R.string.dashboard_telegram_login_pending);
+            case CLOSED:
+                return getString(R.string.dashboard_telegram_closed);
+            case UNSUPPORTED_AUTHORIZATION:
+                return getString(R.string.dashboard_telegram_attention);
+            case STARTING:
+            default:
+                return getString(R.string.dashboard_telegram_starting);
+        }
+    }
+
+    private String getLastAnalysisText(MonitorStatusStore.Snapshot snapshot) {
+        if (!snapshot.serviceRunning) {
+            return getString(R.string.dashboard_monitor_starting);
+        }
+        if (snapshot.lastAnalyzedMessageAt > 0) {
+            return getString(R.string.dashboard_last_analysis_format, formatRelativeTime(snapshot.lastAnalyzedMessageAt));
+        }
+        if (snapshot.lastSelectedMessageAt > 0) {
+            return getString(R.string.dashboard_last_message_format, formatRelativeTime(snapshot.lastSelectedMessageAt));
+        }
+        return getString(R.string.dashboard_waiting_messages);
+    }
+
+    private String formatRelativeTime(long timestamp) {
+        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - timestamp);
+        long minutes = elapsedMillis / 60000L;
+        if (minutes < 1) {
+            return getString(R.string.time_now);
+        }
+        if (minutes < 60) {
+            return getResources().getQuantityString(R.plurals.time_minutes_ago, (int) minutes, (int) minutes);
+        }
+        long hours = minutes / 60L;
+        if (hours < 24) {
+            return getResources().getQuantityString(R.plurals.time_hours_ago, (int) hours, (int) hours);
+        }
+        long days = hours / 24L;
+        int safeDays = (int) Math.min(days, Integer.MAX_VALUE);
+        return getResources().getQuantityString(R.plurals.time_days_ago, safeDays, safeDays);
     }
 
     private void renderOffers(List<ObservedOffer> offers) {

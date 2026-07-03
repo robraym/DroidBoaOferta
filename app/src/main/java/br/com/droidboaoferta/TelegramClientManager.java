@@ -239,6 +239,7 @@ final class TelegramClientManager {
         JSONObject chat = chats.get(chatId);
         String sourceTitle = chat == null ? appContext.getString(R.string.telegram_source_unknown)
                 : chat.optString("title", appContext.getString(R.string.telegram_source_unknown));
+        MonitorStatusStore.markSelectedMessage(appContext);
         currentListener.onNewMessage(
                 chatId,
                 message.optLong("id"),
@@ -356,6 +357,7 @@ final class TelegramClientManager {
 
     private void changeState(State newState) {
         state = newState;
+        MonitorStatusStore.setTelegramState(appContext, newState);
         notifyState();
     }
 
@@ -374,6 +376,7 @@ final class TelegramClientManager {
     }
 
     private void notifyError(String message) {
+        MonitorStatusStore.setLastError(appContext, message);
         Listener currentListener = listener;
         if (currentListener != null) {
             currentListener.onError(message);

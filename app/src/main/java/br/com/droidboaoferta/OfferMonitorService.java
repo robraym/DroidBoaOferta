@@ -13,12 +13,13 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 public class OfferMonitorService extends Service {
-    private static final String CHANNEL_MONITOR = "offer_monitor";
+    private static final String CHANNEL_MONITOR = "offer_monitor_status";
     private static final int NOTIFICATION_ID = 4101;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        MonitorStatusStore.setServiceRunning(this, true);
         createChannel();
         startForeground(NOTIFICATION_ID, createNotification());
         OfferMonitor.getInstance().start(this);
@@ -33,6 +34,12 @@ public class OfferMonitorService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onDestroy() {
+        MonitorStatusStore.setServiceRunning(this, false);
+        super.onDestroy();
     }
 
     private Notification createNotification() {
@@ -50,6 +57,7 @@ public class OfferMonitorService extends Service {
                 .setContentText(getString(R.string.monitor_service_summary))
                 .setOngoing(true)
                 .setContentIntent(pendingIntent)
+                .setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
     }
@@ -64,6 +72,7 @@ public class OfferMonitorService extends Service {
                 NotificationManager.IMPORTANCE_LOW
         );
         channel.setDescription(getString(R.string.monitor_channel_description));
+        channel.setShowBadge(false);
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(channel);
     }

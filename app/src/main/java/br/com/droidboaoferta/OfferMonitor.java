@@ -55,6 +55,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         if (!offerRepository.markMessageProcessed(chatId, messageId)) {
             return;
         }
+        MonitorStatusStore.markAnalyzedMessage(appContext);
 
         double price = OfferTextParser.extractPrice(text);
         if (Double.isNaN(price)) {
@@ -80,6 +81,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                     OfferTextParser.extractLink(text)
             );
             offerRepository.add(offer);
+            MonitorStatusStore.markApprovedOffer(appContext);
             showOfferNotification(offer, chatId, messageId);
             appContext.sendBroadcast(new Intent(ACTION_OFFER_FOUND).setPackage(appContext.getPackageName()));
         }
