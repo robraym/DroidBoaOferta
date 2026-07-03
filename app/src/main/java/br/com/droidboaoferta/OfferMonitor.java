@@ -45,7 +45,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
     }
 
     @Override
-    public void onNewMessage(long chatId, long messageId, String sourceTitle, String text) {
+    public void onNewMessage(long chatId, long messageId, long messageDate, String sourceTitle, String text) {
         Set<String> selectedGroups = appContext
                 .getSharedPreferences("telegram_preferences", Context.MODE_PRIVATE)
                 .getStringSet("selected_groups", java.util.Collections.emptySet());
@@ -76,7 +76,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                     sourceTitle,
                     price,
                     interest.getMaximumPrice(),
-                    System.currentTimeMillis(),
+                    messageDate > 0L ? messageDate : System.currentTimeMillis(),
                     OfferTextParser.extractLink(text)
             );
             offerRepository.add(offer);

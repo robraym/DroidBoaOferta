@@ -16,10 +16,13 @@ import android.net.Uri;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewParent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -71,6 +74,13 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.button_settings).setOnClickListener(view -> startActivity(
                 new Intent(this, SettingsActivity.class)
         ));
+        findViewById(R.id.button_archived).setOnClickListener(view -> startActivity(
+                new Intent(this, ArchivedOffersActivity.class)
+        ));
+        findViewById(R.id.button_trash).setOnClickListener(view -> startActivity(
+                new Intent(this, TrashedOffersActivity.class)
+        ));
+        findViewById(R.id.button_trash_all_offers).setOnClickListener(view -> trashAllOffers());
     }
 
     @Override
@@ -110,6 +120,70 @@ public class MainActivity extends AppCompatActivity {
         } else {
             requestNotificationPermissionIfNeeded();
             ContextCompat.startForegroundService(this, new Intent(this, OfferMonitorService.class));
+        }
+    }
+
+    private void trashAllOffers() {
+        if (offerRepository.getRecent().isEmpty()) {
+            Toast.makeText(this, R.string.dashboard_no_offers, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.trash_all_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(R.string.trash_all_dialog_message);
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(8), 0, dp(16));
+        content.addView(message);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView cancel = createDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        TextView confirm = createDialogAction(R.string.action_confirm);
+        confirm.setTextColor(getColor(R.color.danger));
+        confirm.setOnClickListener(view -> {
+            dialog.dismiss();
+            performTrashAllOffers();
+        });
+        actions.addView(confirm);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private void performTrashAllOffers() {
+        if (offerRepository.trashAllRecent()) {
+            Toast.makeText(this, R.string.offers_trashed, Toast.LENGTH_SHORT).show();
+            refreshDashboard();
         }
     }
 
@@ -232,18 +306,12 @@ public class MainActivity extends AppCompatActivity {
             LinearLayout row = createOfferRow(
                     offer.getInterest(),
                     currency.format(offer.getPrice()),
-                    getString(
-                            R.string.dashboard_offer_meta,
-                            offer.getSource(),
-                            timeFormat.format(new Date(offer.getObservedAt()))
-                    ),
+                    timeFormat.format(new Date(offer.getObservedAt())),
+                    offer.getSource(),
                     contentDescription
             );
-            if (!offer.getLink().isEmpty()) {
-                row.setOnClickListener(view -> startActivity(
-                        new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getLink()))
-                ));
-            }
+            FrameLayout swipeContainer = createSwipeContainer(row);
+            attachSwipeActions(row, offer);
             LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
@@ -251,11 +319,50 @@ public class MainActivity extends AppCompatActivity {
             if (index > 0) {
                 rowParams.topMargin = dp(6);
             }
-            offersContainer.addView(row, rowParams);
+            offersContainer.addView(swipeContainer, rowParams);
         }
     }
 
-    private LinearLayout createOfferRow(String title, String price, String meta, String contentDescription) {
+    private FrameLayout createSwipeContainer(View foreground) {
+        FrameLayout container = new FrameLayout(this);
+        container.setClipChildren(false);
+
+        LinearLayout background = new LinearLayout(this);
+        background.setGravity(Gravity.CENTER_VERTICAL);
+        background.setOrientation(LinearLayout.HORIZONTAL);
+        background.setPadding(dp(12), 0, dp(12), 0);
+
+        ImageView trashIcon = createSwipeActionIcon(R.drawable.ic_trash_outline, R.drawable.bg_icon_danger);
+        background.addView(trashIcon, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        View spacer = new View(this);
+        background.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+
+        ImageView archiveIcon = createSwipeActionIcon(R.drawable.ic_archive, R.drawable.bg_button_inline);
+        background.addView(archiveIcon, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        container.addView(background, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        container.addView(foreground, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+        ));
+        return container;
+    }
+
+    private ImageView createSwipeActionIcon(int iconResource, int backgroundResource) {
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconResource);
+        icon.setBackgroundResource(backgroundResource);
+        icon.setPadding(dp(9), dp(9), dp(9), dp(9));
+        icon.setScaleType(ImageView.ScaleType.CENTER);
+        return icon;
+    }
+
+    private LinearLayout createOfferRow(String title, String price, String time, String source,
+                                        String contentDescription) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setBackgroundResource(R.drawable.bg_offer_row);
@@ -278,22 +385,102 @@ public class MainActivity extends AppCompatActivity {
 
         TextView priceView = new TextView(this);
         priceView.setText(price);
-        priceView.setTextColor(getColor(R.color.action));
+        priceView.setTextColor(getColor(R.color.text_primary));
         priceView.setTextSize(15);
         priceView.setSingleLine(true);
         priceView.setPadding(dp(10), 0, 0, 0);
         mainLine.addView(priceView);
         row.addView(mainLine);
 
-        TextView metaView = new TextView(this);
-        metaView.setText(meta);
-        metaView.setTextColor(getColor(R.color.text_secondary));
-        metaView.setTextSize(12);
-        metaView.setSingleLine(true);
-        metaView.setEllipsize(TextUtils.TruncateAt.END);
-        metaView.setPadding(0, dp(2), 0, 0);
-        row.addView(metaView);
+        LinearLayout metaLine = new LinearLayout(this);
+        metaLine.setOrientation(LinearLayout.HORIZONTAL);
+        metaLine.setGravity(Gravity.CENTER_VERTICAL);
+        metaLine.setPadding(0, dp(2), 0, 0);
+
+        TextView timeView = new TextView(this);
+        timeView.setText(time);
+        timeView.setTextColor(getColor(R.color.action));
+        timeView.setTextSize(12);
+        timeView.setSingleLine(true);
+        metaLine.addView(timeView);
+
+        TextView sourceView = new TextView(this);
+        sourceView.setText(source);
+        sourceView.setTextColor(getColor(R.color.text_secondary));
+        sourceView.setTextSize(12);
+        sourceView.setSingleLine(true);
+        sourceView.setEllipsize(TextUtils.TruncateAt.END);
+        sourceView.setPadding(dp(8), 0, 0, 0);
+        metaLine.addView(sourceView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row.addView(metaLine);
         return row;
+    }
+
+    private void attachSwipeActions(View row, ObservedOffer offer) {
+        final float[] downX = new float[1];
+        final float[] downY = new float[1];
+        final boolean[] swiping = new boolean[1];
+        row.setOnTouchListener((view, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    downX[0] = event.getRawX();
+                    downY[0] = event.getRawY();
+                    swiping[0] = false;
+                    view.animate().cancel();
+                    view.setTranslationX(0);
+                    requestParentIntercept(view, false);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float moveX = event.getRawX() - downX[0];
+                    float moveY = event.getRawY() - downY[0];
+                    if (Math.abs(moveX) > dp(12) && Math.abs(moveX) > Math.abs(moveY)) {
+                        swiping[0] = true;
+                        requestParentIntercept(view, true);
+                        float limitedMove = Math.max(-dp(96), Math.min(dp(96), moveX));
+                        view.setTranslationX(limitedMove);
+                    } else if (Math.abs(moveY) > dp(12) && Math.abs(moveY) > Math.abs(moveX)) {
+                        requestParentIntercept(view, false);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    float deltaX = event.getRawX() - downX[0];
+                    float deltaY = event.getRawY() - downY[0];
+                    requestParentIntercept(view, false);
+                    view.animate().translationX(0).setDuration(120).start();
+                    if (Math.abs(deltaX) > dp(56) && Math.abs(deltaX) > Math.abs(deltaY) * 1.2f) {
+                        if (deltaX < 0) {
+                            offerRepository.archive(offer.getId());
+                            Toast.makeText(this, R.string.offer_archived, Toast.LENGTH_SHORT).show();
+                        } else {
+                            offerRepository.trash(offer.getId());
+                            Toast.makeText(this, R.string.offer_trashed, Toast.LENGTH_SHORT).show();
+                        }
+                        refreshDashboard();
+                        return true;
+                    }
+                    if (!swiping[0]
+                            && Math.abs(deltaX) < dp(10)
+                            && Math.abs(deltaY) < dp(10)
+                            && !offer.getLink().isEmpty()) {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getLink())));
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    requestParentIntercept(view, false);
+                    view.animate().translationX(0).setDuration(120).start();
+                    return true;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    private void requestParentIntercept(View view, boolean disallow) {
+        ViewParent parent = view.getParent();
+        while (parent != null) {
+            parent.requestDisallowInterceptTouchEvent(disallow);
+            parent = parent.getParent();
+        }
     }
 
     private LinearLayout createInterestRow(String text, String contentDescription) {

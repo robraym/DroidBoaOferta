@@ -42,7 +42,7 @@ final class TelegramClientManager {
     }
 
     interface MessageListener {
-        void onNewMessage(long chatId, long messageId, String sourceTitle, String text);
+        void onNewMessage(long chatId, long messageId, long messageDate, String sourceTitle, String text);
     }
 
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
@@ -278,6 +278,7 @@ final class TelegramClientManager {
         currentListener.onNewMessage(
                 chatId,
                 message.optLong("id"),
+                message.optLong("date") * 1000L,
                 sourceTitle,
                 formattedText.optString("text")
         );

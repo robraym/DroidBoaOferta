@@ -26,6 +26,28 @@
             android:textStyle="bold" />
 
         <ImageButton
+            android:id="@+id/button_archived"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_button_inline"
+            android:contentDescription="@string/archived_screen_title"
+            android:padding="9dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_archive" />
+
+        <ImageButton
+            android:id="@+id/button_trash"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_icon_danger"
+            android:contentDescription="@string/trash_screen_title"
+            android:padding="9dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_trash_outline" />
+
+        <ImageButton
             android:id="@+id/button_settings"
             android:layout_width="40dp"
             android:layout_height="40dp"
@@ -53,22 +75,23 @@
             android:paddingStart="10dp"
             android:paddingEnd="10dp">
 
-            <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@drawable/bg_icon_circle"
-                android:contentDescription="@string/dashboard_offers_title"
-                android:padding="7dp"
-                android:src="@drawable/ic_offer_tag" />
-
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
                 android:layout_weight="1"
                 android:text="@string/dashboard_offers_title"
                 android:textColor="@color/text_primary"
-                android:textSize="17sp" />
+                android:textSize="18sp" />
+
+            <ImageButton
+                android:id="@+id/button_trash_all_offers"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_icon_danger"
+                android:contentDescription="@string/action_trash_all_offers"
+                android:padding="8dp"
+                android:scaleType="center"
+                android:src="@drawable/ic_trash_outline" />
         </LinearLayout>
 
         <ScrollView

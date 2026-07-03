@@ -29,6 +29,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".ArchivedOffersActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".TrashedOffersActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".SettingsActivity"
             android:exported="false" />
 
