@@ -114,6 +114,10 @@
     <string name="trash_all_dialog_message">Todas as ofertas da tela principal sairão da lista e poderão ser restauradas pela Lixeira.</string>
     <string name="clear_trash_dialog_title">Limpar lixeira?</string>
     <string name="clear_trash_dialog_message">As ofertas da lixeira serão apagadas definitivamente.</string>
+    <string name="remove_alert_dialog_title">Remover alerta?</string>
+    <string name="remove_alert_dialog_message">O alerta “%1$s” será removido.</string>
+    <string name="delete_offer_dialog_title">Excluir oferta?</string>
+    <string name="delete_offer_dialog_message">A oferta “%1$s” será excluída definitivamente.</string>
     <string name="action_change">Alterar</string>
     <string name="action_manage">Gerenciar</string>
     <string name="action_add">Adicionar</string>

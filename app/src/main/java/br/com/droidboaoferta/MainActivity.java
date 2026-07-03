@@ -59,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView groupsSummary;
     private TextView alertsSummary;
     private LinearLayout offersContainer;
+    private ImageButton trashAllOffersButton;
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
 
@@ -80,7 +81,8 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.button_trash).setOnClickListener(view -> startActivity(
                 new Intent(this, TrashedOffersActivity.class)
         ));
-        findViewById(R.id.button_trash_all_offers).setOnClickListener(view -> trashAllOffers());
+        trashAllOffersButton = findViewById(R.id.button_trash_all_offers);
+        trashAllOffersButton.setOnClickListener(view -> trashAllOffers());
     }
 
     @Override
@@ -287,6 +289,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void renderOffers(List<ObservedOffer> offers) {
         offersContainer.removeAllViews();
+        trashAllOffersButton.setVisibility(offers.isEmpty() ? View.GONE : View.VISIBLE);
         if (offers.isEmpty()) {
             offersContainer.addView(createEmptyText(R.string.dashboard_no_offers));
             return;

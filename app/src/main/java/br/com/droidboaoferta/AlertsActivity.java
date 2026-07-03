@@ -63,12 +63,9 @@ public class AlertsActivity extends AppCompatActivity {
             ));
             ImageButton edit = createEditInterestButton();
             edit.setOnClickListener(view -> showInterestDialog(interest));
-            row.addView(edit);
+            row.addView(edit, 0);
             ImageButton remove = createRemoveInterestButton();
-            remove.setOnClickListener(view -> {
-                interestRepository.remove(interest.getId());
-                renderInterests();
-            });
+            remove.setOnClickListener(view -> showRemoveInterestConfirmation(interest));
             row.addView(remove);
             interestsContainer.addView(row);
         }
@@ -109,7 +106,7 @@ public class AlertsActivity extends AppCompatActivity {
         button.setScaleType(ImageView.ScaleType.CENTER);
         button.setPadding(dp(7), dp(7), dp(7), dp(7));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(30), dp(30));
-        params.leftMargin = dp(6);
+        params.rightMargin = dp(8);
         button.setLayoutParams(params);
         return button;
     }
@@ -126,6 +123,60 @@ public class AlertsActivity extends AppCompatActivity {
         params.leftMargin = dp(6);
         button.setLayoutParams(params);
         return button;
+    }
+
+    private void showRemoveInterestConfirmation(Interest interest) {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.remove_alert_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(getString(R.string.remove_alert_dialog_message, interest.getTerm()));
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(8), 0, dp(16));
+        content.addView(message);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView cancel = createDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        TextView confirm = createDialogAction(R.string.action_confirm);
+        confirm.setTextColor(getColor(R.color.danger));
+        confirm.setOnClickListener(view -> {
+            interestRepository.remove(interest.getId());
+            dialog.dismiss();
+            renderInterests();
+        });
+        actions.addView(confirm);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
     }
 
     private void showInterestDialog(Interest interestToEdit) {

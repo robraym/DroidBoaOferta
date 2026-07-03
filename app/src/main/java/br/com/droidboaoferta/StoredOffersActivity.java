@@ -27,6 +27,7 @@ import java.util.Locale;
 abstract class StoredOffersActivity extends AppCompatActivity {
     private OfferRepository offerRepository;
     private LinearLayout offersContainer;
+    private ImageButton headerAction;
 
     abstract int getTitleResource();
 
@@ -76,6 +77,14 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         return true;
     }
 
+    int getDeleteConfirmationTitle() {
+        return R.string.delete_offer_dialog_title;
+    }
+
+    int getDeleteConfirmationMessage() {
+        return R.string.delete_offer_dialog_message;
+    }
+
     boolean hasHeaderAction() {
         return false;
     }
@@ -114,13 +123,16 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         offersContainer = findViewById(R.id.container_offers);
         ((TextView) findViewById(R.id.text_screen_title)).setText(getTitleResource());
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
-        ImageButton headerAction = findViewById(R.id.button_header_action);
+        headerAction = findViewById(R.id.button_header_action);
         if (hasHeaderAction()) {
             headerAction.setImageResource(getHeaderActionIcon());
             headerAction.setBackgroundResource(getHeaderActionBackground());
             headerAction.setContentDescription(getString(getHeaderActionDescription()));
-            headerAction.setVisibility(View.VISIBLE);
             headerAction.setOnClickListener(view -> {
+                if (getOffers(offerRepository).isEmpty()) {
+                    headerAction.setVisibility(View.GONE);
+                    return;
+                }
                 if (getHeaderConfirmationTitle() != 0 && getHeaderConfirmationMessage() != 0) {
                     showHeaderConfirmationDialog();
                 } else {
@@ -141,6 +153,9 @@ abstract class StoredOffersActivity extends AppCompatActivity {
     private void renderOffers() {
         offersContainer.removeAllViews();
         List<ObservedOffer> offers = getOffers(offerRepository);
+        if (headerAction != null) {
+            headerAction.setVisibility(hasHeaderAction() && !offers.isEmpty() ? View.VISIBLE : View.GONE);
+        }
         if (offers.isEmpty()) {
             offersContainer.addView(createEmptyText());
             return;
@@ -319,8 +334,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
                     R.string.action_delete_offer
             );
             delete.setOnClickListener(view -> {
-                deleteOffer(offerRepository, offer.getId());
-                renderOffers();
+                showDeleteConfirmationDialog(offer);
             });
             LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(dp(32), dp(32));
             deleteParams.leftMargin = dp(8);
@@ -333,6 +347,60 @@ abstract class StoredOffersActivity extends AppCompatActivity {
             ));
         }
         return row;
+    }
+
+    private void showDeleteConfirmationDialog(ObservedOffer offer) {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(getDeleteConfirmationTitle());
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(getString(getDeleteConfirmationMessage(), offer.getInterest()));
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(8), 0, dp(16));
+        content.addView(message);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView cancel = createDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        TextView confirm = createDialogAction(R.string.action_confirm);
+        confirm.setTextColor(getColor(R.color.danger));
+        confirm.setOnClickListener(view -> {
+            deleteOffer(offerRepository, offer.getId());
+            dialog.dismiss();
+            renderOffers();
+        });
+        actions.addView(confirm);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
     }
 
     private ImageButton createActionButton(int iconResource, int backgroundResource, int colorResource,
