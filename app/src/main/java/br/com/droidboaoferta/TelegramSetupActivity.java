@@ -175,22 +175,39 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
             return;
         }
 
-        for (TelegramGroup group : groups) {
+        for (int index = 0; index < groups.size(); index++) {
+            TelegramGroup group = groups.get(index);
             CheckBox checkBox = new CheckBox(this);
             String groupId = Long.toString(group.getId());
             checkBox.setTag(groupId);
             checkBox.setText(group.getTitle());
             checkBox.setTextColor(getColor(R.color.text_primary));
-            checkBox.setTextSize(16);
+            checkBox.setTextSize(14.5f);
             checkBox.setButtonTintList(getColorStateList(R.color.selector_checkbox));
-            checkBox.setMinHeight(dp(48));
-            checkBox.setPadding(dp(8), 0, dp(8), 0);
+            checkBox.setMinHeight(dp(44));
+            checkBox.setPadding(dp(6), 0, dp(6), 0);
             checkBox.setChecked(selectedGroupIds.contains(groupId));
             groupsContainer.addView(checkBox, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             ));
+            if (index < groups.size() - 1) {
+                groupsContainer.addView(createDivider());
+            }
         }
+    }
+
+    private View createDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.divider));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        params.leftMargin = dp(42);
+        params.rightMargin = dp(6);
+        divider.setLayoutParams(params);
+        return divider;
     }
 
     private void submitAuthenticationValue() {

@@ -175,10 +175,10 @@ abstract class StoredOffersActivity extends AppCompatActivity {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
-            if (index > 0) {
-                params.topMargin = dp(6);
-            }
             offersContainer.addView(row, params);
+            if (index < offers.size() - 1) {
+                offersContainer.addView(createOfferDivider());
+            }
         }
     }
 
@@ -244,8 +244,8 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackgroundResource(R.drawable.bg_offer_row);
-        row.setPadding(dp(12), dp(9), dp(8), dp(8));
+        row.setBackgroundColor(getColor(R.color.card));
+        row.setPadding(dp(10), dp(7), dp(10), dp(7));
 
         if (hasLeadingAction()) {
             ImageButton leading = createActionButton(
@@ -273,7 +273,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         TextView titleView = new TextView(this);
         titleView.setText(offer.getInterest());
         titleView.setTextColor(getColor(R.color.text_primary));
-        titleView.setTextSize(15);
+        titleView.setTextSize(14);
         titleView.setSingleLine(true);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         mainLine.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -281,9 +281,9 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         TextView priceView = new TextView(this);
         priceView.setText(price);
         priceView.setTextColor(getColor(R.color.text_primary));
-        priceView.setTextSize(15);
+        priceView.setTextSize(14);
         priceView.setSingleLine(true);
-        priceView.setPadding(dp(10), 0, 0, 0);
+        priceView.setPadding(dp(6), 0, 0, 0);
         mainLine.addView(priceView);
         texts.addView(mainLine);
 
@@ -295,17 +295,17 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         TextView timeView = new TextView(this);
         timeView.setText(time);
         timeView.setTextColor(getColor(R.color.action));
-        timeView.setTextSize(12);
+        timeView.setTextSize(11.5f);
         timeView.setSingleLine(true);
         metaLine.addView(timeView);
 
         TextView sourceView = new TextView(this);
         sourceView.setText(source);
         sourceView.setTextColor(getColor(R.color.text_secondary));
-        sourceView.setTextSize(12);
+        sourceView.setTextSize(11.5f);
         sourceView.setSingleLine(true);
         sourceView.setEllipsize(TextUtils.TruncateAt.END);
-        sourceView.setPadding(dp(8), 0, 0, 0);
+        sourceView.setPadding(dp(4), 0, 0, 0);
         metaLine.addView(sourceView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         texts.addView(metaLine);
         row.addView(texts, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -323,6 +323,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
             });
             LinearLayout.LayoutParams secondaryParams = new LinearLayout.LayoutParams(dp(32), dp(32));
             secondaryParams.leftMargin = dp(8);
+            secondaryParams.rightMargin = dp(4);
             row.addView(secondary, secondaryParams);
         }
 
@@ -338,6 +339,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
             });
             LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(dp(32), dp(32));
             deleteParams.leftMargin = dp(8);
+            deleteParams.rightMargin = dp(4);
             row.addView(delete, deleteParams);
         }
 
@@ -347,6 +349,19 @@ abstract class StoredOffersActivity extends AppCompatActivity {
             ));
         }
         return row;
+    }
+
+    private View createOfferDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.divider));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        params.leftMargin = dp(10);
+        params.rightMargin = dp(10);
+        divider.setLayoutParams(params);
+        return divider;
     }
 
     private void showDeleteConfirmationDialog(ObservedOffer offer) {

@@ -1,15 +1,22 @@
 package br.com.droidboaoferta;
 
 import android.Manifest;
+import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -34,9 +41,8 @@ public class SettingsActivity extends AppCompatActivity {
 
     private TextView statusTitle;
     private TextView statusSummary;
+    private TextView themeSummary;
     private ImageButton monitorToggle;
-    private TextView groupsSummary;
-    private TextView alertsSummary;
     private InterestRepository interestRepository;
 
     @Override
@@ -47,17 +53,11 @@ public class SettingsActivity extends AppCompatActivity {
         interestRepository = new InterestRepository(this);
         statusTitle = findViewById(R.id.text_monitor_status_title);
         statusSummary = findViewById(R.id.text_monitor_status_summary);
+        themeSummary = findViewById(R.id.text_theme_summary);
         monitorToggle = findViewById(R.id.button_monitor_toggle);
-        groupsSummary = findViewById(R.id.text_groups_summary);
-        alertsSummary = findViewById(R.id.text_alerts_summary);
 
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
-        findViewById(R.id.row_groups).setOnClickListener(view -> startActivity(
-                new Intent(this, TelegramSetupActivity.class)
-        ));
-        findViewById(R.id.row_alerts).setOnClickListener(view -> startActivity(
-                new Intent(this, AlertsActivity.class)
-        ));
+        findViewById(R.id.row_theme).setOnClickListener(view -> showThemeDialog());
         monitorToggle.setOnClickListener(view -> toggleMonitor());
     }
 
@@ -89,17 +89,7 @@ public class SettingsActivity extends AppCompatActivity {
         int groupCount = getSelectedGroupCount();
         List<Interest> interests = interestRepository.getAll();
         boolean monitorEnabled = isMonitorEnabled();
-
-        if (groupCount == 0) {
-            groupsSummary.setText(R.string.dashboard_no_groups);
-        } else {
-            groupsSummary.setText(getResources().getQuantityString(
-                    R.plurals.dashboard_groups_selected,
-                    groupCount,
-                    groupCount
-            ));
-        }
-        renderInterests(interests);
+        themeSummary.setText(ThemeController.getSummaryResource(ThemeController.getSavedMode(this)));
 
         if (groupCount == 0) {
             statusTitle.setText(R.string.dashboard_status_choose_groups);
@@ -137,18 +127,6 @@ public class SettingsActivity extends AppCompatActivity {
             monitorToggle.setVisibility(View.VISIBLE);
             stopService(new Intent(this, OfferMonitorService.class));
         }
-    }
-
-    private void renderInterests(List<Interest> interests) {
-        if (interests.isEmpty()) {
-            alertsSummary.setText(R.string.dashboard_no_interests);
-            return;
-        }
-        alertsSummary.setText(getResources().getQuantityString(
-                R.plurals.dashboard_alerts_configured,
-                interests.size(),
-                interests.size()
-        ));
     }
 
     private String buildActiveMonitorSummary(String groupCountText, String interestCountText) {
@@ -232,9 +210,102 @@ public class SettingsActivity extends AppCompatActivity {
         refreshSettings();
     }
 
+    private void showThemeDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.settings_theme_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        LinearLayout options = new LinearLayout(this);
+        options.setOrientation(LinearLayout.VERTICAL);
+        options.setPadding(0, dp(10), 0, dp(10));
+        String savedMode = ThemeController.getSavedMode(this);
+        String[] modes = new String[]{
+                ThemeController.MODE_SYSTEM,
+                ThemeController.MODE_LIGHT,
+                ThemeController.MODE_DARK
+        };
+        int[] labels = new int[]{
+                R.string.theme_system,
+                R.string.theme_light,
+                R.string.theme_dark
+        };
+        int selectedIndex = ThemeController.getDialogIndex(savedMode);
+        for (int index = 0; index < modes.length; index++) {
+            TextView option = createThemeOption(labels[index], index == selectedIndex);
+            String mode = modes[index];
+            option.setOnClickListener(view -> {
+                ThemeController.saveMode(this, mode);
+                themeSummary.setText(ThemeController.getSummaryResource(mode));
+                dialog.dismiss();
+                recreate();
+            });
+            options.addView(option);
+        }
+        content.addView(options);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView cancel = createDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private TextView createThemeOption(int textResource, boolean selected) {
+        TextView option = new TextView(this);
+        option.setText(selected
+                ? getString(R.string.theme_selected_format, getString(textResource))
+                : getString(textResource));
+        option.setTextColor(getColor(selected ? R.color.action : R.color.text_primary));
+        option.setTextSize(16);
+        option.setGravity(Gravity.CENTER_VERTICAL);
+        option.setPadding(0, dp(12), 0, dp(12));
+        return option;
+    }
+
+    private TextView createDialogAction(int textResource) {
+        TextView action = new TextView(this);
+        action.setText(textResource);
+        action.setTextColor(getColor(R.color.action));
+        action.setTextSize(15);
+        action.setGravity(Gravity.CENTER);
+        action.setPadding(dp(14), dp(9), dp(14), dp(9));
+        return action;
+    }
+
     private boolean isMonitorEnabled() {
         return getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
                 .getBoolean(MONITOR_ENABLED, true);
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     private int getSelectedGroupCount() {

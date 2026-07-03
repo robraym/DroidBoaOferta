@@ -39,6 +39,9 @@ final class TelegramClientManager {
         void onGroupsLoaded(List<TelegramGroup> groups);
 
         void onError(String message);
+
+        default void onAccountChanged() {
+        }
     }
 
     interface MessageListener {
@@ -58,7 +61,10 @@ final class TelegramClientManager {
     private volatile MessageListener messageListener;
     private volatile State state = State.STARTING;
     private volatile List<TelegramGroup> groups = Collections.emptyList();
+    private volatile String accountName = "";
+    private volatile String accountPhone = "";
     private boolean started;
+    private volatile boolean receiverRunning;
     private int clientId;
     private Context appContext;
 
@@ -73,6 +79,7 @@ final class TelegramClientManager {
             return;
         }
         started = true;
+        receiverRunning = true;
 
         if (BuildConfig.TELEGRAM_API_ID <= 0 || BuildConfig.TELEGRAM_API_HASH.isEmpty()) {
             changeState(State.MISSING_CREDENTIALS);
@@ -120,6 +127,30 @@ final class TelegramClientManager {
 
     State getState() {
         return state;
+    }
+
+    String getAccountName() {
+        return accountName;
+    }
+
+    String getAccountPhone() {
+        return accountPhone;
+    }
+
+    synchronized void logOut() {
+        messageListener = null;
+        clearTelegramRuntimeData();
+        if (!started || clientId == 0) {
+            changeState(State.CLOSED);
+            closeRuntime();
+            return;
+        }
+        try {
+            send(new JSONObject().put("@type", "logOut").put("@extra", "logout"));
+            changeState(State.CLOSED);
+        } catch (JSONException exception) {
+            notifyError(exception.getMessage());
+        }
     }
 
     void submitPhoneNumber(String phoneNumber) {
@@ -192,7 +223,7 @@ final class TelegramClientManager {
             });
             clientId = JsonClient.createClientId();
             JsonClient.send(clientId, new JSONObject().put("@type", "getAuthorizationState").toString());
-            while (!Thread.currentThread().isInterrupted()) {
+            while (receiverRunning && !Thread.currentThread().isInterrupted()) {
                 String result = JsonClient.receive(1.0);
                 if (result != null) {
                     handleResult(new JSONObject(result));
@@ -226,6 +257,8 @@ final class TelegramClientManager {
             publishGroups(result.getJSONArray("chat_ids"));
         } else if ("messages".equals(type) && "selected_group_history".equals(result.optString("@extra"))) {
             publishMessages(result.optJSONArray("messages"));
+        } else if ("user".equals(type) && "account_me".equals(result.optString("@extra"))) {
+            publishAccount(result);
         } else if ("error".equals(type)) {
             notifyError(result.optString("message", appContext.getString(R.string.telegram_unknown_error)));
         }
@@ -306,13 +339,17 @@ final class TelegramClientManager {
                 break;
             case "authorizationStateReady":
                 changeState(State.READY);
+                loadAccount();
                 loadGroups();
                 loadSelectedGroupsHistory();
                 break;
             case "authorizationStateClosing":
             case "authorizationStateLoggingOut":
+                changeState(State.CLOSED);
+                break;
             case "authorizationStateClosed":
                 changeState(State.CLOSED);
+                closeRuntime();
                 break;
             default:
                 changeState(State.UNSUPPORTED_AUTHORIZATION);
@@ -347,6 +384,49 @@ final class TelegramClientManager {
                 .put("system_version", Build.VERSION.RELEASE)
                 .put("application_version", BuildConfig.VERSION_NAME);
         send(request);
+    }
+
+    private void loadAccount() {
+        try {
+            send(new JSONObject()
+                    .put("@type", "getMe")
+                    .put("@extra", "account_me"));
+        } catch (JSONException exception) {
+            notifyError(exception.getMessage());
+        }
+    }
+
+    private void publishAccount(JSONObject user) {
+        String firstName = user.optString("first_name", "").trim();
+        String lastName = user.optString("last_name", "").trim();
+        String fullName = (firstName + " " + lastName).trim();
+        accountName = fullName.isEmpty() ? user.optString("username", "").trim() : fullName;
+        accountPhone = user.optString("phone_number", "").trim();
+        Listener currentListener = listener;
+        if (currentListener != null) {
+            currentListener.onAccountChanged();
+        }
+    }
+
+    private synchronized void closeRuntime() {
+        receiverRunning = false;
+        started = false;
+        clientId = 0;
+        clearTelegramRuntimeData();
+    }
+
+    private void clearTelegramRuntimeData() {
+        chats.clear();
+        groupChatIds.clear();
+        requestedHistoryChatIds.clear();
+        groups = Collections.emptyList();
+        accountName = "";
+        accountPhone = "";
+        notifyGroups();
+        Listener currentListener = listener;
+        if (currentListener != null) {
+            currentListener.onAccountChanged();
+        }
     }
 
     private void publishGroups(JSONArray chatIds) {

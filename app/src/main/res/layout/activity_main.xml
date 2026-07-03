@@ -12,6 +12,8 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -26,42 +28,22 @@
             android:textStyle="bold" />
 
         <ImageButton
-            android:id="@+id/button_archived"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/bg_button_inline"
-            android:contentDescription="@string/archived_screen_title"
-            android:padding="9dp"
-            android:scaleType="center"
-            android:src="@drawable/ic_archive" />
-
-        <ImageButton
-            android:id="@+id/button_trash"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/bg_icon_danger"
-            android:contentDescription="@string/trash_screen_title"
-            android:padding="9dp"
-            android:scaleType="center"
-            android:src="@drawable/ic_trash_outline" />
-
-        <ImageButton
-            android:id="@+id/button_settings"
+            android:id="@+id/button_profile"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:background="@drawable/bg_button_inline"
-            android:contentDescription="@string/settings_screen_title"
+            android:contentDescription="@string/profile_screen_title"
             android:padding="9dp"
             android:scaleType="center"
-            android:src="@drawable/ic_settings" />
+            android:src="@drawable/ic_profile" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:layout_marginStart="12dp"
         android:layout_marginTop="12dp"
+        android:layout_marginEnd="12dp"
         android:layout_weight="1"
         android:background="@drawable/bg_card_compact"
         android:orientation="vertical"
@@ -72,8 +54,8 @@
             android:layout_height="44dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp">
+            android:paddingStart="6dp"
+            android:paddingEnd="0dp">
 
             <TextView
                 android:layout_width="0dp"

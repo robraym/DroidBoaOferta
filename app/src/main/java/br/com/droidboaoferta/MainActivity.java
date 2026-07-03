@@ -72,14 +72,8 @@ public class MainActivity extends AppCompatActivity {
         offerRepository = new OfferRepository(this);
         offersContainer = findViewById(R.id.container_offers);
 
-        findViewById(R.id.button_settings).setOnClickListener(view -> startActivity(
-                new Intent(this, SettingsActivity.class)
-        ));
-        findViewById(R.id.button_archived).setOnClickListener(view -> startActivity(
-                new Intent(this, ArchivedOffersActivity.class)
-        ));
-        findViewById(R.id.button_trash).setOnClickListener(view -> startActivity(
-                new Intent(this, TrashedOffersActivity.class)
+        findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
+                new Intent(this, ProfileActivity.class)
         ));
         trashAllOffersButton = findViewById(R.id.button_trash_all_offers);
         trashAllOffersButton.setOnClickListener(view -> trashAllOffers());
@@ -319,10 +313,10 @@ public class MainActivity extends AppCompatActivity {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
-            if (index > 0) {
-                rowParams.topMargin = dp(6);
-            }
             offersContainer.addView(swipeContainer, rowParams);
+            if (index < limit - 1) {
+                offersContainer.addView(createOfferDivider());
+            }
         }
     }
 
@@ -368,10 +362,10 @@ public class MainActivity extends AppCompatActivity {
                                         String contentDescription) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
-        row.setBackgroundResource(R.drawable.bg_offer_row);
+        row.setBackgroundColor(getColor(R.color.card));
         row.setClickable(true);
         row.setFocusable(true);
-        row.setPadding(dp(12), dp(9), dp(12), dp(8));
+        row.setPadding(dp(6), dp(7), dp(6), dp(7));
         row.setContentDescription(contentDescription);
 
         LinearLayout mainLine = new LinearLayout(this);
@@ -381,7 +375,7 @@ public class MainActivity extends AppCompatActivity {
         TextView titleView = new TextView(this);
         titleView.setText(title);
         titleView.setTextColor(getColor(R.color.text_primary));
-        titleView.setTextSize(15);
+        titleView.setTextSize(14);
         titleView.setSingleLine(true);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         mainLine.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -389,9 +383,9 @@ public class MainActivity extends AppCompatActivity {
         TextView priceView = new TextView(this);
         priceView.setText(price);
         priceView.setTextColor(getColor(R.color.text_primary));
-        priceView.setTextSize(15);
+        priceView.setTextSize(14);
         priceView.setSingleLine(true);
-        priceView.setPadding(dp(10), 0, 0, 0);
+        priceView.setPadding(dp(6), 0, 0, 0);
         mainLine.addView(priceView);
         row.addView(mainLine);
 
@@ -403,20 +397,33 @@ public class MainActivity extends AppCompatActivity {
         TextView timeView = new TextView(this);
         timeView.setText(time);
         timeView.setTextColor(getColor(R.color.action));
-        timeView.setTextSize(12);
+        timeView.setTextSize(11.5f);
         timeView.setSingleLine(true);
         metaLine.addView(timeView);
 
         TextView sourceView = new TextView(this);
         sourceView.setText(source);
         sourceView.setTextColor(getColor(R.color.text_secondary));
-        sourceView.setTextSize(12);
+        sourceView.setTextSize(11.5f);
         sourceView.setSingleLine(true);
         sourceView.setEllipsize(TextUtils.TruncateAt.END);
-        sourceView.setPadding(dp(8), 0, 0, 0);
+        sourceView.setPadding(dp(4), 0, 0, 0);
         metaLine.addView(sourceView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         row.addView(metaLine);
         return row;
+    }
+
+    private View createOfferDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.divider));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        params.leftMargin = dp(6);
+        params.rightMargin = dp(6);
+        divider.setLayoutParams(params);
+        return divider;
     }
 
     private void attachSwipeActions(View row, ObservedOffer offer) {

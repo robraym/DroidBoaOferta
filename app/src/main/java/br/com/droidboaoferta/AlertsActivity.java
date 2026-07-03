@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.EditText;
@@ -55,7 +56,8 @@ public class AlertsActivity extends AppCompatActivity {
         }
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
-        for (Interest interest : interests) {
+        for (int index = 0; index < interests.size(); index++) {
+            Interest interest = interests.get(index);
             LinearLayout row = createInterestRow(getString(
                     R.string.dashboard_interest_single_line,
                     interest.getTerm(),
@@ -68,6 +70,9 @@ public class AlertsActivity extends AppCompatActivity {
             remove.setOnClickListener(view -> showRemoveInterestConfirmation(interest));
             row.addView(remove);
             interestsContainer.addView(row);
+            if (index < interests.size() - 1) {
+                interestsContainer.addView(createDivider());
+            }
         }
     }
 
@@ -75,17 +80,31 @@ public class AlertsActivity extends AppCompatActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(4), dp(4), dp(4));
+        row.setBackgroundColor(getColor(R.color.card));
+        row.setPadding(dp(6), dp(7), dp(6), dp(7));
 
         TextView label = new TextView(this);
         label.setText(text);
         label.setTextColor(getColor(R.color.text_primary));
-        label.setTextSize(13);
+        label.setTextSize(14);
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
-        label.setPadding(0, 0, dp(6), 0);
+        label.setPadding(0, 0, dp(4), 0);
         row.addView(label, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         return row;
+    }
+
+    private View createDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.divider));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        params.leftMargin = dp(6);
+        params.rightMargin = dp(6);
+        divider.setLayoutParams(params);
+        return divider;
     }
 
     private TextView createEmptyText(int textResource) {
