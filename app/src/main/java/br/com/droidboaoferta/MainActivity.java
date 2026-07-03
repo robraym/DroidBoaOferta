@@ -648,6 +648,7 @@ public class MainActivity extends AppCompatActivity {
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
                     .apply();
+            CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
             CloudSyncStore.markLocalChanged(this);
             TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
             dialog.dismiss();
@@ -700,10 +701,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void toggleMonitor() {
         boolean enabled = !isMonitorEnabled();
+        long changedAt = System.currentTimeMillis();
         getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
                 .edit()
                 .putBoolean(MONITOR_ENABLED, enabled)
                 .apply();
+        CloudSyncStore.rememberMonitorChanged(this, changedAt);
         CloudSyncStore.markLocalChanged(this);
         refreshDashboard();
     }

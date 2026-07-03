@@ -346,6 +346,7 @@ public class AlertsActivity extends AppCompatActivity {
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
                     .apply();
+            CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
             CloudSyncStore.markLocalChanged(this);
             TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
             dialog.dismiss();

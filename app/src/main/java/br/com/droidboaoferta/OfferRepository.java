@@ -48,6 +48,7 @@ final class OfferRepository {
         offers.removeIf(item -> isSameObservedOffer(item, offer));
         offers.add(0, offer);
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(offers)));
+        CloudSyncStore.rememberRecentChanged(context, System.currentTimeMillis());
     }
 
     synchronized void clearProcessedForInterest(long interestId) {
@@ -77,22 +78,32 @@ final class OfferRepository {
             ));
         }
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(reconciled)));
+        CloudSyncStore.rememberRecentChanged(context, System.currentTimeMillis());
     }
 
     synchronized void archive(String id) {
         if (moveOffer(id, KEY_OFFERS, KEY_ARCHIVED_OFFERS)) {
+            long changedAt = System.currentTimeMillis();
+            CloudSyncStore.rememberRecentChanged(context, changedAt);
+            CloudSyncStore.rememberArchivedChanged(context, changedAt);
             CloudSyncStore.markLocalChanged(context);
         }
     }
 
     synchronized void unarchive(String id) {
         if (moveOffer(id, KEY_ARCHIVED_OFFERS, KEY_OFFERS)) {
+            long changedAt = System.currentTimeMillis();
+            CloudSyncStore.rememberRecentChanged(context, changedAt);
+            CloudSyncStore.rememberArchivedChanged(context, changedAt);
             CloudSyncStore.markLocalChanged(context);
         }
     }
 
     synchronized void trash(String id) {
         if (moveOffer(id, KEY_OFFERS, KEY_TRASHED_OFFERS)) {
+            long changedAt = System.currentTimeMillis();
+            CloudSyncStore.rememberRecentChanged(context, changedAt);
+            CloudSyncStore.rememberTrashChanged(context, changedAt);
             CloudSyncStore.markLocalChanged(context);
         }
     }
@@ -109,18 +120,27 @@ final class OfferRepository {
         }
         saveOffers(KEY_OFFERS, new ArrayList<>());
         saveOffers(KEY_TRASHED_OFFERS, trimOffers(sortByObservedAt(trashed)));
+        long changedAt = System.currentTimeMillis();
+        CloudSyncStore.rememberRecentChanged(context, changedAt);
+        CloudSyncStore.rememberTrashChanged(context, changedAt);
         CloudSyncStore.markLocalChanged(context);
         return true;
     }
 
     synchronized void trashArchived(String id) {
         if (moveOffer(id, KEY_ARCHIVED_OFFERS, KEY_TRASHED_OFFERS)) {
+            long changedAt = System.currentTimeMillis();
+            CloudSyncStore.rememberArchivedChanged(context, changedAt);
+            CloudSyncStore.rememberTrashChanged(context, changedAt);
             CloudSyncStore.markLocalChanged(context);
         }
     }
 
     synchronized void restoreTrashed(String id) {
         if (moveOffer(id, KEY_TRASHED_OFFERS, KEY_OFFERS)) {
+            long changedAt = System.currentTimeMillis();
+            CloudSyncStore.rememberRecentChanged(context, changedAt);
+            CloudSyncStore.rememberTrashChanged(context, changedAt);
             CloudSyncStore.markLocalChanged(context);
         }
     }
@@ -137,23 +157,29 @@ final class OfferRepository {
         }
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(recent)));
         saveOffers(KEY_TRASHED_OFFERS, new ArrayList<>());
+        long changedAt = System.currentTimeMillis();
+        CloudSyncStore.rememberRecentChanged(context, changedAt);
+        CloudSyncStore.rememberTrashChanged(context, changedAt);
         CloudSyncStore.markLocalChanged(context);
     }
 
     synchronized void deleteArchived(String id) {
         if (removeOffer(id, KEY_ARCHIVED_OFFERS)) {
+            CloudSyncStore.rememberArchivedChanged(context, System.currentTimeMillis());
             CloudSyncStore.markLocalChanged(context);
         }
     }
 
     synchronized void deleteTrashed(String id) {
         if (removeOffer(id, KEY_TRASHED_OFFERS)) {
+            CloudSyncStore.rememberTrashChanged(context, System.currentTimeMillis());
             CloudSyncStore.markLocalChanged(context);
         }
     }
 
     synchronized void clearTrashed() {
         saveOffers(KEY_TRASHED_OFFERS, new ArrayList<>());
+        CloudSyncStore.rememberTrashChanged(context, System.currentTimeMillis());
         CloudSyncStore.markLocalChanged(context);
     }
 

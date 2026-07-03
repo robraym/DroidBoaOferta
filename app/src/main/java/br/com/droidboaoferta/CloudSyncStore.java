@@ -44,6 +44,10 @@ final class CloudSyncStore {
     private static final String KEY_GROUP_SELECTED_AT = "group_selected_at";
     private static final String KEY_REMOVED_GROUPS = "removed_groups";
     private static final String KEY_THEME_UPDATED_AT = "theme_updated_at";
+    private static final String KEY_RECENT_UPDATED_AT = "recent_updated_at";
+    private static final String KEY_ARCHIVED_UPDATED_AT = "archived_updated_at";
+    private static final String KEY_TRASH_UPDATED_AT = "trash_updated_at";
+    private static final String KEY_MONITOR_UPDATED_AT = "monitor_updated_at";
     private static final String MONITOR_ENABLED = "monitor_enabled";
     private static final String APP_PREFS = "app_preferences";
     private static final String THEME_MODE = "theme_mode";
@@ -115,6 +119,34 @@ final class CloudSyncStore {
         syncPrefs(context).edit()
                 .putLong(KEY_THEME_UPDATED_AT, changedAt)
                 .apply();
+    }
+
+    static void rememberTrashChanged(Context context, long changedAt) {
+        if (context == null) {
+            return;
+        }
+        syncPrefs(context).edit()
+                .putLong(KEY_TRASH_UPDATED_AT, changedAt)
+                .apply();
+    }
+
+    static void rememberRecentChanged(Context context, long changedAt) {
+        rememberCollectionChanged(context, KEY_RECENT_UPDATED_AT, changedAt);
+    }
+
+    static void rememberArchivedChanged(Context context, long changedAt) {
+        rememberCollectionChanged(context, KEY_ARCHIVED_UPDATED_AT, changedAt);
+    }
+
+    static void rememberMonitorChanged(Context context, long changedAt) {
+        rememberCollectionChanged(context, KEY_MONITOR_UPDATED_AT, changedAt);
+    }
+
+    private static void rememberCollectionChanged(Context context, String key, long changedAt) {
+        if (context == null) {
+            return;
+        }
+        syncPrefs(context).edit().putLong(key, changedAt).apply();
     }
 
     static void rememberSelectedGroupsChanged(Context context, Set<String> previousGroups,
@@ -223,11 +255,27 @@ final class CloudSyncStore {
             data.put(KEY_RECENT_OFFERS, offers.getString(KEY_RECENT_OFFERS, "[]"));
             data.put(KEY_ARCHIVED_OFFERS, offers.getString(KEY_ARCHIVED_OFFERS, "[]"));
             data.put(KEY_TRASHED_OFFERS, offers.getString(KEY_TRASHED_OFFERS, "[]"));
+            data.put(KEY_RECENT_UPDATED_AT, ensureCollectionUpdatedAt(
+                    appContext,
+                    KEY_RECENT_UPDATED_AT,
+                    updatedAt
+            ));
+            data.put(KEY_ARCHIVED_UPDATED_AT, ensureCollectionUpdatedAt(
+                    appContext,
+                    KEY_ARCHIVED_UPDATED_AT,
+                    updatedAt
+            ));
+            data.put(KEY_TRASH_UPDATED_AT, ensureTrashUpdatedAt(appContext, updatedAt));
             data.put(KEY_INTEREST_UPDATED_AT, ensureInterestUpdatedAt(appContext, updatedAt));
             data.put(KEY_DELETED_INTERESTS, syncPrefs(appContext).getString(KEY_DELETED_INTERESTS, "{}"));
             data.put(KEY_GROUP_SELECTED_AT, ensureGroupSelectedAt(appContext, updatedAt));
             data.put(KEY_REMOVED_GROUPS, syncPrefs(appContext).getString(KEY_REMOVED_GROUPS, "{}"));
             data.put(MONITOR_ENABLED, offers.getBoolean(MONITOR_ENABLED, true));
+            data.put(KEY_MONITOR_UPDATED_AT, ensureCollectionUpdatedAt(
+                    appContext,
+                    KEY_MONITOR_UPDATED_AT,
+                    updatedAt
+            ));
             data.put(THEME_MODE, app.getString(THEME_MODE, ThemeController.MODE_DARK));
             data.put(KEY_THEME_UPDATED_AT, ensureThemeUpdatedAt(appContext, updatedAt));
 
@@ -380,12 +428,30 @@ final class CloudSyncStore {
                 .getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE)
                 .edit();
         offers.putString(KEY_INTERESTS, mergedInterests.toString());
-        putMergedOffers(offersPreferences, offers, data);
+        long localRecentUpdatedAt = syncPrefs(appContext).getLong(KEY_RECENT_UPDATED_AT, localUpdatedAt);
+        long remoteRecentUpdatedAt = data.optLong(KEY_RECENT_UPDATED_AT, remoteUpdatedAt);
+        long localArchivedUpdatedAt = syncPrefs(appContext).getLong(KEY_ARCHIVED_UPDATED_AT, localUpdatedAt);
+        long remoteArchivedUpdatedAt = data.optLong(KEY_ARCHIVED_UPDATED_AT, remoteUpdatedAt);
+        long localTrashUpdatedAt = syncPrefs(appContext).getLong(KEY_TRASH_UPDATED_AT, localUpdatedAt);
+        long remoteTrashUpdatedAt = data.optLong(KEY_TRASH_UPDATED_AT, remoteUpdatedAt);
+        putMergedOffers(
+                offersPreferences,
+                offers,
+                data,
+                localRecentUpdatedAt,
+                remoteRecentUpdatedAt,
+                localArchivedUpdatedAt,
+                remoteArchivedUpdatedAt,
+                localTrashUpdatedAt,
+                remoteTrashUpdatedAt
+        );
         offers.putString(KEY_PROCESSED_MESSAGES, mergeStringArrays(
                 offersPreferences.getString(KEY_PROCESSED_MESSAGES, "[]"),
                 data.optString(KEY_PROCESSED_MESSAGES, "[]")
         ).toString());
-        offers.putBoolean(MONITOR_ENABLED, remoteUpdatedAt >= localUpdatedAt
+        long localMonitorUpdatedAt = syncPrefs(appContext).getLong(KEY_MONITOR_UPDATED_AT, localUpdatedAt);
+        long remoteMonitorUpdatedAt = data.optLong(KEY_MONITOR_UPDATED_AT, remoteUpdatedAt);
+        offers.putBoolean(MONITOR_ENABLED, remoteMonitorUpdatedAt >= localMonitorUpdatedAt
                 ? data.optBoolean(MONITOR_ENABLED, true)
                 : offersPreferences.getBoolean(MONITOR_ENABLED, true));
         offers.apply();
@@ -410,6 +476,10 @@ final class CloudSyncStore {
                 .putString(KEY_INTEREST_UPDATED_AT, mergedInterestUpdatedAt.toString())
                 .putString(KEY_DELETED_INTERESTS, mergedDeletedInterests.toString())
                 .putLong(KEY_THEME_UPDATED_AT, Math.max(localThemeUpdatedAt, remoteThemeUpdatedAt))
+                .putLong(KEY_RECENT_UPDATED_AT, Math.max(localRecentUpdatedAt, remoteRecentUpdatedAt))
+                .putLong(KEY_ARCHIVED_UPDATED_AT, Math.max(localArchivedUpdatedAt, remoteArchivedUpdatedAt))
+                .putLong(KEY_TRASH_UPDATED_AT, Math.max(localTrashUpdatedAt, remoteTrashUpdatedAt))
+                .putLong(KEY_MONITOR_UPDATED_AT, Math.max(localMonitorUpdatedAt, remoteMonitorUpdatedAt))
                 .apply();
         return true;
     }
@@ -669,7 +739,10 @@ final class CloudSyncStore {
     }
 
     private static void putMergedOffers(SharedPreferences preferences, SharedPreferences.Editor editor,
-                                        JSONObject remoteData) {
+                                        JSONObject remoteData, long localRecentUpdatedAt,
+                                        long remoteRecentUpdatedAt, long localArchivedUpdatedAt,
+                                        long remoteArchivedUpdatedAt, long localTrashUpdatedAt,
+                                        long remoteTrashUpdatedAt) {
         JSONArray localRecent = readArray(preferences.getString(KEY_RECENT_OFFERS, "[]"));
         JSONArray localArchived = readArray(preferences.getString(KEY_ARCHIVED_OFFERS, "[]"));
         JSONArray localTrashed = readArray(preferences.getString(KEY_TRASHED_OFFERS, "[]"));
@@ -677,9 +750,15 @@ final class CloudSyncStore {
         JSONArray remoteArchived = readArray(remoteData.optString(KEY_ARCHIVED_OFFERS, "[]"));
         JSONArray remoteTrashed = readArray(remoteData.optString(KEY_TRASHED_OFFERS, "[]"));
 
-        Map<String, JSONObject> recent = mergeOfferMaps(localRecent, remoteRecent);
-        Map<String, JSONObject> archived = mergeOfferMaps(localArchived, remoteArchived);
-        Map<String, JSONObject> trashed = mergeOfferMaps(localTrashed, remoteTrashed);
+        Map<String, JSONObject> recent = mapByOfferId(
+                remoteRecentUpdatedAt >= localRecentUpdatedAt ? remoteRecent : localRecent
+        );
+        Map<String, JSONObject> archived = mapByOfferId(
+                remoteArchivedUpdatedAt >= localArchivedUpdatedAt ? remoteArchived : localArchived
+        );
+        Map<String, JSONObject> trashed = mapByOfferId(
+                remoteTrashUpdatedAt >= localTrashUpdatedAt ? remoteTrashed : localTrashed
+        );
         for (String id : trashed.keySet()) {
             recent.remove(id);
             archived.remove(id);
@@ -741,6 +820,20 @@ final class CloudSyncStore {
         return updatedAt;
     }
 
+    private static long ensureTrashUpdatedAt(Context context, long fallbackUpdatedAt) {
+        return ensureCollectionUpdatedAt(context, KEY_TRASH_UPDATED_AT, fallbackUpdatedAt);
+    }
+
+    private static long ensureCollectionUpdatedAt(Context context, String key, long fallbackUpdatedAt) {
+        SharedPreferences preferences = syncPrefs(context);
+        long updatedAt = preferences.getLong(key, 0L);
+        if (updatedAt <= 0L) {
+            updatedAt = fallbackUpdatedAt;
+            preferences.edit().putLong(key, updatedAt).apply();
+        }
+        return updatedAt;
+    }
+
     private static boolean hasUsefulData(Context context) {
         Context appContext = context.getApplicationContext();
         SharedPreferences telegram = appContext.getSharedPreferences(TELEGRAM_PREFS, Context.MODE_PRIVATE);
@@ -794,10 +887,9 @@ final class CloudSyncStore {
         return values;
     }
 
-    private static Map<String, JSONObject> mergeOfferMaps(JSONArray first, JSONArray second) {
+    private static Map<String, JSONObject> mapByOfferId(JSONArray array) {
         Map<String, JSONObject> values = new HashMap<>();
-        appendOffers(values, first);
-        appendOffers(values, second);
+        appendOffers(values, array);
         return values;
     }
 
