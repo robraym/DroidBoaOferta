@@ -191,6 +191,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        BottomNavigationController.resetInitialFocus(this);
         renderOffers();
     }
 

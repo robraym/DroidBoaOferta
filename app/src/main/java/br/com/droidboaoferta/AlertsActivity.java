@@ -68,6 +68,7 @@ public class AlertsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        BottomNavigationController.resetInitialFocus(this);
         renderInterests();
     }
 

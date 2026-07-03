@@ -78,6 +78,12 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        BottomNavigationController.resetInitialFocus(this);
+    }
+
+    @Override
     protected void onStop() {
         clientManager.clearListener(this);
         super.onStop();

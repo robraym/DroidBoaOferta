@@ -9,6 +9,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 final class BottomNavigationController {
@@ -39,6 +40,18 @@ final class BottomNavigationController {
                 R.id.nav_trash_indicator, R.id.nav_trash_icon, R.id.nav_trash_label,
                 TrashedOffersActivity.class);
         hideNavigationWhileKeyboardIsOpen(activity);
+        resetInitialFocus(activity);
+    }
+
+    static void resetInitialFocus(Activity activity) {
+        View content = activity.findViewById(android.R.id.content);
+        if (content == null) {
+            return;
+        }
+        content.setFocusableInTouchMode(true);
+        content.requestFocus();
+        WindowCompat.getInsetsController(activity.getWindow(), content)
+                .hide(WindowInsetsCompat.Type.ime());
     }
 
     private static void hideNavigationWhileKeyboardIsOpen(Activity activity) {

@@ -109,6 +109,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        BottomNavigationController.resetInitialFocus(this);
         refreshDashboard();
     }
 
