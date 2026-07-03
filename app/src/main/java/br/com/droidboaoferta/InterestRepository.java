@@ -45,6 +45,18 @@ final class InterestRepository {
         save(interests);
     }
 
+    void update(long id, String term, double maximumPrice) {
+        List<Interest> interests = new ArrayList<>(getAll());
+        for (int index = 0; index < interests.size(); index++) {
+            Interest interest = interests.get(index);
+            if (interest.getId() == id) {
+                interests.set(index, new Interest(id, term.trim(), maximumPrice));
+                break;
+            }
+        }
+        save(interests);
+    }
+
     void remove(long id) {
         List<Interest> interests = new ArrayList<>(getAll());
         interests.removeIf(interest -> interest.getId() == id);

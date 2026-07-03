@@ -40,16 +40,16 @@
     <string name="dashboard_status_choose_groups_summary">Selecione os grupos de promoções.</string>
     <string name="dashboard_status_add_interest">Crie um alerta de preço</string>
     <string name="dashboard_status_add_interest_summary">Escolha um produto e o valor máximo.</string>
-    <string name="dashboard_status_active">Monitor ativo</string>
+    <string name="dashboard_status_active">Alertas ativos</string>
     <string name="dashboard_status_active_summary">%1$s - %2$s</string>
     <string name="dashboard_telegram_ready">Telegram conectado</string>
-    <string name="dashboard_telegram_connected_for">Conectado ao Telegram %1$s</string>
+    <string name="dashboard_telegram_connected_for">Conectado %1$s</string>
     <string name="dashboard_telegram_starting">Conectando ao Telegram</string>
     <string name="dashboard_telegram_missing_credentials">Credenciais ausentes</string>
     <string name="dashboard_telegram_login_pending">Login pendente</string>
     <string name="dashboard_telegram_closed">Telegram fechado</string>
     <string name="dashboard_telegram_attention">Ação pendente</string>
-    <string name="dashboard_monitor_starting">Monitor iniciando</string>
+    <string name="dashboard_monitor_starting">Ativando alertas</string>
     <string name="dashboard_waiting_messages">Nenhuma mensagem analisada ainda</string>
     <string name="dashboard_last_message_format">Última mensagem: %1$s</string>
     <string name="dashboard_last_analysis_format">Última análise: %1$s</string>
@@ -79,18 +79,19 @@
         <item quantity="one">%d alerta configurado</item>
         <item quantity="other">%d alertas configurados</item>
     </plurals>
-    <string name="dashboard_status_paused">Monitor pausado</string>
-    <string name="dashboard_status_paused_summary">Nenhuma mensagem está sendo avaliada.</string>
+    <string name="dashboard_status_paused">Alertas pausados</string>
+    <string name="dashboard_status_paused_summary">Nenhuma oferta será avaliada enquanto estiver pausado.</string>
     <string name="dashboard_groups_title">Grupos do Telegram</string>
     <string name="dashboard_no_groups">Nenhum selecionado</string>
     <plurals name="dashboard_groups_selected">
         <item quantity="one">%d grupo selecionado</item>
         <item quantity="other">%d grupos selecionados</item>
     </plurals>
-    <string name="dashboard_create_alert_title">Criar alerta de preço</string>
-    <string name="dashboard_create_alert_summary">Produto e valor máximo para avisar.</string>
+    <string name="dashboard_create_alert_title">Novo alerta</string>
+    <string name="dashboard_create_alert_summary">Produto e preço máximo.</string>
     <string name="alerts_screen_title">Alertas</string>
-    <string name="alerts_screen_summary">Gerencie os produtos e valores máximos que o Boa Oferta deve acompanhar.</string>
+    <string name="alerts_screen_summary">Produtos e preços máximos para avisar.</string>
+    <string name="alerts_list_title">Alertas salvos</string>
     <string name="dashboard_alerts_title">Alertas configurados</string>
     <string name="dashboard_interests_title">Alertas configurados</string>
     <string name="dashboard_no_interests">Nenhum alerta criado.</string>
@@ -109,8 +110,10 @@
     <string name="action_activate">Ativar</string>
     <string name="action_cancel">Cancelar</string>
     <string name="action_save">Salvar</string>
-    <string name="action_remove_interest">Remover interesse</string>
+    <string name="action_edit_interest">Editar alerta</string>
+    <string name="action_remove_interest">Remover alerta</string>
     <string name="interest_dialog_title">Novo alerta de preço</string>
+    <string name="interest_dialog_edit_title">Editar alerta de preço</string>
     <string name="interest_dialog_summary">Informe o produto e o valor máximo para receber aviso.</string>
     <string name="interest_term_hint">Produto ou palavra-chave</string>
     <string name="interest_price_hint">Preço máximo em reais</string>
@@ -120,9 +123,9 @@
     <string name="offer_channel_name">Boas ofertas</string>
     <string name="offer_channel_description">Alertas de ofertas que passaram nos seus filtros</string>
     <string name="offer_notification_explanation">%1$s está abaixo do seu limite de %2$s • %3$s</string>
-    <string name="monitor_channel_name">Monitor de ofertas</string>
+    <string name="monitor_channel_name">Alertas do Boa Oferta</string>
     <string name="monitor_channel_description">Mantém a conexão local com os grupos escolhidos</string>
-    <string name="monitor_service_title">Boa Oferta está monitorando</string>
+    <string name="monitor_service_title">Alertas do Boa Oferta ligados</string>
     <string name="monitor_service_summary">Somente os grupos e produtos escolhidos por você.</string>
     <string name="icon_percent" translatable="false">%</string>
     <string name="icon_telegram_letter" translatable="false">T</string>

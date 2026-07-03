@@ -52,9 +52,6 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         if (!selectedGroups.contains(Long.toString(chatId)) || text.trim().isEmpty()) {
             return;
         }
-        if (!offerRepository.markMessageProcessed(chatId, messageId)) {
-            return;
-        }
         MonitorStatusStore.markAnalyzedMessage(appContext);
 
         double price = OfferTextParser.extractPrice(text);
@@ -62,13 +59,15 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
             return;
         }
 
-        String normalizedMessage = OfferTextParser.normalize(text);
         List<Interest> interests = interestRepository.getAll();
         for (Interest interest : interests) {
-            if (!normalizedMessage.contains(OfferTextParser.normalize(interest.getTerm()))) {
+            if (!OfferTextParser.matchesInterest(text, interest.getTerm())) {
                 continue;
             }
             if (price > interest.getMaximumPrice()) {
+                continue;
+            }
+            if (!offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
                 continue;
             }
 

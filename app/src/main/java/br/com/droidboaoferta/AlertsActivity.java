@@ -37,7 +37,7 @@ public class AlertsActivity extends AppCompatActivity {
         interestsContainer = findViewById(R.id.container_interests);
 
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
-        findViewById(R.id.button_add_interest).setOnClickListener(view -> showInterestDialog());
+        findViewById(R.id.button_add_interest).setOnClickListener(view -> showInterestDialog(null));
     }
 
     @Override
@@ -61,6 +61,9 @@ public class AlertsActivity extends AppCompatActivity {
                     interest.getTerm(),
                     currency.format(interest.getMaximumPrice())
             ));
+            ImageButton edit = createEditInterestButton();
+            edit.setOnClickListener(view -> showInterestDialog(interest));
+            row.addView(edit);
             ImageButton remove = createRemoveInterestButton();
             remove.setOnClickListener(view -> {
                 interestRepository.remove(interest.getId());
@@ -75,12 +78,12 @@ public class AlertsActivity extends AppCompatActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(5), dp(4), dp(5));
+        row.setPadding(dp(10), dp(4), dp(4), dp(4));
 
         TextView label = new TextView(this);
         label.setText(text);
         label.setTextColor(getColor(R.color.text_primary));
-        label.setTextSize(14);
+        label.setTextSize(13);
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
         label.setPadding(0, 0, dp(6), 0);
@@ -97,6 +100,20 @@ public class AlertsActivity extends AppCompatActivity {
         return text;
     }
 
+    private ImageButton createEditInterestButton() {
+        ImageButton button = new ImageButton(this);
+        button.setImageResource(R.drawable.ic_edit);
+        button.setColorFilter(getColor(R.color.action));
+        button.setBackgroundResource(R.drawable.bg_icon_circle);
+        button.setContentDescription(getString(R.string.action_edit_interest));
+        button.setScaleType(ImageView.ScaleType.CENTER);
+        button.setPadding(dp(7), dp(7), dp(7), dp(7));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(30), dp(30));
+        params.leftMargin = dp(6);
+        button.setLayoutParams(params);
+        return button;
+    }
+
     private ImageButton createRemoveInterestButton() {
         ImageButton button = new ImageButton(this);
         button.setImageResource(R.drawable.ic_delete);
@@ -104,14 +121,15 @@ public class AlertsActivity extends AppCompatActivity {
         button.setBackgroundResource(R.drawable.bg_icon_danger);
         button.setContentDescription(getString(R.string.action_remove_interest));
         button.setScaleType(ImageView.ScaleType.CENTER);
-        button.setPadding(dp(7), dp(7), dp(7), dp(7));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(34), dp(34));
+        button.setPadding(dp(8), dp(8), dp(8), dp(8));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(30), dp(30));
         params.leftMargin = dp(6);
         button.setLayoutParams(params);
         return button;
     }
 
-    private void showInterestDialog() {
+    private void showInterestDialog(Interest interestToEdit) {
+        boolean editing = interestToEdit != null;
         Dialog dialog = new Dialog(this);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -119,7 +137,7 @@ public class AlertsActivity extends AppCompatActivity {
         content.setBackgroundResource(R.drawable.bg_dialog);
 
         TextView title = new TextView(this);
-        title.setText(R.string.interest_dialog_title);
+        title.setText(editing ? R.string.interest_dialog_edit_title : R.string.interest_dialog_title);
         title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(22);
         content.addView(title);
@@ -135,6 +153,10 @@ public class AlertsActivity extends AppCompatActivity {
                 R.string.interest_term_hint,
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         );
+        if (editing) {
+            termInput.setText(interestToEdit.getTerm());
+            termInput.setSelection(termInput.length());
+        }
         content.addView(termInput, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(52)
@@ -144,6 +166,9 @@ public class AlertsActivity extends AppCompatActivity {
                 R.string.interest_price_hint,
                 InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
+        if (editing) {
+            priceInput.setText(formatEditablePrice(interestToEdit.getMaximumPrice()));
+        }
         LinearLayout.LayoutParams priceParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(52)
@@ -176,7 +201,11 @@ public class AlertsActivity extends AppCompatActivity {
                 priceInput.setError(getString(R.string.interest_price_required));
                 return;
             }
-            interestRepository.add(term, maximumPrice);
+            if (editing) {
+                interestRepository.update(interestToEdit.getId(), term, maximumPrice);
+            } else {
+                interestRepository.add(term, maximumPrice);
+            }
             getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
@@ -227,6 +256,13 @@ public class AlertsActivity extends AppCompatActivity {
         action.setGravity(Gravity.CENTER);
         action.setPadding(dp(18), dp(10), 0, dp(10));
         return action;
+    }
+
+    private String formatEditablePrice(double value) {
+        if (value == Math.rint(value)) {
+            return String.valueOf((long) value);
+        }
+        return String.valueOf(value).replace('.', ',');
     }
 
     private int dp(int value) {

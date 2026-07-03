@@ -38,11 +38,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="20dp"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="2dp"
         android:layout_marginEnd="20dp"
         android:text="@string/alerts_screen_summary"
         android:textColor="@color/text_secondary"
-        android:textSize="15sp" />
+        android:textSize="14sp" />
 
     <LinearLayout
         android:id="@+id/button_add_interest"
@@ -55,7 +55,7 @@
         android:clickable="true"
         android:focusable="true"
         android:gravity="center_vertical"
-        android:minHeight="58dp"
+        android:minHeight="56dp"
         android:orientation="horizontal"
         android:paddingStart="16dp"
         android:paddingTop="8dp"
@@ -73,7 +73,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/dashboard_create_alert_title"
                 android:textColor="@color/text_primary"
-                android:textSize="16sp" />
+                android:textSize="15sp" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -90,7 +90,7 @@
             android:layout_height="40dp"
             android:background="@drawable/bg_button_inline"
             android:contentDescription="@string/action_add_alert"
-            android:padding="9dp"
+            android:padding="10dp"
             android:src="@drawable/ic_add_alert" />
     </LinearLayout>
 
@@ -113,13 +113,13 @@
 
             <TextView
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
+                android:layout_height="34dp"
                 android:gravity="center_vertical"
                 android:paddingStart="10dp"
                 android:paddingEnd="10dp"
-                android:text="@string/dashboard_alerts_title"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp" />
+                android:text="@string/alerts_list_title"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
 
             <LinearLayout
                 android:id="@+id/container_interests"

@@ -23,8 +23,8 @@ final class OfferRepository {
         preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    synchronized boolean markMessageProcessed(long chatId, long messageId) {
-        String key = chatId + ":" + messageId;
+    synchronized boolean markOfferProcessed(long chatId, long messageId, long interestId) {
+        String key = chatId + ":" + messageId + ":" + interestId;
         List<String> processed = readProcessedMessages();
         if (processed.contains(key)) {
             return false;

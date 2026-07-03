@@ -39,7 +39,21 @@ final class OfferTextParser {
 
     static String normalize(String text) {
         String decomposed = Normalizer.normalize(text, Normalizer.Form.NFD);
-        return decomposed.replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT).trim();
+        return decomposed
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    static boolean matchesInterest(String message, String interest) {
+        String normalizedMessage = " " + normalize(message) + " ";
+        String normalizedInterest = normalize(interest);
+        if (normalizedInterest.isEmpty()) {
+            return false;
+        }
+        return normalizedMessage.contains(" " + normalizedInterest + " ");
     }
 
     private static double parseBrazilianPrice(String value) {

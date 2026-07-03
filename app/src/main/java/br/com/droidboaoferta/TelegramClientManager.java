@@ -53,6 +53,7 @@ final class TelegramClientManager {
 
     private final Map<Long, JSONObject> chats = new HashMap<>();
     private final Set<Long> groupChatIds = new HashSet<>();
+    private final Set<Long> requestedHistoryChatIds = new HashSet<>();
     private volatile Listener listener;
     private volatile MessageListener messageListener;
     private volatile State state = State.STARTING;
@@ -97,6 +98,9 @@ final class TelegramClientManager {
 
     void setMessageListener(MessageListener messageListener) {
         this.messageListener = messageListener;
+        if (messageListener != null && state == State.READY) {
+            loadSelectedGroupsHistory();
+        }
     }
 
     State getState() {
@@ -203,8 +207,22 @@ final class TelegramClientManager {
             publishMessage(result.getJSONObject("message"));
         } else if ("chats".equals(type) && result.optString("@extra").startsWith("load_groups_")) {
             publishGroups(result.getJSONArray("chat_ids"));
+        } else if ("messages".equals(type) && "selected_group_history".equals(result.optString("@extra"))) {
+            publishMessages(result.optJSONArray("messages"));
         } else if ("error".equals(type)) {
             notifyError(result.optString("message", appContext.getString(R.string.telegram_unknown_error)));
+        }
+    }
+
+    private void publishMessages(JSONArray messages) {
+        if (messages == null) {
+            return;
+        }
+        for (int index = 0; index < messages.length(); index++) {
+            JSONObject message = messages.optJSONObject(index);
+            if (message != null) {
+                publishMessage(message);
+            }
         }
     }
 
@@ -271,6 +289,7 @@ final class TelegramClientManager {
             case "authorizationStateReady":
                 changeState(State.READY);
                 loadGroups();
+                loadSelectedGroupsHistory();
                 break;
             case "authorizationStateClosing":
             case "authorizationStateLoggingOut":
@@ -336,6 +355,30 @@ final class TelegramClientManager {
         ));
         groups = Collections.unmodifiableList(availableGroups);
         notifyGroups();
+    }
+
+    private void loadSelectedGroupsHistory() {
+        Set<String> selectedGroups = appContext
+                .getSharedPreferences("telegram_preferences", Context.MODE_PRIVATE)
+                .getStringSet("selected_groups", Collections.emptySet());
+        for (String selectedGroup : selectedGroups) {
+            try {
+                long chatId = Long.parseLong(selectedGroup);
+                if (!requestedHistoryChatIds.add(chatId)) {
+                    continue;
+                }
+                send(new JSONObject()
+                        .put("@type", "getChatHistory")
+                        .put("chat_id", chatId)
+                        .put("from_message_id", 0)
+                        .put("offset", 0)
+                        .put("limit", 50)
+                        .put("only_local", false)
+                        .put("@extra", "selected_group_history"));
+            } catch (Exception exception) {
+                notifyError(exception.getMessage());
+            }
+        }
     }
 
     private void sendAuthenticationValue(String type, String key, String value) {
