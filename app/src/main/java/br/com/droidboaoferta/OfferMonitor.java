@@ -61,30 +61,74 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
 
         List<Interest> interests = interestRepository.getAll();
         for (Interest interest : interests) {
-            if (!OfferTextParser.matchesInterest(text, interest.getTerm())) {
-                continue;
-            }
-            if (price > interest.getMaximumPrice()) {
-                continue;
-            }
-            if (!offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
-                continue;
-            }
-
-            ObservedOffer offer = new ObservedOffer(
-                    interest.getId(),
-                    interest.getTerm(),
+            processMessageForInterest(
+                    interest,
+                    chatId,
+                    messageId,
+                    messageDate,
                     sourceTitle,
+                    text,
                     price,
-                    interest.getMaximumPrice(),
-                    messageDate > 0L ? messageDate : System.currentTimeMillis(),
-                    OfferTextParser.extractLink(text)
+                    true
             );
-            offerRepository.add(offer);
-            MonitorStatusStore.markApprovedOffer(appContext);
-            showOfferNotification(offer, chatId, messageId);
-            appContext.sendBroadcast(new Intent(ACTION_OFFER_FOUND).setPackage(appContext.getPackageName()));
         }
+    }
+
+    @Override
+    public void onHistoricalMessage(long interestId, long chatId, long messageId,
+                                    long messageDate, String sourceTitle, String text) {
+        if (text.trim().isEmpty()) {
+            return;
+        }
+        Interest target = null;
+        for (Interest interest : interestRepository.getAll()) {
+            if (interest.getId() == interestId) {
+                target = interest;
+                break;
+            }
+        }
+        if (target == null) {
+            return;
+        }
+        double price = OfferTextParser.extractPrice(text);
+        if (Double.isNaN(price)) {
+            return;
+        }
+        processMessageForInterest(
+                target,
+                chatId,
+                messageId,
+                messageDate,
+                sourceTitle,
+                text,
+                price,
+                false
+        );
+    }
+
+    private void processMessageForInterest(Interest interest, long chatId, long messageId,
+                                           long messageDate, String sourceTitle, String text,
+                                           double price, boolean notifyUser) {
+        if (!OfferTextParser.matchesInterest(text, interest.getTerm())
+                || price > interest.getMaximumPrice()
+                || !offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
+            return;
+        }
+        ObservedOffer offer = new ObservedOffer(
+                interest.getId(),
+                interest.getTerm(),
+                sourceTitle,
+                price,
+                interest.getMaximumPrice(),
+                messageDate > 0L ? messageDate : System.currentTimeMillis(),
+                OfferTextParser.extractLink(text)
+        );
+        offerRepository.add(offer);
+        MonitorStatusStore.markApprovedOffer(appContext);
+        if (notifyUser) {
+            showOfferNotification(offer, chatId, messageId);
+        }
+        appContext.sendBroadcast(new Intent(ACTION_OFFER_FOUND).setPackage(appContext.getPackageName()));
     }
 
     private void showOfferNotification(ObservedOffer offer, long chatId, long messageId) {

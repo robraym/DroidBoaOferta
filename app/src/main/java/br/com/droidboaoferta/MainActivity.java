@@ -35,9 +35,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
-import java.text.SimpleDateFormat;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -307,20 +305,29 @@ public class MainActivity extends AppCompatActivity {
         }
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
-        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", new Locale("pt", "BR"));
         int limit = visibleOffers.size();
+        String previousGroup = null;
         for (int index = 0; index < limit; index++) {
             ObservedOffer offer = visibleOffers.get(index);
+            String group = OfferDateFormatter.getGroupKey(offer.getObservedAt());
+            String groupLabel = OfferDateFormatter.formatGroupLabel(this, offer.getObservedAt());
+            if (!group.equals(previousGroup)) {
+                offersContainer.addView(createOfferGroupHeader(groupLabel, previousGroup != null));
+                previousGroup = group;
+            } else {
+                offersContainer.addView(createOfferDivider());
+            }
+            String displayedTime = OfferDateFormatter.formatTime(offer.getObservedAt());
             String contentDescription = getString(
                     R.string.dashboard_offer_summary,
                     currency.format(offer.getPrice()),
                     offer.getSource(),
-                    timeFormat.format(new Date(offer.getObservedAt()))
+                    groupLabel + " " + displayedTime
             );
             LinearLayout row = createOfferRow(
                     offer.getInterest(),
                     currency.format(offer.getPrice()),
-                    timeFormat.format(new Date(offer.getObservedAt())),
+                    displayedTime,
                     offer.getSource(),
                     contentDescription
             );
@@ -331,10 +338,16 @@ public class MainActivity extends AppCompatActivity {
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
             offersContainer.addView(swipeContainer, rowParams);
-            if (index < limit - 1) {
-                offersContainer.addView(createOfferDivider());
-            }
         }
+    }
+
+    private TextView createOfferGroupHeader(String label, boolean hasPreviousGroup) {
+        TextView header = new TextView(this);
+        header.setText(label);
+        header.setTextColor(getColor(R.color.text_secondary));
+        header.setTextSize(13);
+        header.setPadding(dp(6), dp(hasPreviousGroup ? 18 : 8), dp(8), dp(7));
+        return header;
     }
 
     private List<ObservedOffer> filterOffers(List<ObservedOffer> offers, String query) {

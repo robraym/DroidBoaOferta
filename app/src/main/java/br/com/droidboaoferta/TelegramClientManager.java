@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 
 import org.drinkless.tdlib.JsonClient;
@@ -53,6 +54,10 @@ final class TelegramClientManager {
 
     interface MessageListener {
         void onNewMessage(long chatId, long messageId, long messageDate, String sourceTitle, String text);
+
+        default void onHistoricalMessage(long interestId, long chatId, long messageId,
+                                         long messageDate, String sourceTitle, String text) {
+        }
     }
 
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
@@ -67,6 +72,7 @@ final class TelegramClientManager {
     }
 
     private final Map<Long, JSONObject> chats = new HashMap<>();
+    private final Map<String, InterestHistorySearch> interestHistorySearches = new HashMap<>();
     private final Set<Long> groupChatIds = new HashSet<>();
     private final Set<Long> requestedHistoryChatIds = new HashSet<>();
     private final Set<Long> pendingCloudMessageIds = new HashSet<>();
@@ -77,6 +83,10 @@ final class TelegramClientManager {
     private volatile List<TelegramGroup> groups = Collections.emptyList();
     private volatile String accountName = "";
     private volatile String accountPhone = "";
+    private volatile boolean currentCodeSentBySms;
+    private volatile boolean nextCodeAvailableBySms;
+    private volatile int authenticationCodeLength;
+    private volatile long nextCodeAvailableAtElapsed;
     private volatile long selfUserId;
     private volatile long selfChatId;
     private volatile boolean cloudSyncRequested;
@@ -95,6 +105,7 @@ final class TelegramClientManager {
     private boolean started;
     private volatile boolean receiverRunning;
     private int clientId;
+    private long interestHistoryGeneration;
     private Context appContext;
 
     private TelegramClientManager() {
@@ -155,6 +166,33 @@ final class TelegramClientManager {
         requestedHistoryChatIds.clear();
         if (state == State.READY) {
             loadSelectedGroupsHistory();
+        }
+    }
+
+    synchronized void refreshInterestHistory(long interestId, String term) {
+        if (state != State.READY || term == null || term.trim().isEmpty()) {
+            return;
+        }
+        interestHistoryGeneration++;
+        interestHistorySearches.clear();
+        Set<String> selectedGroups = appContext
+                .getSharedPreferences("telegram_preferences", Context.MODE_PRIVATE)
+                .getStringSet("selected_groups", Collections.emptySet());
+        for (String selectedGroup : selectedGroups) {
+            try {
+                long chatId = Long.parseLong(selectedGroup);
+                String extra = "interest_history:" + interestHistoryGeneration + ":" + chatId;
+                InterestHistorySearch search = new InterestHistorySearch(
+                        interestId,
+                        chatId,
+                        term.trim(),
+                        extra
+                );
+                interestHistorySearches.put(extra, search);
+                requestInterestHistoryPage(search, 0L);
+            } catch (NumberFormatException exception) {
+                Log.w(TAG, "Invalid selected chat id", exception);
+            }
         }
     }
 
@@ -276,6 +314,34 @@ final class TelegramClientManager {
         sendAuthenticationValue("checkAuthenticationCode", "code", code);
     }
 
+    void requestAuthenticationCodeBySms() {
+        try {
+            send(new JSONObject()
+                    .put("@type", "resendAuthenticationCode")
+                    .put("reason", new JSONObject()
+                            .put("@type", "resendCodeReasonUserRequest"))
+                    .put("@extra", "authentication_sms"));
+        } catch (JSONException exception) {
+            notifyError(exception.getMessage());
+        }
+    }
+
+    boolean isCurrentCodeSentBySms() {
+        return currentCodeSentBySms;
+    }
+
+    boolean isNextCodeAvailableBySms() {
+        return nextCodeAvailableBySms;
+    }
+
+    int getAuthenticationCodeLength() {
+        return authenticationCodeLength;
+    }
+
+    long getNextCodeDelayMillis() {
+        return Math.max(0L, nextCodeAvailableAtElapsed - SystemClock.elapsedRealtime());
+    }
+
     void submitPassword(String password) {
         sendAuthenticationValue("checkAuthenticationPassword", "password", password);
     }
@@ -355,6 +421,9 @@ final class TelegramClientManager {
             publishGroups(result.getJSONArray("chat_ids"));
         } else if ("messages".equals(type) && "selected_group_history".equals(result.optString("@extra"))) {
             publishMessages(result.optJSONArray("messages"));
+        } else if ("foundChatMessages".equals(type)
+                && result.optString("@extra").startsWith("interest_history:")) {
+            handleInterestHistoryPage(result);
         } else if ("messages".equals(type) && result.optString("@extra").startsWith("cloud_sync_")) {
             handleCloudSyncMessages(result.optJSONArray("messages"), result.optString("@extra"));
         } else if ("foundChatMessages".equals(type) && result.optString("@extra").startsWith("cloud_sync_")) {
@@ -362,6 +431,9 @@ final class TelegramClientManager {
         } else if ("user".equals(type) && "account_me".equals(result.optString("@extra"))) {
             publishAccount(result);
         } else if ("error".equals(type)) {
+            if (result.optString("@extra").startsWith("interest_history:")) {
+                interestHistorySearches.remove(result.optString("@extra"));
+            }
             if (result.optString("@extra").startsWith("cloud_sync_search")) {
                 requestCloudSyncHistoryFallback();
                 return;
@@ -430,6 +502,78 @@ final class TelegramClientManager {
         );
     }
 
+    private synchronized void handleInterestHistoryPage(JSONObject result) {
+        String extra = result.optString("@extra");
+        InterestHistorySearch search = interestHistorySearches.get(extra);
+        if (search == null) {
+            return;
+        }
+        JSONArray messages = result.optJSONArray("messages");
+        if (messages != null) {
+            for (int index = 0; index < messages.length(); index++) {
+                JSONObject message = messages.optJSONObject(index);
+                if (message != null) {
+                    publishHistoricalMessage(search.interestId, message);
+                }
+            }
+        }
+        long nextFromMessageId = result.optLong("next_from_message_id", 0L);
+        if (nextFromMessageId == 0L || nextFromMessageId == search.lastFromMessageId) {
+            interestHistorySearches.remove(extra);
+            return;
+        }
+        search.lastFromMessageId = nextFromMessageId;
+        requestInterestHistoryPage(search, nextFromMessageId);
+    }
+
+    private void publishHistoricalMessage(long interestId, JSONObject message) {
+        MessageListener currentListener = messageListener;
+        if (currentListener == null) {
+            return;
+        }
+        long chatId = message.optLong("chat_id");
+        JSONObject content = message.optJSONObject("content");
+        if (content == null) {
+            return;
+        }
+        JSONObject formattedText = "messageText".equals(content.optString("@type"))
+                ? content.optJSONObject("text")
+                : content.optJSONObject("caption");
+        if (formattedText == null) {
+            return;
+        }
+        JSONObject chat = chats.get(chatId);
+        String sourceTitle = chat == null ? appContext.getString(R.string.telegram_source_unknown)
+                : chat.optString("title", appContext.getString(R.string.telegram_source_unknown));
+        currentListener.onHistoricalMessage(
+                interestId,
+                chatId,
+                message.optLong("id"),
+                message.optLong("date") * 1000L,
+                sourceTitle,
+                formattedText.optString("text")
+        );
+    }
+
+    private void requestInterestHistoryPage(InterestHistorySearch search, long fromMessageId) {
+        try {
+            send(new JSONObject()
+                    .put("@type", "searchChatMessages")
+                    .put("chat_id", search.chatId)
+                    .put("query", search.term)
+                    .put("sender_id", JSONObject.NULL)
+                    .put("from_message_id", fromMessageId)
+                    .put("offset", 0)
+                    .put("limit", 100)
+                    .put("filter", new JSONObject().put("@type", "searchMessagesFilterEmpty"))
+                    .put("message_thread_id", 0)
+                    .put("@extra", search.extra));
+        } catch (JSONException exception) {
+            interestHistorySearches.remove(search.extra);
+            notifyError(exception.getMessage());
+        }
+    }
+
     private void handleAuthorizationState(JSONObject authorizationState) throws Exception {
         Log.d(TAG, "authorization state=" + authorizationState.optString("@type"));
         switch (authorizationState.getString("@type")) {
@@ -446,6 +590,7 @@ final class TelegramClientManager {
                 changeState(State.WAITING_EMAIL_CODE);
                 break;
             case "authorizationStateWaitCode":
+                updateAuthenticationCodeInfo(authorizationState.optJSONObject("code_info"));
                 changeState(State.WAITING_CODE);
                 break;
             case "authorizationStateWaitPassword":
@@ -469,6 +614,30 @@ final class TelegramClientManager {
                 changeState(State.UNSUPPORTED_AUTHORIZATION);
                 break;
         }
+    }
+
+    private void updateAuthenticationCodeInfo(JSONObject codeInfo) {
+        if (codeInfo == null) {
+            currentCodeSentBySms = false;
+            nextCodeAvailableBySms = false;
+            authenticationCodeLength = 0;
+            nextCodeAvailableAtElapsed = 0L;
+            return;
+        }
+        JSONObject currentType = codeInfo.optJSONObject("type");
+        JSONObject nextType = codeInfo.optJSONObject("next_type");
+        Log.d(TAG, "authentication code current="
+                + (currentType == null ? "none" : currentType.optString("@type"))
+                + ", next="
+                + (nextType == null ? "none" : nextType.optString("@type"))
+                + ", timeout=" + codeInfo.optInt("timeout", 0));
+        currentCodeSentBySms = currentType != null
+                && "authenticationCodeTypeSms".equals(currentType.optString("@type"));
+        nextCodeAvailableBySms = nextType != null
+                && "authenticationCodeTypeSms".equals(nextType.optString("@type"));
+        authenticationCodeLength = currentType == null ? 0 : currentType.optInt("length", 0);
+        nextCodeAvailableAtElapsed = SystemClock.elapsedRealtime()
+                + Math.max(0, codeInfo.optInt("timeout", 0)) * 1000L;
     }
 
     private void sendTdlibParameters() throws Exception {
@@ -946,6 +1115,21 @@ final class TelegramClientManager {
         Listener currentListener = listener;
         if (currentListener != null) {
             currentListener.onCloudSyncStatus(messageResource);
+        }
+    }
+
+    private static final class InterestHistorySearch {
+        final long interestId;
+        final long chatId;
+        final String term;
+        final String extra;
+        long lastFromMessageId;
+
+        InterestHistorySearch(long interestId, long chatId, String term, String extra) {
+            this.interestId = interestId;
+            this.chatId = chatId;
+            this.term = term;
+            this.extra = extra;
         }
     }
 }

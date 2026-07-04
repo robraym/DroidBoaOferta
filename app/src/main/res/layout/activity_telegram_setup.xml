@@ -81,7 +81,6 @@
             android:layout_marginTop="16dp"
             android:background="@drawable/bg_input"
             android:hint="@string/telegram_phone_hint"
-            android:importantForAutofill="no"
             android:inputType="phone"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
@@ -89,6 +88,57 @@
             android:textColor="@color/text_primary"
             android:textColorHint="@color/text_secondary"
             android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/row_phone_input"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_input"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/button_country_picker"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                android:clickable="true"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:maxWidth="170dp"
+                android:minWidth="118dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="10dp"
+                android:text="@string/telegram_default_country"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:singleLine="true" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="26dp"
+                android:background="@color/input_border" />
+
+            <EditText
+                android:id="@+id/input_phone_number"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:autofillHints="phoneNumber"
+                android:background="@android:color/transparent"
+                android:hint="@string/telegram_local_phone_hint"
+                android:importantForAutofill="yes"
+                android:inputType="phone"
+                android:maxLength="24"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/button_continue"
@@ -101,7 +151,25 @@
             android:textColor="@color/button_text"
             android:textSize="16sp"
             android:visibility="gone" />
+
+        <Button
+            android:id="@+id/button_receive_sms"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_button_secondary"
+            android:text="@string/telegram_receive_sms"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:visibility="gone" />
     </LinearLayout>
+
+    <View
+        android:id="@+id/spacer_telegram_login"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
     <ScrollView
         android:id="@+id/scroll_groups"

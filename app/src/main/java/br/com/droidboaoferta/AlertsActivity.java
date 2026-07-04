@@ -349,7 +349,14 @@ public class AlertsActivity extends AppCompatActivity {
                     .apply();
             CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
             CloudSyncStore.markLocalChanged(this);
-            TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
+            if (editing) {
+                TelegramClientManager.getInstance().refreshInterestHistory(
+                        interestToEdit.getId(),
+                        term
+                );
+            } else {
+                TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
+            }
             dialog.dismiss();
             renderInterests();
         });

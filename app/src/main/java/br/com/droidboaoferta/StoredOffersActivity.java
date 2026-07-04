@@ -26,8 +26,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -208,13 +206,23 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         }
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
-        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", new Locale("pt", "BR"));
+        String previousGroup = null;
         for (int index = 0; index < visibleOffers.size(); index++) {
             ObservedOffer offer = visibleOffers.get(index);
+            String group = OfferDateFormatter.getGroupKey(offer.getObservedAt());
+            if (!group.equals(previousGroup)) {
+                offersContainer.addView(createOfferGroupHeader(
+                        OfferDateFormatter.formatGroupLabel(this, offer.getObservedAt()),
+                        previousGroup != null
+                ));
+                previousGroup = group;
+            } else {
+                offersContainer.addView(createOfferDivider());
+            }
             LinearLayout row = createOfferRow(
                     offer,
                     currency.format(offer.getPrice()),
-                    timeFormat.format(new Date(offer.getObservedAt())),
+                    OfferDateFormatter.formatTime(offer.getObservedAt()),
                     offer.getSource()
             );
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
@@ -222,10 +230,17 @@ abstract class StoredOffersActivity extends AppCompatActivity {
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
             offersContainer.addView(row, params);
-            if (index < visibleOffers.size() - 1) {
-                offersContainer.addView(createOfferDivider());
-            }
         }
+    }
+
+    private TextView createOfferGroupHeader(String label, boolean hasPreviousGroup) {
+        TextView header = new TextView(this);
+        header.setText(label);
+        header.setTextColor(getColor(R.color.text_secondary));
+        header.setTextSize(13);
+        int titleStart = hasLeadingAction() ? 50 : 10;
+        header.setPadding(dp(titleStart), dp(hasPreviousGroup ? 18 : 8), dp(8), dp(7));
+        return header;
     }
 
     private List<ObservedOffer> filterOffers(List<ObservedOffer> offers, String query) {
