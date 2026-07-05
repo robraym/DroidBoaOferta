@@ -292,7 +292,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         content.setBackgroundResource(R.drawable.bg_dialog);
 
         TextView title = new TextView(this);
-        title.setText(R.string.settings_theme_title);
+        title.setText(R.string.settings_theme_dialog_title);
         title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(21);
         content.addView(title);
@@ -325,9 +325,9 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END);
-        TextView cancel = createDialogAction(R.string.action_cancel);
-        cancel.setOnClickListener(view -> dialog.dismiss());
-        actions.addView(cancel);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
         content.addView(actions);
 
         dialog.setContentView(content);
@@ -462,14 +462,53 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     }
 
     private void showTermsDialog() {
-        showConfirmationDialog(
-                R.string.profile_terms_title,
-                R.string.profile_terms_message,
-                R.string.action_confirm,
-                false,
-                () -> {
-                }
-        );
+        showInformationDialog(R.string.profile_terms_title, R.string.profile_terms_message);
+    }
+
+    private void showInformationDialog(int titleResource, int messageResource) {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(titleResource);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(messageResource);
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(8), 0, dp(16));
+        content.addView(message);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
     }
 
     private void showConfirmationDialog(int titleResource, int messageResource, int confirmResource,

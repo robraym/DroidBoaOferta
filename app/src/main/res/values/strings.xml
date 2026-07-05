@@ -40,6 +40,7 @@
     <string name="telegram_required_field">Preencha este campo</string>
     <string name="action_continue">Continuar</string>
     <string name="action_confirm">Confirmar</string>
+    <string name="action_close">Fechar</string>
     <string name="action_enter">Entrar</string>
     <string name="dashboard_status_choose_groups">Escolha suas fontes</string>
     <string name="dashboard_status_choose_groups_summary">Selecione os grupos de promoções.</string>
@@ -97,7 +98,8 @@
     <string name="alerts_screen_title">Alertas</string>
     <string name="alerts_screen_summary">Produtos e preços máximos para avisar.</string>
     <string name="alerts_list_title">Alertas salvos</string>
-    <string name="settings_theme_title">Tema</string>
+    <string name="settings_theme_title">Tema do app</string>
+    <string name="settings_theme_dialog_title">Escolher tema</string>
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Escuro</string>
     <string name="theme_selected_format">%1$s ✓</string>
