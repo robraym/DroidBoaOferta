@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Boa Oferta</string>
+    <string name="app_name">Alertou</string>
     <string name="app_slogan">Só avisa quando vale a pena.</string>
     <string name="telegram_setup_screen_title">Telegram</string>
     <string name="telegram_choose_groups_short">Escolha os grupos de promoções.</string>
     <string name="telegram_status_connecting">Preparando conexão</string>
-    <string name="telegram_wait_message">Aguarde enquanto o Boa Oferta inicia a conexão local com o Telegram.</string>
+    <string name="telegram_wait_message">Aguarde enquanto o Alertou inicia a conexão local com o Telegram.</string>
     <string name="telegram_status_credentials">Credenciais necessárias</string>
     <string name="telegram_credentials_message">Adicione telegram.api_id e telegram.api_hash ao arquivo local.properties e gere o aplicativo novamente. Essas credenciais são obtidas em my.telegram.org.</string>
     <string name="telegram_status_login">Entrar no Telegram</string>
@@ -28,7 +28,7 @@
     <string name="telegram_password_message">Digite a senha adicional configurada na sua conta do Telegram.</string>
     <string name="telegram_password_hint">Senha do Telegram</string>
     <string name="telegram_status_connected">Telegram conectado</string>
-    <string name="telegram_groups_message">Escolha os grupos e canais de promoções que o Boa Oferta poderá acompanhar.</string>
+    <string name="telegram_groups_message">Escolha os grupos e canais de promoções que o Alertou poderá acompanhar.</string>
     <string name="telegram_no_groups">Nenhum grupo ou canal foi encontrado na lista principal.</string>
     <string name="telegram_status_disconnected">Telegram desconectado</string>
     <string name="telegram_disconnected_message">A sessão foi encerrada. Abra esta tela novamente para reconectar.</string>
@@ -115,7 +115,7 @@
     <string name="profile_logout_dialog_message">O monitoramento será pausado e os grupos selecionados serão removidos. Suas ofertas salvas não serão apagadas.</string>
     <string name="profile_telegram_disconnected_toast">Telegram desconectado</string>
     <string name="profile_terms_title">Termos e privacidade</string>
-    <string name="profile_terms_message">O Boa Oferta processa no aparelho apenas os grupos e canais escolhidos por você. As mensagens do Telegram não são enviadas para serviços externos de IA.</string>
+    <string name="profile_terms_message">O Alertou processa no aparelho apenas os grupos e canais escolhidos por você. As mensagens do Telegram não são enviadas para serviços externos de IA.</string>
     <string name="profile_sync_title">Sincronização</string>
     <string name="profile_sync_waiting">Ativa com sua conta Telegram.</string>
     <string name="profile_sync_pending">Sincronizando alterações...</string>
@@ -128,8 +128,8 @@
     <string name="profile_cloud_restore_searching">Buscando dados sincronizados.</string>
     <string name="profile_cloud_restore_done">Sincronização concluída.</string>
     <string name="profile_cloud_restore_empty">Nenhum dado sincronizado foi encontrado.</string>
-    <string name="profile_app_version">Boa Oferta %1$s</string>
-    <string name="profile_app_version_placeholder">Boa Oferta</string>
+    <string name="profile_app_version">Alertou %1$s</string>
+    <string name="profile_app_version_placeholder">Alertou</string>
     <string name="dashboard_alerts_title">Alertas configurados</string>
     <string name="dashboard_interests_title">Alertas configurados</string>
     <string name="dashboard_no_interests">Nenhum alerta criado.</string>
@@ -192,9 +192,9 @@
     <string name="offer_channel_name">Boas ofertas</string>
     <string name="offer_channel_description">Alertas de ofertas que passaram nos seus filtros</string>
     <string name="offer_notification_explanation">%1$s está abaixo do seu limite de %2$s • %3$s</string>
-    <string name="monitor_channel_name">Alertas do Boa Oferta</string>
+    <string name="monitor_channel_name">Monitoramento do Alertou</string>
     <string name="monitor_channel_description">Mantém a conexão local com os grupos escolhidos</string>
-    <string name="monitor_service_title">Alertas do Boa Oferta ligados</string>
+    <string name="monitor_service_title">Alertou está monitorando</string>
     <string name="monitor_service_summary">Somente os grupos e produtos escolhidos por você.</string>
     <string name="icon_percent" translatable="false">%</string>
     <string name="icon_telegram_letter" translatable="false">T</string>

@@ -1,8 +1,8 @@
-# Contexto do projeto — Boa Oferta
+# Contexto do projeto — Alertou
 
 ## Identidade
 
-- Nome exibido: **Boa Oferta**.
+- Nome exibido: **Alertou**.
 - Nome técnico do projeto: **DroidBoaOferta**.
 - Pacote inicial: `br.com.droidboaoferta`.
 - Frase principal: **Só avisa quando vale a pena.**
@@ -12,7 +12,7 @@
 
 O usuário participa de vários grupos e canais de promoções no Telegram. Esses grupos publicam muitas mensagens, repetem ofertas e frequentemente usam expressões como "imperdível" sem demonstrar se o preço é realmente bom.
 
-O Boa Oferta deve acompanhar apenas as fontes escolhidas, extrair os dados úteis e alertar quando houver evidência de uma promoção relevante para o usuário.
+O Alertou deve acompanhar apenas as fontes escolhidas, extrair os dados úteis e alertar quando houver evidência de uma promoção relevante para o usuário.
 
 ## Experiência pretendida
 
@@ -114,4 +114,3 @@ Não usar scraping da Amazon. Se o aplicativo futuramente usar links de associad
 - Criar uma aplicação em `my.telegram.org` e obter as credenciais próprias exigidas pelo Telegram.
 - Decidir se o primeiro uso será estritamente pessoal ou se existe intenção de publicar o app.
 - Definir os primeiros grupos e alguns exemplos reais de mensagens para construir o extrator sem armazenar conteúdo desnecessário.
-

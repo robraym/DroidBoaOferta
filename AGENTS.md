@@ -12,7 +12,7 @@
 
 ## Produto
 
-- Nome visível: **Boa Oferta**.
+- Nome visível: **Alertou**.
 - Frase: **Só avisa quando vale a pena.**
 - A fonte principal planejada são grupos e canais de promoções escolhidos pelo usuário no Telegram.
 - A arquitetura recomendada é TDLib local no Android, com sessão protegida no aparelho.

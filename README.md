@@ -1,6 +1,6 @@
-# DroidBoaOferta
+# Alertou
 
-Aplicativo Android nativo chamado **Boa Oferta**.
+Aplicativo Android nativo chamado **Alertou**.
 
 O objetivo é acompanhar grupos e canais de promoções escolhidos pelo usuário, organizar as ofertas recebidas e alertar somente quando o preço realmente parecer vantajoso.
 
