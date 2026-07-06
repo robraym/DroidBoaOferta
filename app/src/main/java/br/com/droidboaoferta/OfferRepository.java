@@ -70,9 +70,12 @@ final class OfferRepository {
     synchronized void reconcileRecentWithInterests(List<Interest> interests) {
         List<ObservedOffer> recent = new ArrayList<>(readOffers(KEY_OFFERS));
         List<ObservedOffer> reconciled = new ArrayList<>();
+        long now = System.currentTimeMillis();
         for (ObservedOffer offer : recent) {
             Interest matchingInterest = findMatchingInterest(offer, interests);
-            if (matchingInterest == null || offer.getPrice() > matchingInterest.getMaximumPrice()) {
+            if (matchingInterest == null
+                    || offer.getPrice() > matchingInterest.getMaximumPrice()
+                    || !OfferEligibility.canDisplay(offer, now)) {
                 continue;
             }
             reconciled.add(new ObservedOffer(
@@ -193,7 +196,10 @@ final class OfferRepository {
     }
 
     List<ObservedOffer> getRecent() {
-        return readOffers(KEY_OFFERS);
+        List<ObservedOffer> recent = new ArrayList<>(readOffers(KEY_OFFERS));
+        long now = System.currentTimeMillis();
+        recent.removeIf(offer -> !OfferEligibility.canDisplay(offer, now));
+        return recent;
     }
 
     List<ObservedOffer> getArchived() {

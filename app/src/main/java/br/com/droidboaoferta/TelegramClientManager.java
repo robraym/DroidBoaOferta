@@ -275,12 +275,15 @@ final class TelegramClientManager {
             return false;
         }
         int publishedCount = 0;
+        long now = System.currentTimeMillis();
         for (LowestPriceCandidate candidate : cached.candidates) {
             if (!OfferTextParser.isWithinValidatedRange(
                     candidate.price,
                     cached.lowestPlausiblePrice,
                     maximumPrice
-            )) {
+            ) || !OfferEligibility.isRecent(candidate.messageDate, now)
+                    || !OfferEligibility.hasUsableLink(
+                    candidate.payload.findBestLink(term))) {
                 continue;
             }
             JSONObject chat = chats.get(candidate.chatId);
@@ -656,7 +659,13 @@ final class TelegramClientManager {
                 JSONObject message = messages.optJSONObject(index);
                 TelegramMessagePayload payload = TelegramMessagePayload.fromMessage(message);
                 String text = payload.getText();
+                long messageDate = message.optLong("date", 0L) * 1000L;
+                String offerLink = payload.findBestLink(search.batch.term);
                 if (text.isEmpty() || !OfferTextParser.matchesInterest(text, search.batch.term)) {
+                    continue;
+                }
+                if (!OfferEligibility.isRecent(messageDate, System.currentTimeMillis())
+                        || !OfferEligibility.hasUsableLink(offerLink)) {
                     continue;
                 }
                 double price = OfferTextParser.extractPriceForInterest(text, search.batch.term);
@@ -665,7 +674,7 @@ final class TelegramClientManager {
                     search.batch.candidates.add(new LowestPriceCandidate(
                             message.optLong("chat_id", 0L),
                             message.optLong("id", 0L),
-                            message.optLong("date", 0L) * 1000L,
+                            messageDate,
                             payload,
                             price
                     ));

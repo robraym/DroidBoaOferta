@@ -93,6 +93,7 @@ Não usar scraping da Amazon. Se o aplicativo futuramente usar links de associad
 
 - No cadastro e na edição de alertas, oferecer **Buscar menor preço** abaixo do campo de preço máximo.
 - Consultar pontualmente até 100 mensagens correspondentes em cada grupo selecionado, validar o termo e considerar somente preços reconhecidos pelo extrator local.
+- Considerar apenas ofertas dos últimos 90 dias e com link de compra `http/https` associado ao produto. Mensagens antigas ou sem link não podem definir o preço sugerido nem aparecer na lista recente.
 - Conforme os grupos responderem, animar no próprio campo a queda para cada novo menor valor encontrado e exibir **Menor até agora**.
 - Descartar valores identificados como parcela, desconto, cashback ou frete; quando só houver parcelamento, usar o total das parcelas como referência.
 - Ignorar valores extremamente baixos e isolados em relação aos demais preços encontrados, evitando sugestões irreais como uma parcela ou cupom de R$ 9 para um celular.

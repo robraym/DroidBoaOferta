@@ -203,7 +203,7 @@
     <string name="lowest_price_found">Menor preço encontrado.</string>
     <string name="lowest_price_found_format">Menor preço observado nos seus grupos: %1$s</string>
     <string name="lowest_price_found_so_far">Menor até agora: %1$s</string>
-    <string name="lowest_price_not_found">Nenhum preço foi encontrado para esse termo.</string>
+    <string name="lowest_price_not_found">Nenhuma oferta recente com link foi encontrada para esse termo.</string>
     <string name="lowest_price_no_groups">Escolha pelo menos um grupo do Telegram.</string>
     <string name="lowest_price_login_required">Conecte o Telegram para buscar preços.</string>
     <string name="telegram_source_unknown">Grupo do Telegram</string>

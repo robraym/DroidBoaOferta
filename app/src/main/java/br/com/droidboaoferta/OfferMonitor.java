@@ -130,6 +130,8 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                                            double price, boolean notifyUser, String offerLink) {
         if (!OfferTextParser.matchesInterest(text, interest.getTerm())
                 || price > interest.getMaximumPrice()
+                || !OfferEligibility.isRecent(messageDate, System.currentTimeMillis())
+                || !OfferEligibility.hasUsableLink(offerLink)
                 || !offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
             return;
         }
