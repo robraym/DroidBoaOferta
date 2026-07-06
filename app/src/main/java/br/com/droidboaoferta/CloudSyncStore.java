@@ -45,6 +45,8 @@ final class CloudSyncStore {
     private static final String KEY_GROUP_SELECTED_AT = "group_selected_at";
     private static final String KEY_REMOVED_GROUPS = "removed_groups";
     private static final String KEY_THEME_UPDATED_AT = "theme_updated_at";
+    private static final String KEY_ALERT_SOUND_UPDATED_AT = "alert_sound_updated_at";
+    private static final String KEY_ALERT_CUSTOM_SOUNDS = "alert_sound_custom_sounds";
     private static final String KEY_RECENT_UPDATED_AT = "recent_updated_at";
     private static final String KEY_ARCHIVED_UPDATED_AT = "archived_updated_at";
     private static final String KEY_TRASH_UPDATED_AT = "trash_updated_at";
@@ -52,6 +54,7 @@ final class CloudSyncStore {
     private static final String MONITOR_ENABLED = "monitor_enabled";
     private static final String APP_PREFS = "app_preferences";
     private static final String THEME_MODE = "theme_mode";
+    private static final String ALERT_SOUND = "alert_sound";
 
     private CloudSyncStore() {
     }
@@ -127,6 +130,15 @@ final class CloudSyncStore {
                 .apply();
     }
 
+    static void rememberAlertSoundChanged(Context context, long changedAt) {
+        if (context == null) {
+            return;
+        }
+        syncPrefs(context).edit()
+                .putLong(KEY_ALERT_SOUND_UPDATED_AT, changedAt)
+                .apply();
+    }
+
     static void rememberTrashChanged(Context context, long changedAt) {
         if (context == null) {
             return;
@@ -192,7 +204,21 @@ final class CloudSyncStore {
     }
 
     static boolean hasPendingPush(Context context) {
-        return syncPrefs(context).getBoolean(PENDING_PUSH, false);
+        SharedPreferences preferences = syncPrefs(context);
+        boolean pending = preferences.getBoolean(PENDING_PUSH, false);
+        if (!pending) {
+            return false;
+        }
+        long lastLocalChange = preferences.getLong(LAST_LOCAL_CHANGE, 0L);
+        long lastConfirmedBackup = preferences.getLong(LAST_BACKUP_AT, 0L);
+        boolean compactBackupReady = preferences.getBoolean(COMPACT_BACKUP_MIGRATED, false);
+        if (compactBackupReady
+                && lastLocalChange > 0L
+                && lastConfirmedBackup >= lastLocalChange) {
+            preferences.edit().putBoolean(PENDING_PUSH, false).apply();
+            return false;
+        }
+        return true;
     }
 
     static boolean markPushed(Context context, long backedUpChange) {
@@ -203,7 +229,7 @@ final class CloudSyncStore {
                 .putBoolean(COMPACT_BACKUP_MIGRATED, true)
                 .putLong(LAST_BACKUP_AT, now)
                 .putLong(LAST_REMOTE_BACKUP_AT, now)
-                .apply();
+                .commit();
         return !newerChangePending;
     }
 
@@ -295,6 +321,10 @@ final class CloudSyncStore {
             ));
             data.put(THEME_MODE, app.getString(THEME_MODE, ThemeController.MODE_DARK));
             data.put(KEY_THEME_UPDATED_AT, ensureThemeUpdatedAt(appContext, updatedAt));
+            String backupAlertSound = AlertSoundController.getBackupSound(appContext);
+            data.put(ALERT_SOUND, backupAlertSound);
+            data.put(KEY_ALERT_CUSTOM_SOUNDS, AlertSoundController.exportCustomSounds(appContext));
+            data.put(KEY_ALERT_SOUND_UPDATED_AT, ensureAlertSoundUpdatedAt(appContext, updatedAt));
 
             backup.put("version", 1);
             backup.put("updated_at", updatedAt);
@@ -486,6 +516,25 @@ final class CloudSyncStore {
             ThemeController.applySavedTheme(appContext);
         }
 
+        String localAlertSound = AlertSoundController.getSavedSound(appContext);
+        long localAlertSoundUpdatedAt = syncPrefs(appContext)
+                .getLong(KEY_ALERT_SOUND_UPDATED_AT, localUpdatedAt);
+        AlertSoundController.importCustomSounds(
+                appContext,
+                data.optJSONArray(KEY_ALERT_CUSTOM_SOUNDS)
+        );
+        String remoteAlertSound = data.optString(ALERT_SOUND, "");
+        long remoteAlertSoundUpdatedAt = AlertSoundController.isBuiltInSound(remoteAlertSound)
+                || AlertSoundController.hasCustomSound(appContext, remoteAlertSound)
+                ? data.optLong(KEY_ALERT_SOUND_UPDATED_AT, remoteUpdatedAt)
+                : 0L;
+        if (remoteAlertSoundUpdatedAt >= localAlertSoundUpdatedAt
+                && (AlertSoundController.isBuiltInSound(remoteAlertSound)
+                || AlertSoundController.hasCustomSound(appContext, remoteAlertSound))
+                && !remoteAlertSound.equals(localAlertSound)) {
+            AlertSoundController.applyImportedSound(appContext, remoteAlertSound);
+        }
+
         boolean shouldPushMergedBackup = hasPendingPush(appContext) || localUpdatedAt > remoteUpdatedAt;
         syncPrefs(appContext).edit()
                 .putLong(LAST_LOCAL_CHANGE, Math.max(localUpdatedAt, remoteUpdatedAt))
@@ -493,6 +542,10 @@ final class CloudSyncStore {
                 .putString(KEY_INTEREST_UPDATED_AT, mergedInterestUpdatedAt.toString())
                 .putString(KEY_DELETED_INTERESTS, mergedDeletedInterests.toString())
                 .putLong(KEY_THEME_UPDATED_AT, Math.max(localThemeUpdatedAt, remoteThemeUpdatedAt))
+                .putLong(KEY_ALERT_SOUND_UPDATED_AT, Math.max(
+                        localAlertSoundUpdatedAt,
+                        remoteAlertSoundUpdatedAt
+                ))
                 .putLong(KEY_RECENT_UPDATED_AT, Math.max(localRecentUpdatedAt, remoteRecentUpdatedAt))
                 .putLong(KEY_ARCHIVED_UPDATED_AT, Math.max(localArchivedUpdatedAt, remoteArchivedUpdatedAt))
                 .putLong(KEY_TRASH_UPDATED_AT, Math.max(localTrashUpdatedAt, remoteTrashUpdatedAt))
@@ -837,6 +890,16 @@ final class CloudSyncStore {
         return updatedAt;
     }
 
+    private static long ensureAlertSoundUpdatedAt(Context context, long fallbackUpdatedAt) {
+        SharedPreferences preferences = syncPrefs(context);
+        long updatedAt = preferences.getLong(KEY_ALERT_SOUND_UPDATED_AT, 0L);
+        if (updatedAt <= 0L) {
+            updatedAt = fallbackUpdatedAt;
+            preferences.edit().putLong(KEY_ALERT_SOUND_UPDATED_AT, updatedAt).apply();
+        }
+        return updatedAt;
+    }
+
     private static long ensureTrashUpdatedAt(Context context, long fallbackUpdatedAt) {
         return ensureCollectionUpdatedAt(context, KEY_TRASH_UPDATED_AT, fallbackUpdatedAt);
     }
@@ -862,6 +925,7 @@ final class CloudSyncStore {
                 || !"[]".equals(offers.getString(KEY_ARCHIVED_OFFERS, "[]"))
                 || !"[]".equals(offers.getString(KEY_TRASHED_OFFERS, "[]"))
                 || !offers.getBoolean(MONITOR_ENABLED, true)
+                || AlertSoundController.hasCustomSound(appContext)
                 || ThemeController.MODE_LIGHT.equals(app.getString(THEME_MODE, ThemeController.MODE_DARK));
     }
 

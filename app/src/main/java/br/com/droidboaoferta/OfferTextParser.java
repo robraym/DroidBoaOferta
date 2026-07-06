@@ -11,8 +11,22 @@ import java.util.regex.Pattern;
 final class OfferTextParser {
     private static final String[] ACCESSORY_TERMS = {
             "pulseira", "bracelete", "correia", "capa", "case", "cover",
-            "pelicula", "vidro", "protetor", "carregador", "cabo", "adaptador",
-            "suporte", "base", "dock", "bumper", "acessorio"
+            "capinha", "capas", "cases", "pelicula", "peliculas", "vidro",
+            "protetor", "protetores", "protector", "protectors", "privacy",
+            "privacidade", "anti spy", "anti espiao", "antiespia", "antiespiao",
+            "fosca", "ceramica", "9d", "3d", "lente", "lentes",
+            "carregador", "carregadores", "cabo", "cabos", "adaptador",
+            "adaptadores", "suporte", "base", "dock", "bumper", "skin",
+            "adesivo", "adesivos", "acessorio", "acessorios"
+    };
+    private static final String[] COMPATIBILITY_TERMS = {
+            "para", "compativel com", "compatível com", "serve para", "modelo para"
+    };
+    private static final String[] HIGH_VALUE_DEVICE_TERMS = {
+            "iphone", "galaxy s", "galaxy z", "z flip", "zflip", "z fold", "zfold",
+            "s23", "s24", "s25", "ultra", "edge", "motorola", "moto g", "moto edge",
+            "redmi", "poco", "xiaomi", "ipad", "macbook", "notebook", "playstation",
+            "ps5", "xbox"
     };
     private static final String PRICE_VALUE =
             "([0-9]{1,3}(?:\\.[0-9]{3})+(?:,[0-9]{1,2})?|[0-9]+(?:,[0-9]{1,2})?)"
@@ -180,6 +194,18 @@ final class OfferTextParser {
         return !looksLikeAccessoryOffer(normalizedMessage.trim(), normalizedInterest);
     }
 
+    static boolean isPlausiblePriceForInterest(double price, String interest) {
+        if (Double.isNaN(price) || price <= 0.0d) {
+            return false;
+        }
+        String normalizedInterest = normalize(interest);
+        if (normalizedInterest.isEmpty() || containsAccessoryTerm(normalizedInterest)) {
+            return true;
+        }
+        double minimumPrice = minimumPlausiblePrice(normalizedInterest);
+        return minimumPrice <= 0.0d || price + 0.005d >= minimumPrice;
+    }
+
     static double selectPlausibleLowest(List<Double> prices) {
         if (prices == null || prices.isEmpty()) {
             return Double.POSITIVE_INFINITY;
@@ -237,8 +263,7 @@ final class OfferTextParser {
         if (!containsAccessoryTerm(message)) {
             return false;
         }
-        if (message.contains("para " + interest)
-                || message.contains("compativel com " + interest)) {
+        if (mentionsAccessoryForInterest(message, interest)) {
             return true;
         }
         int interestStart = message.indexOf(interest);
@@ -255,6 +280,38 @@ final class OfferTextParser {
         }
         String firstAfterWord = after.isEmpty() ? "" : after.split(" ")[0];
         return isAccessoryTerm(firstAfterWord);
+    }
+
+    private static boolean mentionsAccessoryForInterest(String message, String interest) {
+        int interestStart = message.indexOf(interest);
+        if (interestStart < 0) {
+            return false;
+        }
+        String beforeInterest = message.substring(0, interestStart).trim();
+        if (!containsAccessoryTerm(beforeInterest)) {
+            return false;
+        }
+        for (String term : COMPATIBILITY_TERMS) {
+            int compatibilityStart = beforeInterest.lastIndexOf(term);
+            if (compatibilityStart >= 0
+                    && beforeInterest.length() - compatibilityStart <= 32) {
+                return true;
+            }
+        }
+        return message.contains("para " + interest)
+                || message.contains("compativel com " + interest);
+    }
+
+    private static double minimumPlausiblePrice(String interest) {
+        if (interest.contains("watch ultra") || interest.contains("galaxy watch")) {
+            return 300.0d;
+        }
+        for (String term : HIGH_VALUE_DEVICE_TERMS) {
+            if (interest.contains(term)) {
+                return 300.0d;
+            }
+        }
+        return 0.0d;
     }
 
     private static boolean containsAccessoryTerm(String text) {

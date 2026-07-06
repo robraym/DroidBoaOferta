@@ -1,12 +1,10 @@
 package br.com.droidboaoferta;
 
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
 
@@ -17,8 +15,6 @@ import java.util.Set;
 
 final class OfferMonitor implements TelegramClientManager.MessageListener {
     static final String ACTION_OFFER_FOUND = "br.com.droidboaoferta.OFFER_FOUND";
-    static final String CHANNEL_OFFERS = "good_offers";
-
     private static final OfferMonitor INSTANCE = new OfferMonitor();
 
     static OfferMonitor getInstance() {
@@ -129,6 +125,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                                            long messageDate, String sourceTitle, String text,
                                            double price, boolean notifyUser, String offerLink) {
         if (!OfferTextParser.matchesInterest(text, interest.getTerm())
+                || !OfferTextParser.isPlausiblePriceForInterest(price, interest.getTerm())
                 || price > interest.getMaximumPrice()
                 || !OfferEligibility.isRecent(messageDate, System.currentTimeMillis())
                 || !OfferEligibility.hasUsableLink(offerLink)
@@ -171,12 +168,17 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                 currency.format(offer.getMaximumPrice()),
                 offer.getSource()
         );
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(appContext, CHANNEL_OFFERS)
+        AlertSoundController.configureNotificationChannel(appContext);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(
+                appContext,
+                AlertSoundController.getChannelId(appContext)
+        )
                 .setSmallIcon(R.drawable.ic_notification_offer)
                 .setContentTitle(offer.getInterest())
                 .setContentText(explanation)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(explanation))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setSound(AlertSoundController.getSoundUri(appContext))
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent);
 
@@ -187,18 +189,6 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
     }
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
-        NotificationManager manager = (NotificationManager) appContext.getSystemService(
-                Context.NOTIFICATION_SERVICE
-        );
-        NotificationChannel channel = new NotificationChannel(
-                CHANNEL_OFFERS,
-                appContext.getString(R.string.offer_channel_name),
-                NotificationManager.IMPORTANCE_HIGH
-        );
-        channel.setDescription(appContext.getString(R.string.offer_channel_description));
-        manager.createNotificationChannel(channel);
+        AlertSoundController.configureNotificationChannel(appContext);
     }
 }

@@ -54,6 +54,11 @@
                 android:value="Monitora localmente ofertas em grupos do Telegram escolhidos pelo usuário" />
         </service>
 
+        <provider
+            android:name=".AlertSoundProvider"
+            android:authorities="${applicationId}.alertsound"
+            android:exported="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="false" />

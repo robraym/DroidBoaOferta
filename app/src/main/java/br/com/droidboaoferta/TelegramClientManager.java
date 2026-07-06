@@ -135,9 +135,6 @@ final class TelegramClientManager {
         appContext = context.getApplicationContext();
         Log.d(TAG, "start called, started=" + started + ", state=" + state);
         if (started) {
-            if (state == State.READY && selfChatId != 0L) {
-                scheduleCloudPull();
-            }
             notifyState();
             notifyGroups();
             return;
@@ -669,7 +666,8 @@ final class TelegramClientManager {
                     continue;
                 }
                 double price = OfferTextParser.extractPriceForInterest(text, search.batch.term);
-                if (!Double.isNaN(price) && price > 0.0d) {
+                if (!Double.isNaN(price)
+                        && OfferTextParser.isPlausiblePriceForInterest(price, search.batch.term)) {
                     search.batch.observedPrices.add(price);
                     search.batch.candidates.add(new LowestPriceCandidate(
                             message.optLong("chat_id", 0L),
@@ -1253,6 +1251,8 @@ final class TelegramClientManager {
             );
             pendingCloudBackupUpdatedAt = 0L;
             requestBackupPrune();
+            appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
+                    .setPackage(appContext.getPackageName()));
             if (!fullySynced) {
                 scheduleCloudBackup();
             }

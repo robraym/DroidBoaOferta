@@ -8,7 +8,11 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
@@ -18,13 +22,20 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -42,6 +53,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         public void onReceive(Context context, Intent intent) {
             refreshSettingsControls();
             refreshErrorSummary();
+            refreshSyncSummary();
         }
     };
 
@@ -55,6 +67,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     private TextView monitorStatusTitle;
     private TextView monitorStatusSummary;
     private TextView themeSummary;
+    private TextView alertSoundSummary;
     private TextView errorSummary;
     private ImageButton monitorToggle;
     private InterestRepository interestRepository;
@@ -62,6 +75,11 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     private LinearLayout syncRow;
     private LinearLayout logoutRow;
     private View accountChevron;
+    private MediaPlayer alertSoundPreview;
+    private Dialog alertSoundDialog;
+    private ActivityResultLauncher<Intent> alertSoundPickerLauncher;
+    private float alertSoundPreviewVolume = 0.72f;
+    private boolean alertSoundDialogWasOpenWhenPicking;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,12 +97,47 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         monitorStatusTitle = findViewById(R.id.text_monitor_status_title);
         monitorStatusSummary = findViewById(R.id.text_monitor_status_summary);
         themeSummary = findViewById(R.id.text_theme_summary);
+        alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
         errorSummary = findViewById(R.id.text_error_summary);
         monitorToggle = findViewById(R.id.button_monitor_toggle);
         accountCard = findViewById(R.id.card_telegram_account);
         syncRow = findViewById(R.id.row_sync);
         logoutRow = findViewById(R.id.row_logout);
         accountChevron = findViewById(R.id.image_account_chevron);
+        alertSoundPickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() != RESULT_OK || result.getData() == null) {
+                        alertSoundDialogWasOpenWhenPicking = false;
+                        return;
+                    }
+                    Uri uri = result.getData().getData();
+                    if (uri == null) {
+                        alertSoundDialogWasOpenWhenPicking = false;
+                        return;
+                    }
+                    try {
+                        String selectedSound = AlertSoundController.saveCustomSound(this, uri);
+                        refreshSettingsControls();
+                        if (alertSoundDialogWasOpenWhenPicking) {
+                            alertSoundDialogWasOpenWhenPicking = false;
+                            if (alertSoundDialog != null && alertSoundDialog.isShowing()) {
+                                alertSoundDialog.dismiss();
+                            }
+                            showAlertSoundDialog();
+                        }
+                        playAlertSoundPreview(selectedSound);
+                    } catch (Exception exception) {
+                        alertSoundDialogWasOpenWhenPicking = false;
+                        AppErrorStore.recordSerious(
+                                this,
+                                getString(R.string.alert_sound_title),
+                                getString(R.string.alert_sound_custom_error)
+                        );
+                        refreshErrorSummary();
+                    }
+                }
+        );
 
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
         accountCard.setOnClickListener(view -> {
@@ -93,6 +146,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
             }
         });
         findViewById(R.id.row_theme).setOnClickListener(view -> showThemeDialog());
+        findViewById(R.id.row_alert_sound).setOnClickListener(view -> showAlertSoundDialog());
         monitorToggle.setOnClickListener(view -> toggleMonitor());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
@@ -107,6 +161,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         clientManager.start(this);
         IntentFilter statusFilter = new IntentFilter(MonitorStatusStore.ACTION_STATUS_CHANGED);
         statusFilter.addAction(AppErrorStore.ACTION_ERRORS_CHANGED);
+        statusFilter.addAction(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED);
         ContextCompat.registerReceiver(
                 this,
                 statusReceiver,
@@ -126,6 +181,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     protected void onStop() {
         unregisterReceiver(statusReceiver);
         clientManager.clearListener(this);
+        releaseAlertSoundPreview();
         super.onStop();
     }
 
@@ -187,6 +243,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         List<Interest> interests = interestRepository.getAll();
         boolean monitorEnabled = isMonitorEnabled();
         themeSummary.setText(ThemeController.getSummaryResource(ThemeController.getSavedMode(this)));
+        alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
 
         if (groupCount == 0) {
             monitorStatusTitle.setText(R.string.dashboard_status_choose_groups);
@@ -357,6 +414,436 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         option.setGravity(Gravity.CENTER_VERTICAL);
         option.setPadding(0, dp(12), 0, dp(12));
         return option;
+    }
+
+    private void showAlertSoundDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(18), dp(20), dp(12));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setPadding(0, 0, 0, dp(8));
+        TextView title = new TextView(this);
+        title.setText(R.string.alert_sound_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(22);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setLayoutParams(new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        TextView add = new TextView(this);
+        add.setText("+");
+        add.setGravity(Gravity.CENTER);
+        add.setTextColor(getColor(R.color.text_primary));
+        add.setTextSize(30);
+        add.setPadding(dp(12), 0, 0, 0);
+        add.setOnClickListener(view -> {
+            alertSoundDialogWasOpenWhenPicking = true;
+            openAlertSoundPicker();
+        });
+        titleRow.addView(title);
+        titleRow.addView(add);
+        content.addView(titleRow);
+
+        LinearLayout options = new LinearLayout(this);
+        options.setOrientation(LinearLayout.VERTICAL);
+        options.setPadding(0, 0, 0, dp(10));
+        String savedSound = AlertSoundController.getSavedSound(this);
+        String[] sounds = AlertSoundController.getKeys();
+        List<LinearLayout> soundOptions = new ArrayList<>();
+        List<LinearLayout> customOptions = new ArrayList<>();
+        options.addView(createSoundSectionHeader(R.string.alert_sound_custom_section));
+        for (AlertSoundController.CustomSound customSound : AlertSoundController.getCustomSounds(this)) {
+            String customKey = customSound.getKey();
+            LinearLayout customOption = createCustomSoundRow(
+                    customKey,
+                    customKey.equals(savedSound)
+            );
+            customOption.setTag(customKey);
+            customOptions.add(customOption);
+            TextView customRemove = customOption.findViewWithTag("custom_remove");
+            LinearLayout finalCustomOption = customOption;
+            customOption.setOnClickListener(view -> {
+                AlertSoundController.saveExistingCustomSound(this, customKey);
+                alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
+                String currentSound = AlertSoundController.getSavedSound(this);
+                for (LinearLayout customSoundOption : customOptions) {
+                    String optionSound = (String) customSoundOption.getTag();
+                    updateCustomSoundRow(
+                            customSoundOption,
+                            customSoundOption.findViewWithTag("custom_radio"),
+                            customSoundOption.findViewWithTag("custom_file_name"),
+                            optionSound,
+                            optionSound.equals(currentSound)
+                    );
+                }
+                for (LinearLayout soundOption : soundOptions) {
+                    String optionSound = (String) soundOption.getTag();
+                    updateDialogOptionRow(
+                            soundOption,
+                            soundOption.findViewWithTag("sound_radio"),
+                            soundOption.findViewWithTag("sound_label"),
+                            AlertSoundController.getLabel(this, optionSound),
+                            optionSound.equals(currentSound)
+                    );
+                }
+                playAlertSoundPreview(customKey);
+            });
+            customRemove.setOnClickListener(view -> {
+                AlertSoundController.removeCustomSound(this, customKey);
+                alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
+                options.removeView(finalCustomOption);
+                customOptions.remove(finalCustomOption);
+                String currentSound = AlertSoundController.getSavedSound(this);
+                for (LinearLayout customSoundOption : customOptions) {
+                    String optionSound = (String) customSoundOption.getTag();
+                    updateCustomSoundRow(
+                            customSoundOption,
+                            customSoundOption.findViewWithTag("custom_radio"),
+                            customSoundOption.findViewWithTag("custom_file_name"),
+                            optionSound,
+                            optionSound.equals(currentSound)
+                    );
+                }
+                for (LinearLayout soundOption : soundOptions) {
+                    String optionSound = (String) soundOption.getTag();
+                    updateDialogOptionRow(
+                            soundOption,
+                            soundOption.findViewWithTag("sound_radio"),
+                            soundOption.findViewWithTag("sound_label"),
+                            AlertSoundController.getLabel(this, optionSound),
+                            optionSound.equals(currentSound)
+                    );
+                }
+            });
+            options.addView(customOption);
+        }
+        options.addView(createSoundSectionHeader(R.string.alert_sound_builtin_section));
+
+        for (String sound : sounds) {
+            LinearLayout option = createDialogOption(
+                    AlertSoundController.getLabel(this, sound),
+                    sound.equals(savedSound)
+            );
+            option.setTag(sound);
+            soundOptions.add(option);
+            option.setOnClickListener(view -> {
+                AlertSoundController.saveSound(this, sound);
+                alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
+                String currentSound = AlertSoundController.getSavedSound(this);
+                for (LinearLayout soundOption : soundOptions) {
+                    String optionSound = (String) soundOption.getTag();
+                    updateDialogOptionRow(
+                            soundOption,
+                            soundOption.findViewWithTag("sound_radio"),
+                            soundOption.findViewWithTag("sound_label"),
+                            AlertSoundController.getLabel(this, optionSound),
+                            optionSound.equals(currentSound)
+                    );
+                }
+                for (LinearLayout customSoundOption : customOptions) {
+                    String optionSound = (String) customSoundOption.getTag();
+                    updateCustomSoundRow(
+                            customSoundOption,
+                            customSoundOption.findViewWithTag("custom_radio"),
+                            customSoundOption.findViewWithTag("custom_file_name"),
+                            optionSound,
+                            optionSound.equals(currentSound)
+                    );
+                }
+                playAlertSoundPreview(sound);
+            });
+            options.addView(option);
+        }
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(false);
+        scrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        scrollView.addView(options);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                Math.min(dp(480), (int) (getResources().getDisplayMetrics().heightPixels * 0.58f))
+        );
+        content.addView(scrollView, scrollParams);
+
+        content.addView(createAlertSoundVolumeBar());
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        dialog.setOnDismissListener(value -> {
+            if (alertSoundDialog == dialog) {
+                alertSoundDialog = null;
+            }
+        });
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        alertSoundDialog = dialog;
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private void playAlertSoundPreview(String sound) {
+        releaseAlertSoundPreview();
+        if (AlertSoundController.isCustomSound(sound)) {
+            alertSoundPreview = MediaPlayer.create(this, AlertSoundController.getSoundUri(this, sound));
+        } else {
+            alertSoundPreview = MediaPlayer.create(this, AlertSoundController.getRawResource(sound));
+        }
+        if (alertSoundPreview == null) {
+            return;
+        }
+        alertSoundPreview.setVolume(alertSoundPreviewVolume, alertSoundPreviewVolume);
+        alertSoundPreview.setOnCompletionListener(player -> releaseAlertSoundPreview());
+        alertSoundPreview.start();
+    }
+
+    private void releaseAlertSoundPreview() {
+        if (alertSoundPreview == null) {
+            return;
+        }
+        alertSoundPreview.setOnCompletionListener(null);
+        alertSoundPreview.release();
+        alertSoundPreview = null;
+    }
+
+    private LinearLayout createDialogOption(String text, boolean selected) {
+        LinearLayout option = new LinearLayout(this);
+        option.setOrientation(LinearLayout.HORIZONTAL);
+        option.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, dp(1), 0, dp(1));
+        option.setLayoutParams(params);
+
+        View radio = createSoundRadio();
+        radio.setTag("sound_radio");
+        TextView label = new TextView(this);
+        label.setTag("sound_label");
+        label.setSingleLine(false);
+        label.setMaxLines(2);
+        label.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        label.setLayoutParams(labelParams);
+        option.addView(radio);
+        option.addView(label);
+        updateDialogOptionRow(option, radio, label, text, selected);
+        return option;
+    }
+
+    private LinearLayout createCustomSoundRow(String sound, boolean selected) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, dp(1), 0, dp(1));
+        card.setLayoutParams(params);
+
+        View radio = createSoundRadio();
+        radio.setTag("custom_radio");
+
+        TextView fileName = new TextView(this);
+        fileName.setTag("custom_file_name");
+        fileName.setSingleLine(true);
+        fileName.setMaxLines(1);
+        fileName.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams fileNameParams = new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        fileName.setLayoutParams(fileNameParams);
+
+        TextView remove = new TextView(this);
+        remove.setTag("custom_remove");
+        remove.setText("—");
+        remove.setGravity(Gravity.CENTER);
+        remove.setTextColor(getColor(R.color.danger));
+        remove.setTextSize(24);
+        remove.setTypeface(Typeface.DEFAULT_BOLD);
+        remove.setPadding(dp(12), 0, 0, 0);
+
+        card.addView(radio);
+        card.addView(fileName);
+        card.addView(remove);
+        updateCustomSoundRow(card, radio, fileName, sound, selected);
+        return card;
+    }
+
+    private FrameLayout createSoundRadio() {
+        FrameLayout container = new FrameLayout(this);
+        container.setPadding(0, 0, dp(12), 0);
+        container.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(40)));
+
+        View ring = new View(this);
+        ring.setTag("radio_ring");
+        FrameLayout.LayoutParams ringParams = new FrameLayout.LayoutParams(dp(22), dp(22));
+        ringParams.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
+        ring.setLayoutParams(ringParams);
+        container.addView(ring);
+
+        View dot = new View(this);
+        dot.setTag("radio_dot");
+        FrameLayout.LayoutParams dotParams = new FrameLayout.LayoutParams(dp(10), dp(10));
+        dotParams.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
+        dotParams.leftMargin = dp(6);
+        dot.setLayoutParams(dotParams);
+        container.addView(dot);
+
+        return container;
+    }
+
+    private LinearLayout createSoundSectionHeader(int textResource) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(0, dp(8), 0, dp(4));
+
+        TextView label = new TextView(this);
+        label.setText(textResource);
+        label.setTextColor(getColor(R.color.text_secondary));
+        label.setTextSize(12);
+        label.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(label);
+
+        View line = new View(this);
+        line.setBackgroundResource(R.drawable.bg_alert_sound_section_line);
+        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(
+                0,
+                dp(1),
+                1f
+        );
+        lineParams.setMargins(dp(10), 0, 0, 0);
+        header.addView(line, lineParams);
+        return header;
+    }
+
+    private void updateDialogOptionRow(LinearLayout option, View radio, TextView label,
+                                       String text, boolean selected) {
+        updateSoundRadio(radio, selected);
+        label.setText(text);
+        label.setTextColor(getColor(R.color.text_primary));
+        label.setTextSize(15.0f);
+        label.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
+        option.setPadding(0, dp(6), dp(8), dp(6));
+        option.setBackgroundResource(android.R.color.transparent);
+    }
+
+    private void updateCustomSoundRow(LinearLayout card, View radio, TextView fileName,
+                                      String sound,
+                                      boolean selected) {
+        updateSoundRadio(radio, selected);
+        fileName.setText(AlertSoundController.getCustomDisplayName(this, sound));
+        fileName.setTextColor(getColor(R.color.text_primary));
+        fileName.setTextSize(14.0f);
+        fileName.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
+        card.setPadding(0, dp(6), dp(8), dp(6));
+        card.setBackgroundResource(android.R.color.transparent);
+    }
+
+    private void updateSoundRadio(View radio, boolean selected) {
+        View ring = radio.findViewWithTag("radio_ring");
+        View dot = radio.findViewWithTag("radio_dot");
+        int strokeColor = getColor(selected ? R.color.action : R.color.text_secondary);
+        GradientDrawable ringDrawable = new GradientDrawable();
+        ringDrawable.setShape(GradientDrawable.OVAL);
+        ringDrawable.setColor(Color.TRANSPARENT);
+        ringDrawable.setStroke(dp(2), strokeColor);
+        ring.setBackground(ringDrawable);
+
+        GradientDrawable dotDrawable = new GradientDrawable();
+        dotDrawable.setShape(GradientDrawable.OVAL);
+        dotDrawable.setColor(getColor(R.color.action));
+        dot.setBackground(dotDrawable);
+        dot.setVisibility(selected ? View.VISIBLE : View.INVISIBLE);
+    }
+
+    private LinearLayout createAlertSoundVolumeBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(12), dp(9), dp(12), dp(9));
+        bar.setBackgroundResource(R.drawable.bg_alert_sound_volume_bar);
+        LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        barParams.setMargins(0, dp(8), 0, dp(2));
+        bar.setLayoutParams(barParams);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_volume_preview);
+        icon.setColorFilter(getColor(R.color.action));
+        icon.setPadding(0, 0, dp(10), 0);
+        icon.setLayoutParams(new LinearLayout.LayoutParams(dp(34), dp(28)));
+
+        SeekBar volume = new SeekBar(this);
+        volume.setMax(100);
+        volume.setProgress(Math.round(alertSoundPreviewVolume * 100f));
+        volume.setLayoutParams(new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                alertSoundPreviewVolume = Math.max(0f, Math.min(1f, progress / 100f));
+                if (alertSoundPreview != null) {
+                    alertSoundPreview.setVolume(alertSoundPreviewVolume, alertSoundPreviewVolume);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        bar.addView(icon);
+        bar.addView(volume);
+        return bar;
+    }
+
+    private void openAlertSoundPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("audio/*");
+        alertSoundPickerLauncher.launch(intent);
     }
 
     private boolean isMonitorEnabled() {

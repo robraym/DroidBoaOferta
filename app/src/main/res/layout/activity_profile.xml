@@ -134,6 +134,15 @@
                 android:layout_marginEnd="8dp"
                 android:background="@color/divider" />
 
+            <include layout="@layout/row_profile_alert_sound" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="60dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/divider" />
+
             <include layout="@layout/row_profile_monitor" />
 
             <View

@@ -167,6 +167,27 @@ public class OfferTextParserTest {
     }
 
     @Test
+    public void rejectsPrivacyFilmForIphoneInterest() {
+        String text = "Kit de Películas 9D Cerâmica Privacidade Fosca Anti Spy "
+                + "para iPhone 17, 16, 15, 14, 13 Pro Max, 12, 11, XR\n"
+                + "R$11,00 -> R$ 10,45\n"
+                + "VER AGORA";
+
+        assertTrue(!OfferTextParser.matchesInterest(text, "iPhone 17"));
+    }
+
+    @Test
+    public void rejectsImplausibleMainDevicePrice() {
+        assertTrue(!OfferTextParser.isPlausiblePriceForInterest(11.00, "iPhone 17"));
+        assertTrue(!OfferTextParser.isPlausiblePriceForInterest(149.00, "Galaxy Watch Ultra"));
+    }
+
+    @Test
+    public void acceptsImplausiblePhonePriceWhenInterestIsAccessory() {
+        assertTrue(OfferTextParser.isPlausiblePriceForInterest(11.00, "Película iPhone 17"));
+    }
+
+    @Test
     public void acceptsMainProductWithIncludedAccessory() {
         assertTrue(OfferTextParser.matchesInterest(
                 "Galaxy Watch Ultra LTE com pulseira extra por R$ 2.999,00",
