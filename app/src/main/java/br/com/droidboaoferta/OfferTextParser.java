@@ -216,25 +216,20 @@ final class OfferTextParser {
     }
 
     private static boolean isInstallmentContext(String text, int priceStart) {
-        String before = text.substring(Math.max(0, priceStart - 32), priceStart);
-        String normalized = normalize(before);
-        return normalized.matches(".*\\b[0-9]{1,2}\\s*x(?:\\s+de|\\s+por)?$")
-                || normalized.endsWith("parcela")
-                || normalized.endsWith("parcelas");
+        return PriceContextClassifier.classify(text, priceStart, priceStart)
+                == PriceContextClassifier.Meaning.INSTALLMENT;
     }
 
     private static boolean isDiscountContext(String text, int priceStart, int priceEnd) {
-        String context = normalize(text.substring(
-                Math.max(0, priceStart - 24),
-                Math.min(text.length(), priceEnd + 28)
-        ));
-        return context.contains(" de desconto")
-                || context.contains(" desconto de")
-                || context.contains(" cashback")
-                || context.contains(" frete")
-                || context.contains(" economize")
-                || context.contains(" cupom de")
-                || context.contains(" off");
+        PriceContextClassifier.Meaning meaning = PriceContextClassifier.classify(
+                text,
+                priceStart,
+                priceEnd
+        );
+        return meaning == PriceContextClassifier.Meaning.DISCOUNT
+                || meaning == PriceContextClassifier.Meaning.CASHBACK
+                || meaning == PriceContextClassifier.Meaning.FREIGHT
+                || meaning == PriceContextClassifier.Meaning.CREDIT;
     }
 
     private static boolean looksLikeAccessoryOffer(String message, String interest) {

@@ -96,6 +96,7 @@ Não usar scraping da Amazon. Se o aplicativo futuramente usar links de associad
 - Considerar apenas ofertas dos últimos 90 dias e com link de compra `http/https` associado ao produto. Mensagens antigas ou sem link não podem definir o preço sugerido nem aparecer na lista recente.
 - Conforme os grupos responderem, animar no próprio campo a queda para cada novo menor valor encontrado e exibir **Menor até agora**.
 - Descartar valores identificados como parcela, desconto, cashback ou frete; quando só houver parcelamento, usar o total das parcelas como referência.
+- Classificar localmente cada valor pelo contexto como preço do produto, desconto, cashback, parcela, frete ou crédito. Somente preço do produto pode alimentar o alerta; não enviar o texto do Telegram para IA externa.
 - Ignorar valores extremamente baixos e isolados em relação aos demais preços encontrados, evitando sugestões irreais como uma parcela ou cupom de R$ 9 para um celular.
 - Quando o interesse for o produto principal, rejeitar mensagens de acessórios compatíveis, como pulseiras, capas, películas, carregadores e suportes; aceitar esses itens apenas quando o próprio interesse mencionar o acessório.
 - Ao concluir, preencher o campo com o menor preço observado nos grupos, apenas como referência editável; nunca salvar o alerta automaticamente.

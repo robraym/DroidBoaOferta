@@ -49,6 +49,32 @@ public class OfferTextParserTest {
     }
 
     @Test
+    public void ignoresRepeatedSavingsAmountFromEdge70CouponPost() {
+        String text = "R$ 500 OFF no Smartphone Motorola Edge 70 Pro 5G 256GB\n"
+                + "Vem de cupom Motorola pra fazer economia de R$ 500 na compra "
+                + "do seu novo celular Edge 70 Pro.\n"
+                + "Cupom EDGE500";
+
+        assertTrue(Double.isNaN(OfferTextParser.extractPrice(text)));
+        assertTrue(Double.isNaN(OfferTextParser.extractPriceForInterest(
+                text,
+                "Motorola Edge 70 Pro"
+        )));
+    }
+
+    @Test
+    public void stillUsesRealProductPriceAfterSavingsAmount() {
+        String text = "Economia de R$ 500 no Motorola Edge 70 Pro. "
+                + "Preço final por R$ 3.499,00 no Pix.";
+
+        assertEquals(
+                3499.00,
+                OfferTextParser.extractPriceForInterest(text, "Motorola Edge 70 Pro"),
+                0.001
+        );
+    }
+
+    @Test
     public void selectsPriceNearestToRequestedProductInMultiOfferPost() {
         String text = "Motorola Edge 60 por R$ 2.499,00\n\n"
                 + "Galaxy Z Flip 7 por R$ 5.999,00";
