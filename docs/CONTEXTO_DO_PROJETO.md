@@ -89,6 +89,21 @@ Não usar scraping da Amazon. Se o aplicativo futuramente usar links de associad
 - Preparar e compactar o backup fora da thread da interface para que a sincronização não cause travamentos visíveis.
 - Ao recalcular ofertas depois de criar ou editar um alerta, mostrar um indicador curto no estilo One UI, com engrenagem animada e texto claro, enquanto o processamento local ocorre em segundo plano.
 
+## Referência de preço ao criar alertas
+
+- No cadastro e na edição de alertas, oferecer **Buscar menor preço** abaixo do campo de preço máximo.
+- Consultar pontualmente até 100 mensagens correspondentes em cada grupo selecionado, validar o termo e considerar somente preços reconhecidos pelo extrator local.
+- Conforme os grupos responderem, animar no próprio campo a queda para cada novo menor valor encontrado e exibir **Menor até agora**.
+- Descartar valores identificados como parcela, desconto, cashback ou frete; quando só houver parcelamento, usar o total das parcelas como referência.
+- Ignorar valores extremamente baixos e isolados em relação aos demais preços encontrados, evitando sugestões irreais como uma parcela ou cupom de R$ 9 para um celular.
+- Quando o interesse for o produto principal, rejeitar mensagens de acessórios compatíveis, como pulseiras, capas, películas, carregadores e suportes; aceitar esses itens apenas quando o próprio interesse mencionar o acessório.
+- Ao concluir, preencher o campo com o menor preço observado nos grupos, apenas como referência editável; nunca salvar o alerta automaticamente.
+- Depois de salvar um alerta novo, repetir a busca histórica específica daquele termo para que a oferta usada como referência possa aparecer imediatamente.
+- Antes dessa busca histórica, registrar o processador de ofertas como ouvinte da TDLib; nunca disparar a consulta antes do monitor, pois as mensagens retornadas seriam descartadas sem entrar na lista.
+- Manter por alguns minutos o mesmo lote de mensagens usado pela sugestão de preço. Ao salvar, montar a lista diretamente desse lote já validado, aplicando o mesmo menor preço plausível como piso e o preço máximo escolhido como teto. Não executar uma segunda interpretação mais permissiva do histórico quando esse lote estiver disponível.
+- Ao editar um alerta, limpar os resultados recentes daquele alerta e reconstruí-los pela busca específica, impedindo que falsos positivos antigos continuem ocupando o limite local de ofertas.
+- Não usar mensagens rápidas ou afirmar que o valor é o menor preço da internet.
+
 ## Fases sugeridas
 
 ### Fase 1 — Base
@@ -110,6 +125,7 @@ Não usar scraping da Amazon. Se o aplicativo futuramente usar links de associad
 
 - reconhecimento de preço, cupom, parcelamento e condições;
 - resolução segura de links;
+- Preservar URLs ocultas nas entidades de texto e nos botões do Telegram. Em mensagens com várias ofertas, associar ao produto do alerta o preço e o link do bloco ou botão correspondente, nunca simplesmente o primeiro preço ou URL da mensagem.
 - identificação de ASIN e outros códigos de produto;
 - deduplicação.
 

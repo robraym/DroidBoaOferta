@@ -323,6 +323,15 @@ public class AlertsActivity extends AppCompatActivity {
         priceParams.topMargin = dp(12);
         content.addView(priceInput, priceParams);
 
+        LowestPriceSuggestionView priceSuggestion = new LowestPriceSuggestionView(this);
+        priceSuggestion.bind(termInput, priceInput);
+        LinearLayout.LayoutParams suggestionParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        suggestionParams.topMargin = dp(10);
+        content.addView(priceSuggestion, suggestionParams);
+
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END);
         actions.setPadding(0, dp(18), 0, 0);
@@ -380,12 +389,14 @@ public class AlertsActivity extends AppCompatActivity {
         long shownAt = SystemClock.elapsedRealtime();
         alertUpdateExecutor.execute(() -> {
             boolean succeeded = true;
+            long savedInterestId = editing ? interestToEdit.getId() : 0L;
             try {
                 if (editing) {
                     interestRepository.update(interestToEdit.getId(), term, maximumPrice);
                     offerRepository.clearProcessedForInterest(interestToEdit.getId());
+                    offerRepository.clearRecentForInterest(interestToEdit.getId());
                 } else {
-                    interestRepository.add(term, maximumPrice);
+                    savedInterestId = interestRepository.add(term, maximumPrice);
                 }
                 offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
                 getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
@@ -398,20 +409,19 @@ public class AlertsActivity extends AppCompatActivity {
                 succeeded = false;
             }
             boolean updateSucceeded = succeeded;
+            long interestIdForHistory = savedInterestId;
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) {
                     updatingDialog.dismiss();
                     return;
                 }
                 if (updateSucceeded) {
-                    if (editing) {
-                        TelegramClientManager.getInstance().refreshInterestHistory(
-                                interestToEdit.getId(),
-                                term
-                        );
-                    } else {
-                        TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
-                    }
+                    OfferMonitor.getInstance().refreshInterestHistory(
+                            this,
+                            interestIdForHistory,
+                            term,
+                            maximumPrice
+                    );
                 }
                 long remaining = Math.max(
                         0L,

@@ -627,6 +627,15 @@ public class MainActivity extends AppCompatActivity {
         priceParams.topMargin = dp(12);
         content.addView(priceInput, priceParams);
 
+        LowestPriceSuggestionView priceSuggestion = new LowestPriceSuggestionView(this);
+        priceSuggestion.bind(termInput, priceInput);
+        LinearLayout.LayoutParams suggestionParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        suggestionParams.topMargin = dp(10);
+        content.addView(priceSuggestion, suggestionParams);
+
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END);
         actions.setPadding(0, dp(18), 0, 0);
@@ -652,14 +661,19 @@ public class MainActivity extends AppCompatActivity {
                 priceInput.setError(getString(R.string.interest_price_required));
                 return;
             }
-            interestRepository.add(term, maximumPrice);
+            long interestId = interestRepository.add(term, maximumPrice);
             getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
                     .edit()
                     .putBoolean(MONITOR_ENABLED, true)
                     .apply();
             CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
             CloudSyncStore.markLocalChanged(this);
-            TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
+            OfferMonitor.getInstance().refreshInterestHistory(
+                    this,
+                    interestId,
+                    term,
+                    maximumPrice
+            );
             dialog.dismiss();
             refreshDashboard();
         });

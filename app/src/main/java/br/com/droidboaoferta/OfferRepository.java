@@ -58,6 +58,15 @@ final class OfferRepository {
         preferences.edit().putString(KEY_PROCESSED_MESSAGES, new JSONArray(processed).toString()).apply();
     }
 
+    synchronized void clearRecentForInterest(long interestId) {
+        List<ObservedOffer> recent = new ArrayList<>(readOffers(KEY_OFFERS));
+        boolean changed = recent.removeIf(offer -> offer.getInterestId() == interestId);
+        if (changed) {
+            saveOffers(KEY_OFFERS, recent);
+            CloudSyncStore.rememberRecentChanged(context, System.currentTimeMillis());
+        }
+    }
+
     synchronized void reconcileRecentWithInterests(List<Interest> interests) {
         List<ObservedOffer> recent = new ArrayList<>(readOffers(KEY_OFFERS));
         List<ObservedOffer> reconciled = new ArrayList<>();

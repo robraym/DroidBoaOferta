@@ -41,13 +41,14 @@ final class InterestRepository {
         return interests;
     }
 
-    void add(String term, double maximumPrice) {
+    long add(String term, double maximumPrice) {
         List<Interest> interests = new ArrayList<>(getAll());
         long now = System.currentTimeMillis();
         long id = now;
         interests.add(new Interest(id, term.trim(), maximumPrice));
         CloudSyncStore.rememberInterestChanged(context, id, now);
         save(interests);
+        return id;
     }
 
     void update(long id, String term, double maximumPrice) {

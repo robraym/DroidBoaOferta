@@ -44,8 +44,24 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         clientManager.start(appContext);
     }
 
+    synchronized void refreshInterestHistory(Context context, long interestId, String term,
+                                             double maximumPrice) {
+        start(context);
+        TelegramClientManager clientManager = TelegramClientManager.getInstance();
+        boolean usedValidatedSearch = clientManager.publishCachedLowestPriceMatches(
+                interestId,
+                term,
+                maximumPrice
+        );
+        if (!usedValidatedSearch) {
+            clientManager.refreshInterestHistory(interestId, term);
+        }
+    }
+
     @Override
-    public void onNewMessage(long chatId, long messageId, long messageDate, String sourceTitle, String text) {
+    public void onNewMessage(long chatId, long messageId, long messageDate, String sourceTitle,
+                             TelegramMessagePayload payload) {
+        String text = payload.getText();
         Set<String> selectedGroups = appContext
                 .getSharedPreferences("telegram_preferences", Context.MODE_PRIVATE)
                 .getStringSet("selected_groups", java.util.Collections.emptySet());
@@ -54,13 +70,12 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         }
         MonitorStatusStore.markAnalyzedMessage(appContext);
 
-        double price = OfferTextParser.extractPrice(text);
-        if (Double.isNaN(price)) {
-            return;
-        }
-
         List<Interest> interests = interestRepository.getAll();
         for (Interest interest : interests) {
+            double price = OfferTextParser.extractPriceForInterest(text, interest.getTerm());
+            if (Double.isNaN(price)) {
+                continue;
+            }
             processMessageForInterest(
                     interest,
                     chatId,
@@ -69,14 +84,17 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                     sourceTitle,
                     text,
                     price,
-                    true
+                    true,
+                    payload.findBestLink(interest.getTerm())
             );
         }
     }
 
     @Override
     public void onHistoricalMessage(long interestId, long chatId, long messageId,
-                                    long messageDate, String sourceTitle, String text) {
+                                    long messageDate, String sourceTitle,
+                                    TelegramMessagePayload payload) {
+        String text = payload.getText();
         if (text.trim().isEmpty()) {
             return;
         }
@@ -90,7 +108,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         if (target == null) {
             return;
         }
-        double price = OfferTextParser.extractPrice(text);
+        double price = OfferTextParser.extractPriceForInterest(text, target.getTerm());
         if (Double.isNaN(price)) {
             return;
         }
@@ -102,13 +120,14 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                 sourceTitle,
                 text,
                 price,
-                false
+                false,
+                payload.findBestLink(target.getTerm())
         );
     }
 
     private void processMessageForInterest(Interest interest, long chatId, long messageId,
                                            long messageDate, String sourceTitle, String text,
-                                           double price, boolean notifyUser) {
+                                           double price, boolean notifyUser, String offerLink) {
         if (!OfferTextParser.matchesInterest(text, interest.getTerm())
                 || price > interest.getMaximumPrice()
                 || !offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
@@ -121,7 +140,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                 price,
                 interest.getMaximumPrice(),
                 messageDate > 0L ? messageDate : System.currentTimeMillis(),
-                OfferTextParser.extractLink(text)
+                offerLink
         );
         offerRepository.add(offer);
         MonitorStatusStore.markApprovedOffer(appContext);

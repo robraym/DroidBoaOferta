@@ -197,6 +197,15 @@
     <string name="interest_price_hint">Preço máximo em reais</string>
     <string name="interest_term_required">Informe o que você procura</string>
     <string name="interest_price_required">Informe um preço máximo válido</string>
+    <string name="lowest_price_action">Buscar menor preço</string>
+    <string name="lowest_price_searching_action">Buscando…</string>
+    <string name="lowest_price_searching">Buscando nos grupos selecionados…</string>
+    <string name="lowest_price_found">Menor preço encontrado.</string>
+    <string name="lowest_price_found_format">Menor preço observado nos seus grupos: %1$s</string>
+    <string name="lowest_price_found_so_far">Menor até agora: %1$s</string>
+    <string name="lowest_price_not_found">Nenhum preço foi encontrado para esse termo.</string>
+    <string name="lowest_price_no_groups">Escolha pelo menos um grupo do Telegram.</string>
+    <string name="lowest_price_login_required">Conecte o Telegram para buscar preços.</string>
     <string name="telegram_source_unknown">Grupo do Telegram</string>
     <string name="offer_channel_name">Boas ofertas</string>
     <string name="offer_channel_description">Alertas de ofertas que passaram nos seus filtros</string>

@@ -56,11 +56,20 @@ final class TelegramClientManager {
     }
 
     interface MessageListener {
-        void onNewMessage(long chatId, long messageId, long messageDate, String sourceTitle, String text);
+        void onNewMessage(long chatId, long messageId, long messageDate, String sourceTitle,
+                          TelegramMessagePayload payload);
 
         default void onHistoricalMessage(long interestId, long chatId, long messageId,
-                                         long messageDate, String sourceTitle, String text) {
+                                         long messageDate, String sourceTitle,
+                                         TelegramMessagePayload payload) {
         }
+    }
+
+    interface LowestPriceCallback {
+        default void onPriceFound(double lowestPrice) {
+        }
+
+        void onCompleted(double lowestPrice, int statusMessageResource);
     }
 
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
@@ -75,6 +84,9 @@ final class TelegramClientManager {
 
     private final Map<Long, JSONObject> chats = new HashMap<>();
     private final Map<String, InterestHistorySearch> interestHistorySearches = new HashMap<>();
+    private final Map<String, LowestPriceSearch> lowestPriceSearches = new HashMap<>();
+    private final Map<Long, LowestPriceBatch> lowestPriceBatches = new HashMap<>();
+    private final Map<String, CachedLowestPriceResult> cachedLowestPriceResults = new HashMap<>();
     private final Set<Long> groupChatIds = new HashSet<>();
     private final Set<Long> requestedHistoryChatIds = new HashSet<>();
     private final Set<Long> pendingCloudMessageIds = new HashSet<>();
@@ -113,6 +125,7 @@ final class TelegramClientManager {
     private volatile boolean receiverRunning;
     private int clientId;
     private long interestHistoryGeneration;
+    private long lowestPriceGeneration;
     private Context appContext;
 
     private TelegramClientManager() {
@@ -201,6 +214,94 @@ final class TelegramClientManager {
                 Log.w(TAG, "Invalid selected chat id", exception);
             }
         }
+    }
+
+    synchronized void findLowestObservedPrice(String term, LowestPriceCallback callback) {
+        if (callback == null) {
+            return;
+        }
+        String cleanTerm = term == null ? "" : term.trim();
+        if (state != State.READY) {
+            postLowestPriceResult(callback, Double.NaN, R.string.lowest_price_login_required);
+            return;
+        }
+        Set<String> selectedGroups = appContext
+                .getSharedPreferences("telegram_preferences", Context.MODE_PRIVATE)
+                .getStringSet("selected_groups", Collections.emptySet());
+        if (cleanTerm.isEmpty() || selectedGroups.isEmpty()) {
+            postLowestPriceResult(callback, Double.NaN, R.string.lowest_price_no_groups);
+            return;
+        }
+
+        long generation = ++lowestPriceGeneration;
+        LowestPriceBatch batch = new LowestPriceBatch(
+                generation,
+                cleanTerm,
+                callback,
+                selectedGroups.size()
+        );
+        lowestPriceBatches.put(generation, batch);
+        for (String selectedGroup : selectedGroups) {
+            try {
+                long chatId = Long.parseLong(selectedGroup);
+                String extra = "lowest_price:" + generation + ":" + chatId;
+                LowestPriceSearch search = new LowestPriceSearch(batch, extra);
+                lowestPriceSearches.put(extra, search);
+                send(new JSONObject()
+                        .put("@type", "searchChatMessages")
+                        .put("chat_id", chatId)
+                        .put("query", cleanTerm)
+                        .put("sender_id", JSONObject.NULL)
+                        .put("from_message_id", 0)
+                        .put("offset", 0)
+                        .put("limit", 100)
+                        .put("filter", new JSONObject().put("@type", "searchMessagesFilterEmpty"))
+                        .put("message_thread_id", 0)
+                        .put("@extra", extra));
+            } catch (Exception exception) {
+                completeLowestPricePart(batch);
+            }
+        }
+    }
+
+    synchronized boolean publishCachedLowestPriceMatches(long interestId, String term,
+                                                          double maximumPrice) {
+        MessageListener currentListener = messageListener;
+        CachedLowestPriceResult cached = cachedLowestPriceResults.get(
+                OfferTextParser.normalize(term)
+        );
+        if (currentListener == null || cached == null
+                || System.currentTimeMillis() - cached.createdAt > 10L * 60L * 1000L) {
+            return false;
+        }
+        int publishedCount = 0;
+        for (LowestPriceCandidate candidate : cached.candidates) {
+            if (!OfferTextParser.isWithinValidatedRange(
+                    candidate.price,
+                    cached.lowestPlausiblePrice,
+                    maximumPrice
+            )) {
+                continue;
+            }
+            JSONObject chat = chats.get(candidate.chatId);
+            String sourceTitle = chat == null
+                    ? appContext.getString(R.string.telegram_source_unknown)
+                    : chat.optString("title", appContext.getString(R.string.telegram_source_unknown));
+            currentListener.onHistoricalMessage(
+                    interestId,
+                    candidate.chatId,
+                    candidate.messageId,
+                    candidate.messageDate,
+                    sourceTitle,
+                    candidate.payload
+            );
+            publishedCount++;
+        }
+        Log.d(TAG, "validated price batch candidates=" + cached.candidates.size()
+                + ", published=" + publishedCount
+                + ", floor=" + cached.lowestPlausiblePrice
+                + ", ceiling=" + maximumPrice);
+        return true;
     }
 
     void syncCloudBackupSoon() {
@@ -432,6 +533,9 @@ final class TelegramClientManager {
                 && result.optString("@extra").startsWith("interest_history:")) {
             handleInterestHistoryPage(result);
         } else if ("foundChatMessages".equals(type)
+                && result.optString("@extra").startsWith("lowest_price:")) {
+            handleLowestPriceMessages(result);
+        } else if ("foundChatMessages".equals(type)
                 && "backup_prune_search".equals(result.optString("@extra"))) {
             handleBackupPruneSearch(result.optJSONArray("messages"));
         } else if ("ok".equals(type)
@@ -445,6 +549,10 @@ final class TelegramClientManager {
         } else if ("user".equals(type) && "account_me".equals(result.optString("@extra"))) {
             publishAccount(result);
         } else if ("error".equals(type)) {
+            if (result.optString("@extra").startsWith("lowest_price:")) {
+                handleLowestPriceError(result.optString("@extra"));
+                return;
+            }
             if (result.optString("@extra").startsWith("interest_history:")) {
                 interestHistorySearches.remove(result.optString("@extra"));
             }
@@ -494,17 +602,8 @@ final class TelegramClientManager {
             return;
         }
 
-        JSONObject content = message.optJSONObject("content");
-        if (content == null) {
-            return;
-        }
-        JSONObject formattedText;
-        if ("messageText".equals(content.optString("@type"))) {
-            formattedText = content.optJSONObject("text");
-        } else {
-            formattedText = content.optJSONObject("caption");
-        }
-        if (formattedText == null) {
+        TelegramMessagePayload payload = TelegramMessagePayload.fromMessage(message);
+        if (payload.getText().isEmpty()) {
             return;
         }
 
@@ -517,7 +616,7 @@ final class TelegramClientManager {
                 message.optLong("id"),
                 message.optLong("date") * 1000L,
                 sourceTitle,
-                formattedText.optString("text")
+                payload
         );
     }
 
@@ -545,20 +644,88 @@ final class TelegramClientManager {
         requestInterestHistoryPage(search, nextFromMessageId);
     }
 
+    private synchronized void handleLowestPriceMessages(JSONObject result) {
+        String extra = result.optString("@extra");
+        LowestPriceSearch search = lowestPriceSearches.remove(extra);
+        if (search == null) {
+            return;
+        }
+        JSONArray messages = result.optJSONArray("messages");
+        if (messages != null) {
+            for (int index = 0; index < messages.length(); index++) {
+                JSONObject message = messages.optJSONObject(index);
+                TelegramMessagePayload payload = TelegramMessagePayload.fromMessage(message);
+                String text = payload.getText();
+                if (text.isEmpty() || !OfferTextParser.matchesInterest(text, search.batch.term)) {
+                    continue;
+                }
+                double price = OfferTextParser.extractPriceForInterest(text, search.batch.term);
+                if (!Double.isNaN(price) && price > 0.0d) {
+                    search.batch.observedPrices.add(price);
+                    search.batch.candidates.add(new LowestPriceCandidate(
+                            message.optLong("chat_id", 0L),
+                            message.optLong("id", 0L),
+                            message.optLong("date", 0L) * 1000L,
+                            payload,
+                            price
+                    ));
+                }
+            }
+        }
+        double plausibleLowest = OfferTextParser.selectPlausibleLowest(search.batch.observedPrices);
+        if (search.batch.observedPrices.size() >= 2
+                && plausibleLowest < search.batch.lastReportedPrice) {
+            search.batch.lastReportedPrice = plausibleLowest;
+            double currentLowest = plausibleLowest;
+            cloudSyncHandler.post(() -> search.batch.callback.onPriceFound(currentLowest));
+        }
+        completeLowestPricePart(search.batch);
+    }
+
+    private synchronized void handleLowestPriceError(String extra) {
+        LowestPriceSearch search = lowestPriceSearches.remove(extra);
+        if (search != null) {
+            completeLowestPricePart(search.batch);
+        }
+    }
+
+    private void completeLowestPricePart(LowestPriceBatch batch) {
+        batch.pendingChats--;
+        if (batch.pendingChats > 0) {
+            return;
+        }
+        lowestPriceBatches.remove(batch.generation);
+        batch.lowestPrice = OfferTextParser.selectPlausibleLowest(batch.observedPrices);
+        Log.d(TAG, "lowest price batch observations=" + batch.observedPrices.size()
+                + ", plausible=" + batch.lowestPrice);
+        if (!Double.isInfinite(batch.lowestPrice)) {
+            cachedLowestPriceResults.put(
+                    OfferTextParser.normalize(batch.term),
+                    new CachedLowestPriceResult(
+                            System.currentTimeMillis(),
+                            batch.lowestPrice,
+                            new ArrayList<>(batch.candidates)
+                    )
+            );
+        }
+        int status = Double.isInfinite(batch.lowestPrice)
+                ? R.string.lowest_price_not_found
+                : R.string.lowest_price_found;
+        postLowestPriceResult(batch.callback, batch.lowestPrice, status);
+    }
+
+    private void postLowestPriceResult(LowestPriceCallback callback, double price, int status) {
+        cloudSyncHandler.post(() -> callback.onCompleted(price, status));
+    }
+
     private void publishHistoricalMessage(long interestId, JSONObject message) {
         MessageListener currentListener = messageListener;
         if (currentListener == null) {
             return;
         }
         long chatId = message.optLong("chat_id");
-        JSONObject content = message.optJSONObject("content");
-        if (content == null) {
-            return;
-        }
-        JSONObject formattedText = "messageText".equals(content.optString("@type"))
-                ? content.optJSONObject("text")
-                : content.optJSONObject("caption");
-        if (formattedText == null) {
+        TelegramMessagePayload payload = TelegramMessagePayload.fromMessage(message);
+        if (payload.getText().isEmpty()) {
             return;
         }
         JSONObject chat = chats.get(chatId);
@@ -570,7 +737,7 @@ final class TelegramClientManager {
                 message.optLong("id"),
                 message.optLong("date") * 1000L,
                 sourceTitle,
-                formattedText.optString("text")
+                payload
         );
     }
 
@@ -725,6 +892,9 @@ final class TelegramClientManager {
         chats.clear();
         groupChatIds.clear();
         requestedHistoryChatIds.clear();
+        lowestPriceSearches.clear();
+        lowestPriceBatches.clear();
+        cachedLowestPriceResults.clear();
         groups = Collections.emptyList();
         accountName = "";
         accountPhone = "";
@@ -1242,6 +1412,66 @@ final class TelegramClientManager {
             this.chatId = chatId;
             this.term = term;
             this.extra = extra;
+        }
+    }
+
+    private static final class LowestPriceSearch {
+        final LowestPriceBatch batch;
+        final String extra;
+
+        LowestPriceSearch(LowestPriceBatch batch, String extra) {
+            this.batch = batch;
+            this.extra = extra;
+        }
+    }
+
+    private static final class LowestPriceBatch {
+        final long generation;
+        final String term;
+        final LowestPriceCallback callback;
+        int pendingChats;
+        double lowestPrice = Double.POSITIVE_INFINITY;
+        double lastReportedPrice = Double.POSITIVE_INFINITY;
+        final List<Double> observedPrices = new ArrayList<>();
+        final List<LowestPriceCandidate> candidates = new ArrayList<>();
+
+        LowestPriceBatch(long generation, String term, LowestPriceCallback callback,
+                         int pendingChats) {
+            this.generation = generation;
+            this.term = term;
+            this.callback = callback;
+            this.pendingChats = pendingChats;
+        }
+    }
+
+    private static final class LowestPriceCandidate {
+        final long chatId;
+        final long messageId;
+        final long messageDate;
+        final TelegramMessagePayload payload;
+        final double price;
+
+        LowestPriceCandidate(long chatId, long messageId, long messageDate,
+                             TelegramMessagePayload payload,
+                             double price) {
+            this.chatId = chatId;
+            this.messageId = messageId;
+            this.messageDate = messageDate;
+            this.payload = payload;
+            this.price = price;
+        }
+    }
+
+    private static final class CachedLowestPriceResult {
+        final long createdAt;
+        final double lowestPlausiblePrice;
+        final List<LowestPriceCandidate> candidates;
+
+        CachedLowestPriceResult(long createdAt, double lowestPlausiblePrice,
+                                List<LowestPriceCandidate> candidates) {
+            this.createdAt = createdAt;
+            this.lowestPlausiblePrice = lowestPlausiblePrice;
+            this.candidates = candidates;
         }
     }
 }
