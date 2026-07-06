@@ -52,27 +52,101 @@ final class PriceContextClassifier {
 
     private static boolean isInstallment(String before) {
         return before.matches(".*\\b[0-9]{1,2}\\s*x(?:\\s+de|\\s+por)?$")
-                || before.endsWith("parcela")
-                || before.endsWith("parcelas");
+                || endsWithAny(
+                before,
+                "parcela",
+                "parcelas",
+                "parcela de",
+                "mensalidade",
+                "mensalidade de",
+                "entrada",
+                "entrada de",
+                "sinal",
+                "sinal de"
+        );
     }
 
     private static boolean containsCashbackCue(String before, String after) {
-        return endsWithAny(before, "cashback", "cashback de")
-                || startsWithAny(after, "cashback", "de cashback", "em cashback");
+        return endsWithAny(
+                before,
+                "cashback",
+                "cashback de",
+                "cash back",
+                "cash back de",
+                "reembolso de",
+                "retorno de"
+        ) || startsWithAny(
+                after,
+                "cashback",
+                "de cashback",
+                "em cashback",
+                "de cash back",
+                "em cash back",
+                "de reembolso"
+        );
     }
 
     private static boolean containsFreightCue(String before, String after) {
-        return endsWithAny(before, "frete", "frete de", "entrega", "entrega por")
-                || startsWithAny(after, "de frete", "no frete", "para entrega");
+        return endsWithAny(
+                before,
+                "frete",
+                "frete de",
+                "envio",
+                "envio de",
+                "entrega",
+                "entrega por",
+                "taxa de entrega"
+        ) || startsWithAny(
+                after,
+                "de frete",
+                "no frete",
+                "para entrega",
+                "de envio"
+        );
     }
 
     private static boolean containsCreditCue(String before, String after) {
-        return endsWithAny(before, "receba", "ganhe", "credito de", "vale de")
-                || startsWithAny(after, "de volta", "em creditos", "em credito", "de credito");
+        return endsWithAny(
+                before,
+                "receba",
+                "ganhe",
+                "bonus de",
+                "bonificacao de",
+                "credito de",
+                "vale de",
+                "vale compra de",
+                "vale compras de"
+        ) || startsWithAny(
+                after,
+                "de volta",
+                "em creditos",
+                "em credito",
+                "de credito",
+                "em saldo",
+                "em pontos",
+                "no usado",
+                "na troca",
+                "pela troca"
+        );
     }
 
     private static boolean containsDiscountCue(String before, String after) {
-        return endsWithAny(
+        boolean explicitAfter = after.matches(
+                "^(?:off|de\\s+descont[a-z0-9]*|em\\s+descont[a-z0-9]*|"
+                        + "de\\s+econom[a-z0-9]*|a\\s+menos)\\b.*"
+        );
+        if (explicitAfter) {
+            return true;
+        }
+        if (hasImmediateProductPriceCue(before)) {
+            return false;
+        }
+        return before.matches(
+                ".*\\b(?:descont[a-z0-9]*|econom[a-z0-9]*|poup[a-z0-9]*|"
+                        + "abat[a-z0-9]*|reduc[a-z0-9]*)"
+                        + "(?:\\s+[a-z0-9]+){0,2}\\s+(?:de|ate)$"
+        )
+                || endsWithAny(
                 before,
                 "desconto de",
                 "economia de",
@@ -82,36 +156,37 @@ final class PriceContextClassifier {
                 "poupe ate",
                 "cupom de",
                 "abatimento de"
-        ) || startsWithAny(
-                after,
-                "off",
-                "de desconto",
-                "em desconto",
-                "de economia",
-                "a menos"
         );
     }
 
     private static boolean containsProductPriceCue(String before, String after) {
-        return endsWithAny(
-                before,
-                "por",
-                "agora",
-                "preco",
-                "preco final",
-                "valor",
-                "valor final",
-                "sai por",
-                "a vista",
-                "no pix",
-                "via pix"
-        ) || startsWithAny(
+        return hasImmediateProductPriceCue(before) || startsWithAny(
                 after,
                 "a vista",
                 "avista",
                 "no pix",
                 "via pix",
                 "pelo pix"
+        );
+    }
+
+    private static boolean hasImmediateProductPriceCue(String before) {
+        return endsWithAny(
+                before,
+                "por",
+                "agora",
+                "apenas",
+                "somente",
+                "preco",
+                "preco final",
+                "valor",
+                "valor final",
+                "sai por",
+                "leve por",
+                "a partir de",
+                "a vista",
+                "no pix",
+                "via pix"
         );
     }
 

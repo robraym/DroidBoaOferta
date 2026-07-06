@@ -21,6 +21,31 @@ public class OfferTextParserTest {
     }
 
     @Test
+    public void readsFourDigitPriceWithoutThousandsSeparator() {
+        double price = OfferTextParser.extractPrice(
+                "Apple iPhone SE (3ª geração) 64 GB por R$ 2199,00"
+        );
+        assertEquals(2199.00, price, 0.001);
+    }
+
+    @Test
+    public void readsFourDigitPriceWithBrazilianThousandsSeparator() {
+        double price = OfferTextParser.extractPrice(
+                "Apple iPhone SE (3ª geração) 64 GB por R$ 2.199,00"
+        );
+        assertEquals(2199.00, price, 0.001);
+    }
+
+    @Test
+    public void neverAcceptsPartialPrefixOfFourDigitPrice() {
+        double price = OfferTextParser.extractPriceForInterest(
+                "Apple iPhone SE (3ª geração) 64 GB - Meia noite R$ 2199,00",
+                "Iphone SE"
+        );
+        assertEquals(2199.00, price, 0.001);
+    }
+
+    @Test
     public void prefersPixPriceOverInstallmentValue() {
         double price = OfferTextParser.extractPrice(
                 "Galaxy A05s em 10x de R$ 89,90 ou R$ 849,00 no Pix"
@@ -70,6 +95,21 @@ public class OfferTextParserTest {
         assertEquals(
                 3499.00,
                 OfferTextParser.extractPriceForInterest(text, "Motorola Edge 70 Pro"),
+                0.001
+        );
+    }
+
+    @Test
+    public void ignoresDescontaoAndUsesRealS25UltraPrice() {
+        String text = "S25 Ultra COM DESCONTÃO DE R$ 1.700\n"
+                + "Samsung Galaxy S25 Ultra 5G 256GB Galaxy AI Titânio Azul\n"
+                + "Por: R$ 5.399,00\n"
+                + "Cupom: TELL1700";
+
+        assertEquals(5399.00, OfferTextParser.extractPrice(text), 0.001);
+        assertEquals(
+                5399.00,
+                OfferTextParser.extractPriceForInterest(text, "S25 Ultra"),
                 0.001
         );
     }

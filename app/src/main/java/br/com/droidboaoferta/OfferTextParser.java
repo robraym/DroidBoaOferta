@@ -15,7 +15,8 @@ final class OfferTextParser {
             "suporte", "base", "dock", "bumper", "acessorio"
     };
     private static final String PRICE_VALUE =
-            "([0-9]{1,3}(?:\\.[0-9]{3})*(?:,[0-9]{1,2})?|[0-9]+(?:,[0-9]{1,2})?)";
+            "([0-9]{1,3}(?:\\.[0-9]{3})+(?:,[0-9]{1,2})?|[0-9]+(?:,[0-9]{1,2})?)"
+                    + "(?![0-9.,])";
     private static final Pattern PRIORITY_PRICE = Pattern.compile(
             "(?i)(?:por|agora|oferta|à vista|avista|preço|valor|no pix|via pix)"
                     + "\\s*:?\\s*(?:apenas\\s*)?R\\$\\s*" + PRICE_VALUE
