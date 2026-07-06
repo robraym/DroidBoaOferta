@@ -34,6 +34,7 @@
     <string name="telegram_disconnected_message">A sessão foi encerrada. Abra esta tela novamente para reconectar.</string>
     <string name="telegram_status_attention">Ação necessária</string>
     <string name="telegram_unsupported_auth_message">O Telegram solicitou uma etapa de acesso ainda não suportada por esta primeira versão.</string>
+    <string name="telegram_sync_message_intro">Alertou — dados de sincronização\nSincronização entre seus aparelhos.\nNão apague esta mensagem.</string>
     <string name="telegram_native_error">Não foi possível iniciar a biblioteca local do Telegram.</string>
     <string name="telegram_unknown_error">Erro desconhecido do Telegram.</string>
     <string name="telegram_error_format">Telegram: %1$s</string>
@@ -120,6 +121,11 @@
     <string name="profile_sync_waiting">Ativa com sua conta Telegram.</string>
     <string name="profile_sync_pending">Sincronizando alterações...</string>
     <string name="profile_sync_last_format">Feita em %1$s</string>
+    <string name="profile_errors_title">Diagnóstico do aplicativo</string>
+    <string name="profile_errors_none">Nenhum erro grave registrado.</string>
+    <string name="profile_errors_count">%1$d erros registrados</string>
+    <string name="profile_errors_dialog_empty">O Alertou não registrou nenhuma falha grave.</string>
+    <string name="profile_errors_clear">Limpar histórico</string>
     <string name="profile_cloud_backup_login_required">Entre no Telegram para sincronizar.</string>
     <string name="profile_cloud_backup_preparing">Preparando sincronização.</string>
     <string name="profile_cloud_backup_found">Dados sincronizados encontrados.</string>
@@ -173,6 +179,9 @@
     <string name="action_activate">Ativar</string>
     <string name="action_cancel">Cancelar</string>
     <string name="action_save">Salvar</string>
+    <string name="alert_updating_title">Atualizando suas ofertas</string>
+    <string name="alert_updating_summary">Aplicando as novas informações ao alerta.</string>
+    <string name="alert_update_failed">Não foi possível atualizar o alerta.</string>
     <string name="action_delete_offer">Excluir oferta</string>
     <string name="action_clear_trash">Limpar lixeira</string>
     <string name="action_trash_all_offers">Enviar todas para a lixeira</string>

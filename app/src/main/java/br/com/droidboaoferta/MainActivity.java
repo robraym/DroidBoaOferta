@@ -29,7 +29,6 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
@@ -134,7 +133,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void trashAllOffers() {
         if (offerRepository.getRecent().isEmpty()) {
-            Toast.makeText(this, R.string.dashboard_no_offers, Toast.LENGTH_SHORT).show();
             return;
         }
         Dialog dialog = new Dialog(this);
@@ -191,7 +189,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void performTrashAllOffers() {
         if (offerRepository.trashAllRecent()) {
-            Toast.makeText(this, R.string.offers_trashed, Toast.LENGTH_SHORT).show();
             refreshDashboard();
         }
     }
@@ -507,10 +504,8 @@ public class MainActivity extends AppCompatActivity {
                     if (Math.abs(deltaX) > dp(56) && Math.abs(deltaX) > Math.abs(deltaY) * 1.2f) {
                         if (deltaX < 0) {
                             offerRepository.archive(offer.getId());
-                            Toast.makeText(this, R.string.offer_archived, Toast.LENGTH_SHORT).show();
                         } else {
                             offerRepository.trash(offer.getId());
-                            Toast.makeText(this, R.string.offer_trashed, Toast.LENGTH_SHORT).show();
                         }
                         refreshDashboard();
                         return true;

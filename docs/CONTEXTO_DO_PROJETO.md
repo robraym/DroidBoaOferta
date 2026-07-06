@@ -78,6 +78,17 @@ Não usar scraping da Amazon. Se o aplicativo futuramente usar links de associad
 - Disponibilizar desconexão da conta e exclusão completa dos dados.
 - Antes de uma eventual publicação, revisar os termos atuais do Telegram e as exigências de privacidade da Play Store.
 
+## Sincronização entre aparelhos
+
+- A sincronização usa a conversa **Mensagens Salvas** da própria conta do Telegram, sem servidor externo.
+- O backup deve aparecer como um bloco recolhido e identificado pelo Alertou; o conteúdo técnico não deve ocupar a tela como texto aberto.
+- Depois de confirmar um novo backup, manter somente o conjunto mais recente e remover os backups antigos criados pelo app.
+- Nunca excluir outras mensagens de **Mensagens Salvas**: a limpeza deve reconhecer exclusivamente o marcador interno do Alertou.
+- Cada ação local deve gerar um único ciclo de sincronização após uma espera curta de agrupamento; não impor intervalos longos que atrasem ações pontuais como esvaziar a lixeira.
+- Se outra alteração ocorrer durante um envio, preservar a pendência e executar mais um ciclo, sem considerar como sincronizado um estado mais antigo.
+- Preparar e compactar o backup fora da thread da interface para que a sincronização não cause travamentos visíveis.
+- Ao recalcular ofertas depois de criar ou editar um alerta, mostrar um indicador curto no estilo One UI, com engrenagem animada e texto claro, enquanto o processamento local ocorre em segundo plano.
+
 ## Fases sugeridas
 
 ### Fase 1 — Base

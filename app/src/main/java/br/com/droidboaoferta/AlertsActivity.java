@@ -1,5 +1,6 @@
 package br.com.droidboaoferta;
 
+import android.animation.ObjectAnimator;
 import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -8,6 +9,7 @@ import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -16,6 +18,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.animation.LinearInterpolator;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -28,6 +31,8 @@ import androidx.core.content.ContextCompat;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class AlertsActivity extends AppCompatActivity {
     private static final String OFFER_PREFS = "offer_preferences";
@@ -35,6 +40,7 @@ public class AlertsActivity extends AppCompatActivity {
 
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
+    private final ExecutorService alertUpdateExecutor = Executors.newSingleThreadExecutor();
     private LinearLayout interestsContainer;
     private EditText interestsSearchInput;
     private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
@@ -88,6 +94,12 @@ public class AlertsActivity extends AppCompatActivity {
     protected void onStop() {
         unregisterReceiver(syncReceiver);
         super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        alertUpdateExecutor.shutdownNow();
+        super.onDestroy();
     }
 
     private void renderInterests() {
@@ -336,29 +348,8 @@ public class AlertsActivity extends AppCompatActivity {
                 priceInput.setError(getString(R.string.interest_price_required));
                 return;
             }
-            if (editing) {
-                interestRepository.update(interestToEdit.getId(), term, maximumPrice);
-                offerRepository.clearProcessedForInterest(interestToEdit.getId());
-            } else {
-                interestRepository.add(term, maximumPrice);
-            }
-            offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
-            getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
-                    .edit()
-                    .putBoolean(MONITOR_ENABLED, true)
-                    .apply();
-            CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
-            CloudSyncStore.markLocalChanged(this);
-            if (editing) {
-                TelegramClientManager.getInstance().refreshInterestHistory(
-                        interestToEdit.getId(),
-                        term
-                );
-            } else {
-                TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
-            }
             dialog.dismiss();
-            renderInterests();
+            updateInterestInBackground(interestToEdit, term, maximumPrice);
         });
         actions.addView(save);
         content.addView(actions);
@@ -380,6 +371,130 @@ public class AlertsActivity extends AppCompatActivity {
             shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
+    }
+
+    private void updateInterestInBackground(Interest interestToEdit, String term,
+                                            double maximumPrice) {
+        boolean editing = interestToEdit != null;
+        Dialog updatingDialog = showUpdatingDialog();
+        long shownAt = SystemClock.elapsedRealtime();
+        alertUpdateExecutor.execute(() -> {
+            boolean succeeded = true;
+            try {
+                if (editing) {
+                    interestRepository.update(interestToEdit.getId(), term, maximumPrice);
+                    offerRepository.clearProcessedForInterest(interestToEdit.getId());
+                } else {
+                    interestRepository.add(term, maximumPrice);
+                }
+                offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
+                getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(MONITOR_ENABLED, true)
+                        .apply();
+                CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
+                CloudSyncStore.markLocalChanged(this);
+            } catch (RuntimeException exception) {
+                succeeded = false;
+            }
+            boolean updateSucceeded = succeeded;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    updatingDialog.dismiss();
+                    return;
+                }
+                if (updateSucceeded) {
+                    if (editing) {
+                        TelegramClientManager.getInstance().refreshInterestHistory(
+                                interestToEdit.getId(),
+                                term
+                        );
+                    } else {
+                        TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
+                    }
+                }
+                long remaining = Math.max(
+                        0L,
+                        650L - (SystemClock.elapsedRealtime() - shownAt)
+                );
+                interestsContainer.postDelayed(() -> {
+                    if (updatingDialog.isShowing()) {
+                        updatingDialog.dismiss();
+                    }
+                    if (updateSucceeded) {
+                        renderInterests();
+                    } else {
+                        AppErrorStore.recordSerious(
+                                this,
+                                "Alertas",
+                                getString(R.string.alert_update_failed)
+                        );
+                    }
+                }, remaining);
+            });
+        });
+    }
+
+    private Dialog showUpdatingDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.setCancelable(false);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.HORIZONTAL);
+        content.setGravity(Gravity.CENTER_VERTICAL);
+        content.setPadding(dp(22), dp(20), dp(22), dp(20));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        ImageView gear = new ImageView(this);
+        gear.setImageResource(R.drawable.ic_settings);
+        gear.setBackgroundResource(R.drawable.bg_icon_circle);
+        gear.setPadding(dp(11), dp(11), dp(11), dp(11));
+        content.addView(gear, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.leftMargin = dp(16);
+        content.addView(texts, textParams);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.alert_updating_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(18);
+        texts.addView(title);
+
+        TextView summary = new TextView(this);
+        summary.setText(R.string.alert_updating_summary);
+        summary.setTextColor(getColor(R.color.text_secondary));
+        summary.setTextSize(14);
+        summary.setPadding(0, dp(3), 0, 0);
+        texts.addView(summary);
+
+        ObjectAnimator rotation = ObjectAnimator.ofFloat(gear, View.ROTATION, 0f, 360f);
+        rotation.setDuration(1100L);
+        rotation.setRepeatCount(ObjectAnimator.INFINITE);
+        rotation.setInterpolator(new LinearInterpolator());
+        dialog.setOnShowListener(ignored -> rotation.start());
+        dialog.setOnDismissListener(ignored -> rotation.cancel());
+        dialog.setContentView(content);
+        dialog.show();
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(window.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.55f;
+            window.setAttributes(params);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        return dialog;
     }
 
     private EditText createDialogInput(int hintResource, int inputType) {

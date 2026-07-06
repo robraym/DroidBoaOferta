@@ -30,6 +30,7 @@ final class CloudSyncStore {
     private static final String BACKUP_MESSAGE_ID = "backup_message_id";
     private static final String LAST_BACKUP_AT = "last_confirmed_backup_at";
     private static final String LAST_REMOTE_BACKUP_AT = "last_confirmed_remote_backup_at";
+    private static final String COMPACT_BACKUP_MIGRATED = "compact_backup_migrated";
 
     private static final String TELEGRAM_PREFS = "telegram_preferences";
     private static final String SELECTED_GROUPS = "selected_groups";
@@ -59,8 +60,13 @@ final class CloudSyncStore {
         if (context == null) {
             return;
         }
-        syncPrefs(context).edit()
-                .putLong(LAST_LOCAL_CHANGE, System.currentTimeMillis())
+        SharedPreferences preferences = syncPrefs(context);
+        long changedAt = Math.max(
+                System.currentTimeMillis(),
+                preferences.getLong(LAST_LOCAL_CHANGE, 0L) + 1L
+        );
+        preferences.edit()
+                .putLong(LAST_LOCAL_CHANGE, changedAt)
                 .putBoolean(PENDING_PUSH, true)
                 .apply();
         TelegramClientManager.getInstance().syncCloudBackupSoon();
@@ -189,13 +195,24 @@ final class CloudSyncStore {
         return syncPrefs(context).getBoolean(PENDING_PUSH, false);
     }
 
-    static void markPushed(Context context) {
+    static boolean markPushed(Context context, long backedUpChange) {
         long now = System.currentTimeMillis();
+        boolean newerChangePending = getLastLocalChange(context) > backedUpChange;
         syncPrefs(context).edit()
-                .putBoolean(PENDING_PUSH, false)
+                .putBoolean(PENDING_PUSH, newerChangePending)
+                .putBoolean(COMPACT_BACKUP_MIGRATED, true)
                 .putLong(LAST_BACKUP_AT, now)
                 .putLong(LAST_REMOTE_BACKUP_AT, now)
                 .apply();
+        return !newerChangePending;
+    }
+
+    static boolean needsCompactBackupMigration(Context context) {
+        return !syncPrefs(context).getBoolean(COMPACT_BACKUP_MIGRATED, false);
+    }
+
+    static void requestCompactBackupMigration(Context context) {
+        syncPrefs(context).edit().putBoolean(PENDING_PUSH, true).apply();
     }
 
     static long getLastBackupAt(Context context) {
@@ -850,6 +867,10 @@ final class CloudSyncStore {
 
     private static long getLastLocalChange(Context context) {
         return syncPrefs(context).getLong(LAST_LOCAL_CHANGE, 0L);
+    }
+
+    static long getLastLocalChangeTimestamp(Context context) {
+        return getLastLocalChange(context);
     }
 
     private static SharedPreferences syncPrefs(Context context) {

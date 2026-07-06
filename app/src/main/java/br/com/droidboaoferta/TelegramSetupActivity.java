@@ -24,7 +24,6 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.IntentSenderRequest;
@@ -229,15 +228,6 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
             loadSelectedGroupsFromPreferences();
             renderGroups(groups);
         });
-    }
-
-    @Override
-    public void onError(String message) {
-        runOnUiThread(() -> Toast.makeText(
-                this,
-                getString(R.string.telegram_error_format, message),
-                Toast.LENGTH_LONG
-        ).show());
     }
 
     private void renderState(TelegramClientManager.State state) {
@@ -537,7 +527,6 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private void handleSmsConsentFailure(Exception exception) {
         smsConsentListening = false;
         Log.w(TAG, "SMS User Consent is unavailable", exception);
-        Toast.makeText(this, R.string.telegram_sms_unavailable, Toast.LENGTH_LONG).show();
         renderSmsOption();
     }
 

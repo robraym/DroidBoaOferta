@@ -11,6 +11,7 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.method.ScrollingMovementMethod;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -19,7 +20,6 @@ import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
@@ -41,6 +41,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         @Override
         public void onReceive(Context context, Intent intent) {
             refreshSettingsControls();
+            refreshErrorSummary();
         }
     };
 
@@ -54,6 +55,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     private TextView monitorStatusTitle;
     private TextView monitorStatusSummary;
     private TextView themeSummary;
+    private TextView errorSummary;
     private ImageButton monitorToggle;
     private InterestRepository interestRepository;
     private LinearLayout accountCard;
@@ -77,6 +79,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         monitorStatusTitle = findViewById(R.id.text_monitor_status_title);
         monitorStatusSummary = findViewById(R.id.text_monitor_status_summary);
         themeSummary = findViewById(R.id.text_theme_summary);
+        errorSummary = findViewById(R.id.text_error_summary);
         monitorToggle = findViewById(R.id.button_monitor_toggle);
         accountCard = findViewById(R.id.card_telegram_account);
         syncRow = findViewById(R.id.row_sync);
@@ -92,6 +95,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         findViewById(R.id.row_theme).setOnClickListener(view -> showThemeDialog());
         monitorToggle.setOnClickListener(view -> toggleMonitor());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
+        findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
         logoutRow.setOnClickListener(view -> showLogoutConfirmation());
         appVersion.setText(getString(R.string.profile_app_version, BuildConfig.VERSION_NAME));
     }
@@ -101,10 +105,12 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         super.onStart();
         clientManager.setListener(this);
         clientManager.start(this);
+        IntentFilter statusFilter = new IntentFilter(MonitorStatusStore.ACTION_STATUS_CHANGED);
+        statusFilter.addAction(AppErrorStore.ACTION_ERRORS_CHANGED);
         ContextCompat.registerReceiver(
                 this,
                 statusReceiver,
-                new IntentFilter(MonitorStatusStore.ACTION_STATUS_CHANGED),
+                statusFilter,
                 ContextCompat.RECEIVER_NOT_EXPORTED
         );
         refreshProfile();
@@ -130,15 +136,6 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
 
     @Override
     public void onGroupsLoaded(List<TelegramGroup> groups) {
-    }
-
-    @Override
-    public void onError(String message) {
-        runOnUiThread(() -> Toast.makeText(
-                this,
-                getString(R.string.telegram_error_format, message),
-                Toast.LENGTH_LONG
-        ).show());
     }
 
     @Override
@@ -181,6 +178,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         syncRow.setVisibility(connected ? View.VISIBLE : View.GONE);
         logoutRow.setVisibility(connected ? View.VISIBLE : View.GONE);
         refreshSyncSummary();
+        refreshErrorSummary();
         refreshSettingsControls();
     }
 
@@ -458,11 +456,95 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         MonitorStatusStore.setTelegramState(this, TelegramClientManager.State.CLOSED);
         clientManager.logOut();
         refreshProfile();
-        Toast.makeText(this, R.string.profile_telegram_disconnected_toast, Toast.LENGTH_SHORT).show();
     }
 
     private void showTermsDialog() {
         showInformationDialog(R.string.profile_terms_title, R.string.profile_terms_message);
+    }
+
+    private void refreshErrorSummary() {
+        if (errorSummary == null) {
+            return;
+        }
+        int count = AppErrorStore.getAll(this).size();
+        errorSummary.setText(count == 0
+                ? getString(R.string.profile_errors_none)
+                : getString(R.string.profile_errors_count, count));
+    }
+
+    private void showErrorHistoryDialog() {
+        List<AppErrorStore.Entry> errors = AppErrorStore.getAll(this);
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.profile_errors_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(errors.isEmpty()
+                ? getString(R.string.profile_errors_dialog_empty)
+                : formatErrorHistory(errors));
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(14);
+        message.setPadding(0, dp(10), 0, dp(12));
+        message.setMaxLines(12);
+        message.setVerticalScrollBarEnabled(true);
+        message.setMovementMethod(new ScrollingMovementMethod());
+        content.addView(message);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        if (!errors.isEmpty()) {
+            TextView clear = createDialogAction(R.string.profile_errors_clear);
+            clear.setTextColor(getColor(R.color.danger));
+            clear.setOnClickListener(view -> {
+                AppErrorStore.clear(this);
+                dialog.dismiss();
+                refreshErrorSummary();
+            });
+            actions.addView(clear);
+        }
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(window.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            window.setAttributes(params);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private String formatErrorHistory(List<AppErrorStore.Entry> errors) {
+        SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm", new Locale("pt", "BR"));
+        StringBuilder history = new StringBuilder();
+        for (int index = 0; index < errors.size(); index++) {
+            AppErrorStore.Entry error = errors.get(index);
+            if (index > 0) {
+                history.append("\n\n");
+            }
+            history.append(formatter.format(new Date(error.timestamp)))
+                    .append(" · ")
+                    .append(error.source)
+                    .append("\n")
+                    .append(error.message);
+        }
+        return history.toString();
     }
 
     private void showInformationDialog(int titleResource, int messageResource) {
