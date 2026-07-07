@@ -309,6 +309,9 @@ public class MainActivity extends AppCompatActivity {
             String group = OfferDateFormatter.getGroupKey(offer.getObservedAt());
             String groupLabel = OfferDateFormatter.formatGroupLabel(this, offer.getObservedAt());
             if (!group.equals(previousGroup)) {
+                if (previousGroup != null) {
+                    offersContainer.addView(createDateGroupDivider());
+                }
                 offersContainer.addView(createOfferGroupHeader(groupLabel, previousGroup != null));
                 previousGroup = group;
             } else {
@@ -343,7 +346,7 @@ public class MainActivity extends AppCompatActivity {
         header.setText(label);
         header.setTextColor(getColor(R.color.text_secondary));
         header.setTextSize(13);
-        header.setPadding(dp(6), dp(hasPreviousGroup ? 18 : 8), dp(8), dp(7));
+        header.setPadding(dp(6), dp(hasPreviousGroup ? 10 : 8), dp(8), dp(5));
         return header;
     }
 
@@ -409,6 +412,7 @@ public class MainActivity extends AppCompatActivity {
         row.setBackgroundColor(getColor(R.color.card));
         row.setClickable(true);
         row.setFocusable(true);
+        row.setMinimumHeight(dp(52));
         row.setPadding(dp(6), dp(7), dp(6), dp(7));
         row.setContentDescription(contentDescription);
 
@@ -466,6 +470,18 @@ public class MainActivity extends AppCompatActivity {
         );
         params.leftMargin = dp(6);
         params.rightMargin = dp(6);
+        divider.setLayoutParams(params);
+        return divider;
+    }
+
+    private View createDateGroupDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.section_divider));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(2)
+        );
+        params.setMargins(dp(6), dp(12), dp(6), dp(4));
         divider.setLayoutParams(params);
         return divider;
     }

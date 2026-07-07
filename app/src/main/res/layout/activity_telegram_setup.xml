@@ -17,34 +17,25 @@
         android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/button_back"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/bg_button_secondary"
-            android:gravity="center"
-            android:text="@string/icon_back"
-            android:textColor="@color/text_primary"
-            android:textSize="27sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
             android:text="@string/telegram_setup_screen_title"
             android:textColor="@color/text_primary"
-            android:textSize="25sp"
+            android:textSize="27sp"
             android:textStyle="bold" />
-    </LinearLayout>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="28dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="28dp"
-        android:text="@string/telegram_choose_groups_short"
-        android:textColor="@color/text_secondary"
-        android:textSize="15sp" />
+        <ImageButton
+            android:id="@+id/button_profile"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_button_inline"
+            android:contentDescription="@string/profile_screen_title"
+            android:padding="9dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_profile" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/section_telegram_status"
@@ -63,7 +54,7 @@
             android:layout_height="wrap_content"
             android:text="@string/telegram_status_connecting"
             android:textColor="@color/text_primary"
-            android:textSize="17sp" />
+            android:textSize="18sp" />
 
         <TextView
             android:id="@+id/text_telegram_instructions"
@@ -185,10 +176,26 @@
         android:visibility="gone">
 
         <LinearLayout
-            android:id="@+id/container_groups"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:gravity="center_vertical"
+                android:paddingStart="6dp"
+                android:paddingEnd="10dp"
+                android:text="@string/telegram_groups_card_title"
+                android:textColor="@color/text_primary"
+                android:textSize="18sp" />
+
+            <LinearLayout
+                android:id="@+id/container_groups"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
     </ScrollView>
 
     <LinearLayout

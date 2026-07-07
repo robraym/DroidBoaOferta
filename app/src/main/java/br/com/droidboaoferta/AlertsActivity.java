@@ -61,7 +61,9 @@ public class AlertsActivity extends AppCompatActivity {
         interestsContainer = findViewById(R.id.container_interests);
         interestsSearchInput = findViewById(R.id.input_search_interests);
 
-        findViewById(R.id.button_back).setOnClickListener(view -> finish());
+        findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
+                new Intent(this, ProfileActivity.class)
+        ));
         findViewById(R.id.button_add_interest).setOnClickListener(view -> showInterestDialog(null));
         interestsSearchInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
@@ -156,6 +158,7 @@ public class AlertsActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setBackgroundColor(getColor(R.color.card));
+        row.setMinimumHeight(dp(52));
         row.setPadding(dp(6), dp(7), dp(6), dp(7));
 
         TextView label = new TextView(this);
@@ -199,7 +202,7 @@ public class AlertsActivity extends AppCompatActivity {
         button.setContentDescription(getString(R.string.action_edit_interest));
         button.setScaleType(ImageView.ScaleType.CENTER);
         button.setPadding(dp(7), dp(7), dp(7), dp(7));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(30), dp(30));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(32), dp(32));
         params.rightMargin = dp(8);
         button.setLayoutParams(params);
         return button;
@@ -213,7 +216,7 @@ public class AlertsActivity extends AppCompatActivity {
         button.setContentDescription(getString(R.string.action_remove_interest));
         button.setScaleType(ImageView.ScaleType.CENTER);
         button.setPadding(dp(8), dp(8), dp(8), dp(8));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(30), dp(30));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(32), dp(32));
         params.leftMargin = dp(6);
         button.setLayoutParams(params);
         return button;

@@ -19,6 +19,7 @@
     <color name="input_background">#F0F2F5</color>
     <color name="input_border">#D4D8DE</color>
     <color name="divider">#D8DCE2</color>
+    <color name="section_divider">#C3CAD4</color>
     <color name="icon_telegram">#2AABEE</color>
     <color name="icon_interest">#7E63F5</color>
     <color name="danger">#FF5C5C</color>

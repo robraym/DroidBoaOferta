@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.telephony.TelephonyManager;
 import android.util.Log;
@@ -134,7 +135,9 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         groupsSearchBar = findViewById(R.id.search_groups_bar);
         groupsSearchInput = findViewById(R.id.input_search_groups);
 
-        findViewById(R.id.button_back).setOnClickListener(view -> finish());
+        findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
+                new Intent(this, ProfileActivity.class)
+        ));
         continueButton.setOnClickListener(view -> submitAuthenticationValue());
         receiveSmsButton.setOnClickListener(view -> startSmsConsentListening(true));
         countryPickerButton.setOnClickListener(view -> showCountryPicker());
@@ -326,16 +329,31 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
 
         for (int index = 0; index < visibleGroups.size(); index++) {
             TelegramGroup group = visibleGroups.get(index);
-            CheckBox checkBox = new CheckBox(this);
             String groupId = Long.toString(group.getId());
+            CheckBox checkBox = new CheckBox(this);
             checkBox.setTag(groupId);
-            checkBox.setText(group.getTitle());
-            checkBox.setTextColor(getColor(R.color.text_primary));
-            checkBox.setTextSize(14.5f);
             checkBox.setButtonTintList(getColorStateList(R.color.selector_checkbox));
-            checkBox.setMinHeight(dp(44));
-            checkBox.setPadding(dp(6), 0, dp(6), 0);
+            checkBox.setGravity(android.view.Gravity.CENTER);
+            checkBox.setPadding(0, 0, 0, 0);
             checkBox.setChecked(selectedGroupIds.contains(groupId));
+
+            TextView label = new TextView(this);
+            label.setText(group.getTitle());
+            label.setTextColor(getColor(R.color.text_primary));
+            label.setTextSize(14);
+            label.setSingleLine(false);
+            label.setMaxLines(2);
+            label.setEllipsize(TextUtils.TruncateAt.END);
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setBackgroundColor(getColor(R.color.card));
+            row.setMinimumHeight(dp(52));
+            row.setPadding(dp(6), dp(7), dp(6), dp(7));
+            row.setClickable(true);
+            row.setFocusable(true);
+            row.setOnClickListener(view -> checkBox.setChecked(!checkBox.isChecked()));
             checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (isChecked) {
                     selectedGroupIds.add(groupId);
@@ -344,7 +362,15 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 }
                 persistSelectedGroups();
             });
-            groupsContainer.addView(checkBox, new LinearLayout.LayoutParams(
+            row.addView(checkBox, new LinearLayout.LayoutParams(dp(32), dp(32)));
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+            );
+            labelParams.leftMargin = dp(8);
+            row.addView(label, labelParams);
+            groupsContainer.addView(row, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             ));
@@ -375,7 +401,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(1)
         );
-        params.leftMargin = dp(42);
+        params.leftMargin = dp(46);
         params.rightMargin = dp(6);
         divider.setLayoutParams(params);
         return divider;

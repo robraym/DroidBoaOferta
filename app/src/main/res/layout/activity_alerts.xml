@@ -3,54 +3,47 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="18dp"
-        android:paddingTop="4dp"
-        android:paddingEnd="18dp">
+        android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/button_back"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/bg_button_secondary"
-            android:gravity="center"
-            android:text="@string/icon_back"
-            android:textColor="@color/text_primary"
-            android:textSize="27sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
             android:text="@string/alerts_screen_title"
             android:textColor="@color/text_primary"
-            android:textSize="25sp"
+            android:textSize="27sp"
             android:textStyle="bold" />
-    </LinearLayout>
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="20dp"
-        android:layout_marginTop="2dp"
-        android:layout_marginEnd="20dp"
-        android:text="@string/alerts_screen_summary"
-        android:textColor="@color/text_secondary"
-        android:textSize="14sp" />
+        <ImageButton
+            android:id="@+id/button_profile"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_button_inline"
+            android:contentDescription="@string/profile_screen_title"
+            android:padding="9dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_profile" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/button_add_interest"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="18dp"
+        android:layout_marginStart="12dp"
         android:layout_marginTop="12dp"
-        android:layout_marginEnd="18dp"
+        android:layout_marginEnd="12dp"
         android:background="@drawable/bg_card_compact"
         android:clickable="true"
         android:focusable="true"
@@ -73,7 +66,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/dashboard_create_alert_title"
                 android:textColor="@color/text_primary"
-                android:textSize="15sp" />
+                android:textSize="18sp" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -82,7 +75,7 @@
                 android:maxLines="1"
                 android:text="@string/dashboard_create_alert_summary"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textSize="14sp" />
         </LinearLayout>
 
         <ImageView
@@ -100,8 +93,8 @@
         android:layout_marginTop="10dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingStart="18dp"
-        android:paddingEnd="18dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
         android:paddingBottom="14dp">
 
         <LinearLayout
@@ -113,13 +106,13 @@
 
             <TextView
                 android:layout_width="match_parent"
-                android:layout_height="34dp"
+                android:layout_height="44dp"
                 android:gravity="center_vertical"
-                android:paddingStart="10dp"
+                android:paddingStart="6dp"
                 android:paddingEnd="10dp"
                 android:text="@string/alerts_list_title"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textColor="@color/text_primary"
+                android:textSize="18sp" />
 
             <LinearLayout
                 android:id="@+id/container_interests"

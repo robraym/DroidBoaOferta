@@ -19,6 +19,11 @@ public class TrashedOffersActivity extends StoredOffersActivity {
     }
 
     @Override
+    int getCardTitleResource() {
+        return R.string.trash_card_title;
+    }
+
+    @Override
     List<ObservedOffer> getOffers(OfferRepository repository) {
         return repository.getTrashed();
     }

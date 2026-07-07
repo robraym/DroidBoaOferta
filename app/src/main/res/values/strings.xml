@@ -4,6 +4,7 @@
     <string name="app_slogan">Só avisa quando vale a pena.</string>
     <string name="telegram_setup_screen_title">Telegram</string>
     <string name="telegram_choose_groups_short">Escolha os grupos de promoções.</string>
+    <string name="telegram_groups_card_title">Grupos de promoções</string>
     <string name="telegram_status_connecting">Preparando conexão</string>
     <string name="telegram_wait_message">Aguarde enquanto o Alertou inicia a conexão local com o Telegram.</string>
     <string name="telegram_status_credentials">Credenciais necessárias</string>
@@ -97,7 +98,6 @@
     <string name="dashboard_create_alert_title">Novo alerta</string>
     <string name="dashboard_create_alert_summary">Produto e preço máximo.</string>
     <string name="alerts_screen_title">Alertas</string>
-    <string name="alerts_screen_summary">Produtos e preços máximos para avisar.</string>
     <string name="alerts_list_title">Alertas salvos</string>
     <string name="settings_theme_title">Tema do app</string>
     <string name="settings_theme_dialog_title">Escolher tema</string>
@@ -177,10 +177,12 @@
     <string name="dashboard_offer_single_line">%1$s • %2$s • %3$s</string>
     <string name="dashboard_offer_meta">%1$s • %2$s</string>
     <string name="archived_screen_title">Salvas</string>
+    <string name="archived_card_title">Ofertas salvas</string>
     <string name="archived_empty">Nenhuma oferta salva.</string>
     <string name="trash_screen_title">Lixeira</string>
+    <string name="trash_card_title">Itens na lixeira</string>
     <string name="trash_empty">Nenhuma oferta na lixeira.</string>
-    <string name="bottom_nav_home">Início</string>
+    <string name="bottom_nav_home">Alertou</string>
     <string name="bottom_nav_sources">Telegram</string>
     <string name="bottom_nav_alerts">Alertas</string>
     <string name="bottom_nav_archived">Salvas</string>

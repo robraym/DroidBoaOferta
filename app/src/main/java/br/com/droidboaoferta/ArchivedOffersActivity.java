@@ -19,6 +19,11 @@ public class ArchivedOffersActivity extends StoredOffersActivity {
     }
 
     @Override
+    int getCardTitleResource() {
+        return R.string.archived_card_title;
+    }
+
+    @Override
     List<ObservedOffer> getOffers(OfferRepository repository) {
         return repository.getArchived();
     }

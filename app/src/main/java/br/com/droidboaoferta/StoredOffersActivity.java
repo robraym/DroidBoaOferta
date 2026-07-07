@@ -34,6 +34,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
     private LinearLayout offersContainer;
     private EditText searchInput;
     private ImageButton headerAction;
+    private LinearLayout cardHeader;
     private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -113,6 +114,10 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         return R.drawable.bg_button_inline;
     }
 
+    int getCardTitleResource() {
+        return getTitleResource();
+    }
+
     int getHeaderConfirmationTitle() {
         return 0;
     }
@@ -140,13 +145,17 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         offersContainer = findViewById(R.id.container_offers);
         searchInput = findViewById(R.id.input_search_stored_offers);
         ((TextView) findViewById(R.id.text_screen_title)).setText(getTitleResource());
-        findViewById(R.id.button_back).setOnClickListener(view -> finish());
+        findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
+                new Intent(this, ProfileActivity.class)
+        ));
         searchInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
             public void afterTextChanged(Editable editable) {
                 renderOffers();
             }
         });
+        cardHeader = findViewById(R.id.container_card_header);
+        ((TextView) findViewById(R.id.text_card_title)).setText(getCardTitleResource());
         headerAction = findViewById(R.id.button_header_action);
         if (hasHeaderAction()) {
             headerAction.setImageResource(getHeaderActionIcon());
@@ -198,6 +207,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         List<ObservedOffer> offers = getOffers(offerRepository);
         List<ObservedOffer> visibleOffers = filterOffers(offers, searchInput.getText().toString());
         if (headerAction != null) {
+            cardHeader.setVisibility(View.VISIBLE);
             headerAction.setVisibility(hasHeaderAction() && !offers.isEmpty() ? View.VISIBLE : View.GONE);
         }
         if (visibleOffers.isEmpty()) {
@@ -211,6 +221,9 @@ abstract class StoredOffersActivity extends AppCompatActivity {
             ObservedOffer offer = visibleOffers.get(index);
             String group = OfferDateFormatter.getGroupKey(offer.getObservedAt());
             if (!group.equals(previousGroup)) {
+                if (previousGroup != null) {
+                    offersContainer.addView(createDateGroupDivider());
+                }
                 offersContainer.addView(createOfferGroupHeader(
                         OfferDateFormatter.formatGroupLabel(this, offer.getObservedAt()),
                         previousGroup != null
@@ -238,8 +251,8 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         header.setText(label);
         header.setTextColor(getColor(R.color.text_secondary));
         header.setTextSize(13);
-        int titleStart = hasLeadingAction() ? 50 : 10;
-        header.setPadding(dp(titleStart), dp(hasPreviousGroup ? 18 : 8), dp(8), dp(7));
+        int titleStart = hasLeadingAction() ? 48 : 6;
+        header.setPadding(dp(titleStart), dp(hasPreviousGroup ? 10 : 8), dp(8), dp(5));
         return header;
     }
 
@@ -323,7 +336,8 @@ abstract class StoredOffersActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setBackgroundColor(getColor(R.color.card));
-        row.setPadding(dp(10), dp(7), dp(10), dp(7));
+        row.setMinimumHeight(dp(52));
+        row.setPadding(dp(6), dp(7), dp(6), dp(7));
 
         if (hasLeadingAction()) {
             ImageButton leading = createActionButton(
@@ -437,7 +451,19 @@ abstract class StoredOffersActivity extends AppCompatActivity {
                 dp(1)
         );
         params.leftMargin = dp(10);
-        params.rightMargin = dp(10);
+        params.rightMargin = dp(6);
+        divider.setLayoutParams(params);
+        return divider;
+    }
+
+    private View createDateGroupDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.section_divider));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(2)
+        );
+        params.setMargins(dp(6), dp(12), dp(6), dp(4));
         divider.setLayoutParams(params);
         return divider;
     }
