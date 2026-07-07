@@ -55,6 +55,22 @@ final class TdlibDatabaseKey {
         return Base64.encodeToString(databaseKey, Base64.NO_WRAP);
     }
 
+    static void reset(Context context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .remove(PREF_ENCRYPTED_KEY)
+                .remove(PREF_IV)
+                .commit();
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
+            keyStore.load(null);
+            if (keyStore.containsAlias(KEY_ALIAS)) {
+                keyStore.deleteEntry(KEY_ALIAS);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private static SecretKey getOrCreateWrappingKey() throws Exception {
         KeyStore keyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
         keyStore.load(null);

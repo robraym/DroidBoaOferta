@@ -115,6 +115,22 @@ public class OfferTextParserTest {
     }
 
     @Test
+    public void ignoresMinimumPurchaseCouponValueAndUsesOfferValue() {
+        String text = "Samsung Galaxy A07\n\n"
+                + "Resgate o cupom TODAS AS LOJAS R$25 OFF Nas compras acima de R$219 "
+                + "clicando aqui. Após, adicione o aparelho no carrinho e marque para aplicar "
+                + "o cupom resgatado na hora do pagamento.\n\n"
+                + "VALOR DA OFERTA R$ 552 (Pix), R$ 604 (12x) - ANTES R$ 663";
+
+        assertEquals(552.00, OfferTextParser.extractPrice(text), 0.001);
+        assertEquals(
+                552.00,
+                OfferTextParser.extractPriceForInterest(text, "Galaxy A07"),
+                0.001
+        );
+    }
+
+    @Test
     public void selectsPriceNearestToRequestedProductInMultiOfferPost() {
         String text = "Motorola Edge 60 por R$ 2.499,00\n\n"
                 + "Galaxy Z Flip 7 por R$ 5.999,00";

@@ -35,6 +35,10 @@ public class PriceContextClassifierTest {
                 "Ganhe R$ 500 OFF no Edge 70 Pro",
                 PriceContextClassifier.Meaning.DISCOUNT
         );
+        assertMeaning(
+                "Nas compras acima de R$219 o cupom aparece no pagamento",
+                PriceContextClassifier.Meaning.DISCOUNT
+        );
     }
 
     @Test

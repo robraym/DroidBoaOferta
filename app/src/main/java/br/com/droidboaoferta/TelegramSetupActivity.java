@@ -19,6 +19,7 @@ import android.text.TextWatcher;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -206,6 +207,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         clientManager.setListener(this);
         clientManager.start(this);
         clientManager.refreshGroups();
+        clientManager.refreshCloudBackupSoon();
     }
 
     @Override
@@ -279,6 +281,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                         InputType.TYPE_CLASS_NUMBER,
                         R.string.action_confirm
                 );
+                focusAuthenticationInputAndShowKeyboard();
                 break;
             case WAITING_CODE:
                 showStatus(R.string.telegram_status_verification, R.string.telegram_code_message);
@@ -291,6 +294,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 authenticationInput.setFilters(new InputFilter[]{
                         new InputFilter.LengthFilter(codeLength > 0 ? codeLength : 10)
                 });
+                focusAuthenticationInputAndShowKeyboard();
                 renderSmsOption();
                 break;
             case WAITING_PASSWORD:
@@ -307,7 +311,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 break;
             case CLOSED:
                 showStatus(R.string.telegram_status_disconnected, R.string.telegram_disconnected_message);
-                hideAuthenticationInput();
+                showReconnectAction();
                 break;
             case UNSUPPORTED_AUTHORIZATION:
                 showStatus(R.string.telegram_status_attention, R.string.telegram_unsupported_auth_message);
@@ -445,6 +449,12 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     }
 
     private void submitAuthenticationValue() {
+        if (clientManager.getState() == TelegramClientManager.State.CLOSED) {
+            continueButton.setEnabled(false);
+            clientManager.reconnect(this);
+            continueButton.postDelayed(() -> continueButton.setEnabled(true), 1200);
+            return;
+        }
         boolean waitingForPhone = clientManager.getState() == TelegramClientManager.State.WAITING_PHONE;
         String value = waitingForPhone
                 ? phoneNumberInput.getText().toString().trim()
@@ -860,10 +870,40 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         continueButton.setText(buttonTextResource);
     }
 
+    private void focusAuthenticationInputAndShowKeyboard() {
+        authenticationInput.post(() -> {
+            if (authenticationInput.getVisibility() != View.VISIBLE) {
+                return;
+            }
+            authenticationInput.requestFocus();
+            authenticationInput.setSelection(authenticationInput.getText().length());
+            showKeyboardForAuthenticationInput();
+            authenticationInput.postDelayed(this::showKeyboardForAuthenticationInput, 250L);
+        });
+    }
+
+    private void showKeyboardForAuthenticationInput() {
+        if (authenticationInput.getVisibility() != View.VISIBLE || !authenticationInput.hasFocus()) {
+            return;
+        }
+        InputMethodManager inputMethodManager =
+                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (inputMethodManager != null) {
+            inputMethodManager.showSoftInput(authenticationInput, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
     private void hideAuthenticationInput() {
         phoneInputRow.setVisibility(View.GONE);
         authenticationInput.setVisibility(View.GONE);
         continueButton.setVisibility(View.GONE);
+    }
+
+    private void showReconnectAction() {
+        phoneInputRow.setVisibility(View.GONE);
+        authenticationInput.setVisibility(View.GONE);
+        continueButton.setVisibility(View.VISIBLE);
+        continueButton.setText(R.string.action_reconnect_telegram);
     }
 
     private int dp(int value) {

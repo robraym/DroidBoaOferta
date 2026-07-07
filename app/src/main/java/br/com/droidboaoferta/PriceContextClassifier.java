@@ -155,6 +155,14 @@ final class PriceContextClassifier {
                 "poupe",
                 "poupe ate",
                 "cupom de",
+                "compra acima de",
+                "compras acima de",
+                "compra acima dos",
+                "compras acima dos",
+                "compra a partir de",
+                "compras a partir de",
+                "pedido minimo de",
+                "valor minimo de",
                 "abatimento de"
         );
     }

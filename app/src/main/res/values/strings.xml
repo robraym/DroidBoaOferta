@@ -42,7 +42,7 @@
     <string name="telegram_groups_message">Escolha os grupos e canais de promoções que o Alertou poderá acompanhar.</string>
     <string name="telegram_no_groups">Nenhum grupo ou canal foi encontrado na lista principal.</string>
     <string name="telegram_status_disconnected">Telegram desconectado</string>
-    <string name="telegram_disconnected_message">A sessão foi encerrada. Abra esta tela novamente para reconectar.</string>
+    <string name="telegram_disconnected_message">A sessão foi encerrada. Abra esta tela novamente para reconectar. Seus dados locais continuam guardados.</string>
     <string name="telegram_status_attention">Ação necessária</string>
     <string name="telegram_unsupported_auth_message">O Telegram solicitou uma etapa de acesso ainda não suportada por esta primeira versão.</string>
     <string name="telegram_sync_message_intro">Alertou — dados de sincronização\nSincronização entre seus aparelhos.\nNão apague esta mensagem.</string>
@@ -54,6 +54,7 @@
     <string name="action_confirm">Confirmar</string>
     <string name="action_close">Fechar</string>
     <string name="action_enter">Entrar</string>
+    <string name="action_reconnect_telegram">Reconectar Telegram</string>
     <string name="dashboard_status_choose_groups">Escolha suas fontes</string>
     <string name="dashboard_status_choose_groups_summary">Selecione os grupos de promoções.</string>
     <string name="dashboard_status_add_interest">Crie um alerta de preço</string>
@@ -150,7 +151,7 @@
     <string name="profile_telegram_disconnected_summary">Toque para conectar uma conta.</string>
     <string name="profile_action_disconnect">Desconectar Telegram</string>
     <string name="profile_logout_dialog_title">Desconectar Telegram?</string>
-    <string name="profile_logout_dialog_message">O monitoramento será pausado e os grupos selecionados serão removidos. Suas ofertas salvas não serão apagadas.</string>
+    <string name="profile_logout_dialog_message">O monitoramento será pausado. Seus grupos, alertas e ofertas salvas continuam guardados para reconectar depois.</string>
     <string name="profile_telegram_disconnected_toast">Telegram desconectado</string>
     <string name="profile_terms_title">Termos e privacidade</string>
     <string name="profile_terms_message">O Alertou processa no aparelho apenas os grupos e canais escolhidos por você. As mensagens do Telegram não são enviadas para serviços externos de IA.</string>

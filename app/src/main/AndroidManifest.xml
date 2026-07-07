@@ -43,7 +43,8 @@
 
         <activity
             android:name=".TelegramSetupActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
 
         <service
             android:name=".OfferMonitorService"

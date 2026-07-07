@@ -113,6 +113,8 @@ final class TelegramClientManager {
     private volatile boolean pendingManualBackupConfirmation;
     private volatile boolean pendingManualRestore;
     private volatile boolean selfChatRequested;
+    private volatile boolean initialCloudRestorePending;
+    private volatile boolean reconnectRequested;
     private volatile boolean cloudBackupScheduled;
     private volatile boolean cloudPullScheduled;
     private volatile boolean backupPruneRequested;
@@ -150,6 +152,25 @@ final class TelegramClientManager {
         Thread receiverThread = new Thread(this::runReceiver, "boa-oferta-tdlib");
         receiverThread.setDaemon(true);
         receiverThread.start();
+    }
+
+    synchronized void reconnect(Context context) {
+        appContext = context.getApplicationContext();
+        reconnectRequested = true;
+        changeState(State.STARTING);
+        if (started && clientId != 0) {
+            try {
+                send(new JSONObject().put("@type", "close").put("@extra", "reconnect_close"));
+            } catch (JSONException ignored) {
+            }
+            cloudSyncHandler.postDelayed(() -> {
+                if (reconnectRequested) {
+                    restartAfterClosedRuntime();
+                }
+            }, 1500L);
+            return;
+        }
+        restartAfterClosedRuntime();
     }
 
     void setListener(Listener listener) {
@@ -314,6 +335,18 @@ final class TelegramClientManager {
             return;
         }
         scheduleCloudBackup();
+    }
+
+    void refreshCloudBackupSoon() {
+        Log.d(TAG, "refreshCloudBackupSoon state=" + state + ", selfChatId=" + selfChatId);
+        if (appContext == null || state != State.READY) {
+            return;
+        }
+        if (selfChatId == 0L) {
+            requestSelfChat();
+            return;
+        }
+        scheduleCloudPull();
     }
 
     void backupCloudNow() {
@@ -790,6 +823,7 @@ final class TelegramClientManager {
                 changeState(State.WAITING_PASSWORD);
                 break;
             case "authorizationStateReady":
+                initialCloudRestorePending = true;
                 changeState(State.READY);
                 loadAccount();
                 loadGroups();
@@ -797,11 +831,15 @@ final class TelegramClientManager {
                 break;
             case "authorizationStateClosing":
             case "authorizationStateLoggingOut":
-                changeState(State.CLOSED);
+                changeState(reconnectRequested ? State.STARTING : State.CLOSED);
                 break;
             case "authorizationStateClosed":
-                changeState(State.CLOSED);
                 closeRuntime();
+                if (reconnectRequested) {
+                    restartAfterClosedRuntime();
+                } else {
+                    changeState(State.CLOSED);
+                }
                 break;
             default:
                 changeState(State.UNSUPPORTED_AUTHORIZATION);
@@ -834,6 +872,7 @@ final class TelegramClientManager {
     }
 
     private void sendTdlibParameters() throws Exception {
+        File tdlibDirectory = new File(appContext.getFilesDir(), "tdlib");
         File databaseDirectory = new File(appContext.getFilesDir(), "tdlib/database");
         File filesDirectory = new File(appContext.getFilesDir(), "tdlib/files");
         if (!databaseDirectory.exists() && !databaseDirectory.mkdirs()) {
@@ -842,13 +881,27 @@ final class TelegramClientManager {
         if (!filesDirectory.exists() && !filesDirectory.mkdirs()) {
             throw new IllegalStateException("Não foi possível criar a pasta local do Telegram.");
         }
+        String databaseKey;
+        try {
+            databaseKey = TdlibDatabaseKey.getOrCreateBase64(appContext);
+        } catch (Exception exception) {
+            TdlibDatabaseKey.reset(appContext);
+            deleteTdlibRuntimeDirectory(tdlibDirectory);
+            if (!databaseDirectory.exists() && !databaseDirectory.mkdirs()) {
+                throw new IllegalStateException("Não foi possível recriar o banco local do Telegram.");
+            }
+            if (!filesDirectory.exists() && !filesDirectory.mkdirs()) {
+                throw new IllegalStateException("Não foi possível recriar a pasta local do Telegram.");
+            }
+            databaseKey = TdlibDatabaseKey.getOrCreateBase64(appContext);
+        }
 
         JSONObject request = new JSONObject()
                 .put("@type", "setTdlibParameters")
                 .put("use_test_dc", false)
                 .put("database_directory", databaseDirectory.getAbsolutePath())
                 .put("files_directory", filesDirectory.getAbsolutePath())
-                .put("database_encryption_key", TdlibDatabaseKey.getOrCreateBase64(appContext))
+                .put("database_encryption_key", databaseKey)
                 .put("use_file_database", true)
                 .put("use_chat_info_database", true)
                 .put("use_message_database", false)
@@ -860,6 +913,34 @@ final class TelegramClientManager {
                 .put("system_version", Build.VERSION.RELEASE)
                 .put("application_version", BuildConfig.VERSION_NAME);
         send(request);
+    }
+
+    private void deleteTdlibRuntimeDirectory(File tdlibDirectory) throws Exception {
+        File filesRoot = appContext.getFilesDir().getCanonicalFile();
+        File target = tdlibDirectory.getCanonicalFile();
+        if (!target.getPath().startsWith(filesRoot.getPath())
+                || "tdlib".equals(filesRoot.getName())
+                || !target.getName().equals("tdlib")) {
+            throw new IllegalStateException("Pasta local do Telegram inválida.");
+        }
+        deleteRecursively(target);
+    }
+
+    private void deleteRecursively(File file) {
+        if (file == null || !file.exists()) {
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        if (!file.delete()) {
+            Log.w(TAG, "Could not delete TDLib runtime file: " + file.getAbsolutePath());
+        }
     }
 
     private void loadAccount() {
@@ -914,6 +995,7 @@ final class TelegramClientManager {
         pendingManualBackupConfirmation = false;
         pendingManualRestore = false;
         selfChatRequested = false;
+        initialCloudRestorePending = false;
         cloudPullScheduled = false;
         pendingCloudMessageIds.clear();
         pendingCloudExpectedMessages = 0;
@@ -924,6 +1006,13 @@ final class TelegramClientManager {
         if (currentListener != null) {
             currentListener.onAccountChanged();
         }
+    }
+
+    private synchronized void restartAfterClosedRuntime() {
+        closeRuntime();
+        reconnectRequested = false;
+        changeState(State.STARTING);
+        start(appContext);
     }
 
     private void publishGroups(JSONArray chatIds) {
@@ -1025,14 +1114,18 @@ final class TelegramClientManager {
     private void handleSelfChat(JSONObject chat) {
         selfChatId = chat.optLong("id", 0L);
         Log.d(TAG, "handleSelfChat selfChatId=" + selfChatId);
-        requestCloudBackup();
-        if (pendingManualBackup) {
-            pendingManualBackup = false;
-            sendCloudBackup();
-        }
         if (pendingManualRestore) {
             pendingManualRestore = false;
             restoreCloudBackupNow();
+            return;
+        }
+        requestCloudBackup();
+        if (initialCloudRestorePending) {
+            return;
+        }
+        if (pendingManualBackup) {
+            pendingManualBackup = false;
+            sendCloudBackup();
         }
         if (CloudSyncStore.hasPendingPush(appContext)) {
             scheduleCloudBackup();
@@ -1096,8 +1189,18 @@ final class TelegramClientManager {
         } else if (forcedRestore) {
             notifyCloudSyncStatus(R.string.profile_cloud_restore_empty);
         }
+        boolean firstRestoreFinished = initialCloudRestorePending;
+        initialCloudRestorePending = false;
+        if (pendingManualBackup) {
+            pendingManualBackup = false;
+            sendCloudBackup();
+            return;
+        }
         if (!forcedRestore && CloudSyncStore.shouldPushLocalBackup(appContext, remoteBackup)) {
             scheduleCloudBackup();
+        } else if (firstRestoreFinished) {
+            appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
+                    .setPackage(appContext.getPackageName()));
         }
     }
 
@@ -1138,6 +1241,10 @@ final class TelegramClientManager {
         Log.d(TAG, "sendCloudBackup selfChatId=" + selfChatId
                 + ", messageId=" + CloudSyncStore.getBackupMessageId(appContext));
         if (selfChatId == 0L || pendingCloudExpectedMessages > 0 || backupPreparationRunning) {
+            return;
+        }
+        if (initialCloudRestorePending) {
+            requestCloudBackup();
             return;
         }
         sendNewCloudBackup();
@@ -1280,69 +1387,13 @@ final class TelegramClientManager {
     }
 
     private synchronized void requestBackupPrune() {
-        if (selfChatId == 0L || confirmedCloudMessageIds.isEmpty()) {
-            return;
-        }
         backupPruneKeepMessageIds.clear();
-        backupPruneKeepMessageIds.addAll(confirmedCloudMessageIds);
-        if (backupPruneRequested) {
-            return;
-        }
-        backupPruneRequested = true;
-        try {
-            send(new JSONObject()
-                    .put("@type", "searchChatMessages")
-                    .put("chat_id", selfChatId)
-                    .put("query", CloudSyncStore.MARKER)
-                    .put("sender_id", JSONObject.NULL)
-                    .put("from_message_id", 0)
-                    .put("offset", 0)
-                    .put("limit", 100)
-                    .put("filter", new JSONObject().put("@type", "searchMessagesFilterEmpty"))
-                    .put("message_thread_id", 0)
-                    .put("@extra", "backup_prune_search"));
-        } catch (JSONException exception) {
-            backupPruneRequested = false;
-            backupPruneKeepMessageIds.clear();
-        }
+        backupPruneRequested = false;
     }
 
     private synchronized void handleBackupPruneSearch(JSONArray messages) {
-        long oldestCurrentMessageId = Long.MAX_VALUE;
-        for (long messageId : backupPruneKeepMessageIds) {
-            oldestCurrentMessageId = Math.min(oldestCurrentMessageId, messageId);
-        }
-        JSONArray obsoleteMessageIds = new JSONArray();
-        if (messages != null) {
-            for (int index = 0; index < messages.length(); index++) {
-                JSONObject message = messages.optJSONObject(index);
-                JSONObject content = message == null ? null : message.optJSONObject("content");
-                JSONObject text = content == null ? null : content.optJSONObject("text");
-                String value = text == null ? "" : text.optString("text", "");
-                long messageId = message == null ? 0L : message.optLong("id", 0L);
-                if (messageId != 0L
-                        && messageId < oldestCurrentMessageId
-                        && value.contains(CloudSyncStore.MARKER)) {
-                    obsoleteMessageIds.put(messageId);
-                }
-            }
-        }
-        if (obsoleteMessageIds.length() == 0) {
-            backupPruneRequested = false;
-            backupPruneKeepMessageIds.clear();
-            return;
-        }
-        try {
-            send(new JSONObject()
-                    .put("@type", "deleteMessages")
-                    .put("chat_id", selfChatId)
-                    .put("message_ids", obsoleteMessageIds)
-                    .put("revoke", true)
-                    .put("@extra", "backup_prune_delete"));
-        } catch (JSONException exception) {
-            backupPruneRequested = false;
-            backupPruneKeepMessageIds.clear();
-        }
+        backupPruneRequested = false;
+        backupPruneKeepMessageIds.clear();
     }
 
     private synchronized void scheduleCloudBackup() {
@@ -1355,6 +1406,7 @@ final class TelegramClientManager {
             if (appContext != null
                     && state == State.READY
                     && selfChatId != 0L
+                    && !initialCloudRestorePending
                     && CloudSyncStore.hasPendingPush(appContext)) {
                 sendCloudBackup();
             }

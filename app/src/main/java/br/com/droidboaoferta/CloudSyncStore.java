@@ -372,6 +372,7 @@ final class CloudSyncStore {
     static JSONObject findNewestBackup(JSONArray messages) {
         JSONObject newest = null;
         long newestUpdatedAt = 0L;
+        int newestDataScore = -1;
         Map<String, List<JSONObject>> chunkGroups = new HashMap<>();
         if (messages == null) {
             return null;
@@ -401,9 +402,12 @@ final class CloudSyncStore {
             } catch (Exception ignored) {
             }
             long updatedAt = backup.optLong("updated_at", 0L);
-            if (updatedAt > newestUpdatedAt) {
+            int dataScore = backupDataScore(backup);
+            if (dataScore > newestDataScore
+                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)) {
                 newest = backup;
                 newestUpdatedAt = updatedAt;
+                newestDataScore = dataScore;
             }
         }
         for (List<JSONObject> chunks : chunkGroups.values()) {
@@ -412,12 +416,30 @@ final class CloudSyncStore {
                 continue;
             }
             long updatedAt = backup.optLong("updated_at", 0L);
-            if (updatedAt > newestUpdatedAt) {
+            int dataScore = backupDataScore(backup);
+            if (dataScore > newestDataScore
+                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)) {
                 newest = backup;
                 newestUpdatedAt = updatedAt;
+                newestDataScore = dataScore;
             }
         }
         return newest;
+    }
+
+    private static int backupDataScore(JSONObject backup) {
+        JSONObject data = backup == null ? null : backup.optJSONObject("data");
+        if (data == null) {
+            return 0;
+        }
+        if (readArray(data.optString(KEY_INTERESTS, "[]")).length() > 0
+                || readArray(data.optString(KEY_RECENT_OFFERS, "[]")).length() > 0
+                || readArray(data.optString(KEY_ARCHIVED_OFFERS, "[]")).length() > 0
+                || readArray(data.optString(KEY_TRASHED_OFFERS, "[]")).length() > 0) {
+            return 2;
+        }
+        JSONArray groups = data.optJSONArray(SELECTED_GROUPS);
+        return groups != null && groups.length() > 0 ? 1 : 0;
     }
 
     static boolean importIfNewer(Context context, JSONObject backup) {
@@ -556,6 +578,9 @@ final class CloudSyncStore {
 
     static boolean shouldPushLocalBackup(Context context, JSONObject remoteBackup) {
         if (!hasUsefulData(context)) {
+            return false;
+        }
+        if (remoteBackup != null && backupDataScore(remoteBackup) > localDataScore(context)) {
             return false;
         }
         if (hasPendingPush(context)) {
@@ -915,18 +940,28 @@ final class CloudSyncStore {
     }
 
     private static boolean hasUsefulData(Context context) {
+        if (localDataScore(context) > 0) {
+            return true;
+        }
+        Context appContext = context.getApplicationContext();
+        SharedPreferences offers = appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences app = appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE);
+        return !offers.getBoolean(MONITOR_ENABLED, true)
+                || AlertSoundController.hasCustomSound(appContext)
+                || ThemeController.MODE_LIGHT.equals(app.getString(THEME_MODE, ThemeController.MODE_DARK));
+    }
+
+    private static int localDataScore(Context context) {
         Context appContext = context.getApplicationContext();
         SharedPreferences telegram = appContext.getSharedPreferences(TELEGRAM_PREFS, Context.MODE_PRIVATE);
         SharedPreferences offers = appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE);
-        SharedPreferences app = appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE);
-        return !telegram.getStringSet(SELECTED_GROUPS, Collections.emptySet()).isEmpty()
-                || !"[]".equals(offers.getString(KEY_INTERESTS, "[]"))
-                || !"[]".equals(offers.getString(KEY_RECENT_OFFERS, "[]"))
-                || !"[]".equals(offers.getString(KEY_ARCHIVED_OFFERS, "[]"))
-                || !"[]".equals(offers.getString(KEY_TRASHED_OFFERS, "[]"))
-                || !offers.getBoolean(MONITOR_ENABLED, true)
-                || AlertSoundController.hasCustomSound(appContext)
-                || ThemeController.MODE_LIGHT.equals(app.getString(THEME_MODE, ThemeController.MODE_DARK));
+        if (readArray(offers.getString(KEY_INTERESTS, "[]")).length() > 0
+                || readArray(offers.getString(KEY_RECENT_OFFERS, "[]")).length() > 0
+                || readArray(offers.getString(KEY_ARCHIVED_OFFERS, "[]")).length() > 0
+                || readArray(offers.getString(KEY_TRASHED_OFFERS, "[]")).length() > 0) {
+            return 2;
+        }
+        return telegram.getStringSet(SELECTED_GROUPS, Collections.emptySet()).isEmpty() ? 0 : 1;
     }
 
     private static long getLastLocalChange(Context context) {

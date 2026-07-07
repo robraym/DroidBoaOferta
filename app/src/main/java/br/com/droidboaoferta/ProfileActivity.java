@@ -935,10 +935,6 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
                 .edit()
                 .putBoolean(MONITOR_ENABLED, false)
                 .apply();
-        getSharedPreferences(TELEGRAM_PREFS, MODE_PRIVATE)
-                .edit()
-                .remove(SELECTED_GROUPS)
-                .apply();
         MonitorStatusStore.setServiceRunning(this, false);
         MonitorStatusStore.setTelegramState(this, TelegramClientManager.State.CLOSED);
         clientManager.logOut();
