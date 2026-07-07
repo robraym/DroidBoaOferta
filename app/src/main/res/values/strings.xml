@@ -5,6 +5,16 @@
     <string name="telegram_setup_screen_title">Telegram</string>
     <string name="telegram_choose_groups_short">Escolha os grupos de promoções.</string>
     <string name="telegram_groups_card_title">Grupos de promoções</string>
+    <string name="telegram_groups_count_empty">0 selecionados de 0 grupos</string>
+    <string name="telegram_groups_count_format">%1$s de %2$s</string>
+    <plurals name="telegram_groups_selected_count">
+        <item quantity="one">%d selecionado</item>
+        <item quantity="other">%d selecionados</item>
+    </plurals>
+    <plurals name="telegram_groups_total_count">
+        <item quantity="one">%d grupo</item>
+        <item quantity="other">%d grupos</item>
+    </plurals>
     <string name="telegram_status_connecting">Preparando conexão</string>
     <string name="telegram_wait_message">Aguarde enquanto o Alertou inicia a conexão local com o Telegram.</string>
     <string name="telegram_status_credentials">Credenciais necessárias</string>

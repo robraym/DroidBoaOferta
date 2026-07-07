@@ -71,6 +71,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private View loginSpacer;
     private ScrollView groupsScroll;
     private LinearLayout groupsContainer;
+    private TextView groupsCountText;
     private LinearLayout groupsSearchBar;
     private EditText groupsSearchInput;
     private List<TelegramGroup> availableGroups = Collections.emptyList();
@@ -132,6 +133,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         loginSpacer = findViewById(R.id.spacer_telegram_login);
         groupsScroll = findViewById(R.id.scroll_groups);
         groupsContainer = findViewById(R.id.container_groups);
+        groupsCountText = findViewById(R.id.text_groups_count);
         groupsSearchBar = findViewById(R.id.search_groups_bar);
         groupsSearchInput = findViewById(R.id.input_search_groups);
 
@@ -316,6 +318,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
 
     private void renderGroups(List<TelegramGroup> groups) {
         availableGroups = groups;
+        updateGroupsCountSummary();
         List<TelegramGroup> visibleGroups = filterGroups(groups, groupsSearchInput.getText().toString());
         groupsContainer.removeAllViews();
         if (visibleGroups.isEmpty()) {
@@ -361,6 +364,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                     selectedGroupIds.remove(groupId);
                 }
                 persistSelectedGroups();
+                updateGroupsCountSummary();
             });
             row.addView(checkBox, new LinearLayout.LayoutParams(dp(32), dp(32)));
             LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
@@ -378,6 +382,39 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 groupsContainer.addView(createDivider());
             }
         }
+    }
+
+    private void updateGroupsCountSummary() {
+        int totalGroups = availableGroups == null ? 0 : availableGroups.size();
+        int selectedGroups = countSelectedAvailableGroups();
+        String selectedText = getResources().getQuantityString(
+                R.plurals.telegram_groups_selected_count,
+                selectedGroups,
+                selectedGroups
+        );
+        String totalText = getResources().getQuantityString(
+                R.plurals.telegram_groups_total_count,
+                totalGroups,
+                totalGroups
+        );
+        groupsCountText.setText(getString(R.string.telegram_groups_count_format,
+                selectedText,
+                totalText
+        ));
+    }
+
+    private int countSelectedAvailableGroups() {
+        if (availableGroups == null || availableGroups.isEmpty()
+                || selectedGroupIds == null || selectedGroupIds.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (TelegramGroup group : availableGroups) {
+            if (selectedGroupIds.contains(Long.toString(group.getId()))) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private List<TelegramGroup> filterGroups(List<TelegramGroup> groups, String query) {
