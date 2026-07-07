@@ -15,6 +15,8 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.method.ScrollingMovementMethod;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -47,6 +49,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
     private static final int REQUEST_NOTIFICATIONS = 1201;
+    private static final long ACTIVE_SYNC_REFRESH_MS = 15_000L;
 
     private final BroadcastReceiver statusReceiver = new BroadcastReceiver() {
         @Override
@@ -54,6 +57,16 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
             refreshSettingsControls();
             refreshErrorSummary();
             refreshSyncSummary();
+        }
+    };
+    private final Handler syncRefreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable activeSyncRefresh = new Runnable() {
+        @Override
+        public void run() {
+            if (clientManager != null) {
+                clientManager.refreshCloudBackupSoon();
+                syncRefreshHandler.postDelayed(this, ACTIVE_SYNC_REFRESH_MS);
+            }
         }
     };
 
@@ -159,6 +172,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         super.onStart();
         clientManager.setListener(this);
         clientManager.start(this);
+        clientManager.refreshCloudBackupSoon();
         IntentFilter statusFilter = new IntentFilter(MonitorStatusStore.ACTION_STATUS_CHANGED);
         statusFilter.addAction(AppErrorStore.ACTION_ERRORS_CHANGED);
         statusFilter.addAction(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED);
@@ -168,6 +182,8 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
                 statusFilter,
                 ContextCompat.RECEIVER_NOT_EXPORTED
         );
+        syncRefreshHandler.removeCallbacks(activeSyncRefresh);
+        syncRefreshHandler.postDelayed(activeSyncRefresh, ACTIVE_SYNC_REFRESH_MS);
         refreshProfile();
     }
 
@@ -179,6 +195,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
 
     @Override
     protected void onStop() {
+        syncRefreshHandler.removeCallbacks(activeSyncRefresh);
         unregisterReceiver(statusReceiver);
         clientManager.clearListener(this);
         releaseAlertSoundPreview();

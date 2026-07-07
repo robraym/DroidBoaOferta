@@ -91,7 +91,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        TelegramClientManager.getInstance().start(this);
+        TelegramClientManager clientManager = TelegramClientManager.getInstance();
+        clientManager.start(this);
+        clientManager.refreshCloudBackupSoon();
         IntentFilter filter = new IntentFilter(OfferMonitor.ACTION_OFFER_FOUND);
         filter.addAction(MonitorStatusStore.ACTION_STATUS_CHANGED);
         filter.addAction(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED);

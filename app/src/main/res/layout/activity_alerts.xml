@@ -104,15 +104,33 @@
             android:orientation="vertical"
             android:padding="6dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
+                android:layout_height="wrap_content"
+                android:minHeight="54dp"
                 android:gravity="center_vertical"
+                android:orientation="vertical"
                 android:paddingStart="6dp"
+                android:paddingTop="7dp"
                 android:paddingEnd="10dp"
-                android:text="@string/alerts_list_title"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp" />
+                android:paddingBottom="7dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/alerts_list_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/text_alerts_count"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/alerts_registered_count_empty"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp" />
+            </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/container_interests"

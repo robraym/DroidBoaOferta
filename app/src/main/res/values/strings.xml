@@ -110,6 +110,11 @@
     <string name="dashboard_create_alert_summary">Produto e preço máximo.</string>
     <string name="alerts_screen_title">Alertas</string>
     <string name="alerts_list_title">Alertas salvos</string>
+    <string name="alerts_registered_count_empty">Nenhum alerta cadastrado</string>
+    <plurals name="alerts_registered_count">
+        <item quantity="one">%d alerta cadastrado</item>
+        <item quantity="other">%d alertas cadastrados</item>
+    </plurals>
     <string name="settings_theme_title">Tema do app</string>
     <string name="settings_theme_dialog_title">Escolher tema</string>
     <string name="theme_light">Claro</string>

@@ -29,6 +29,7 @@ final class CloudSyncStore {
     private static final String PENDING_PUSH = "pending_push";
     private static final String BACKUP_MESSAGE_ID = "backup_message_id";
     private static final String LAST_BACKUP_AT = "last_confirmed_backup_at";
+    private static final String LAST_BACKED_UP_CHANGE = "last_backed_up_change";
     private static final String LAST_REMOTE_BACKUP_AT = "last_confirmed_remote_backup_at";
     private static final String COMPACT_BACKUP_MIGRATED = "compact_backup_migrated";
 
@@ -46,7 +47,6 @@ final class CloudSyncStore {
     private static final String KEY_REMOVED_GROUPS = "removed_groups";
     private static final String KEY_THEME_UPDATED_AT = "theme_updated_at";
     private static final String KEY_ALERT_SOUND_UPDATED_AT = "alert_sound_updated_at";
-    private static final String KEY_ALERT_CUSTOM_SOUNDS = "alert_sound_custom_sounds";
     private static final String KEY_RECENT_UPDATED_AT = "recent_updated_at";
     private static final String KEY_ARCHIVED_UPDATED_AT = "archived_updated_at";
     private static final String KEY_TRASH_UPDATED_AT = "trash_updated_at";
@@ -210,11 +210,14 @@ final class CloudSyncStore {
             return false;
         }
         long lastLocalChange = preferences.getLong(LAST_LOCAL_CHANGE, 0L);
-        long lastConfirmedBackup = preferences.getLong(LAST_BACKUP_AT, 0L);
+        long lastBackedUpChange = preferences.getLong(
+                LAST_BACKED_UP_CHANGE,
+                preferences.getLong(LAST_BACKUP_AT, 0L)
+        );
         boolean compactBackupReady = preferences.getBoolean(COMPACT_BACKUP_MIGRATED, false);
         if (compactBackupReady
                 && lastLocalChange > 0L
-                && lastConfirmedBackup >= lastLocalChange) {
+                && lastBackedUpChange >= lastLocalChange) {
             preferences.edit().putBoolean(PENDING_PUSH, false).apply();
             return false;
         }
@@ -228,7 +231,8 @@ final class CloudSyncStore {
                 .putBoolean(PENDING_PUSH, newerChangePending)
                 .putBoolean(COMPACT_BACKUP_MIGRATED, true)
                 .putLong(LAST_BACKUP_AT, now)
-                .putLong(LAST_REMOTE_BACKUP_AT, now)
+                .putLong(LAST_BACKED_UP_CHANGE, backedUpChange)
+                .putLong(LAST_REMOTE_BACKUP_AT, backedUpChange)
                 .commit();
         return !newerChangePending;
     }
@@ -323,10 +327,10 @@ final class CloudSyncStore {
             data.put(KEY_THEME_UPDATED_AT, ensureThemeUpdatedAt(appContext, updatedAt));
             String backupAlertSound = AlertSoundController.getBackupSound(appContext);
             data.put(ALERT_SOUND, backupAlertSound);
-            data.put(KEY_ALERT_CUSTOM_SOUNDS, AlertSoundController.exportCustomSounds(appContext));
             data.put(KEY_ALERT_SOUND_UPDATED_AT, ensureAlertSoundUpdatedAt(appContext, updatedAt));
 
-            backup.put("version", 1);
+            backup.put("version", 2);
+            backup.put("complete", true);
             backup.put("updated_at", updatedAt);
             backup.put("data", data);
         } catch (Exception ignored) {
@@ -373,6 +377,7 @@ final class CloudSyncStore {
         JSONObject newest = null;
         long newestUpdatedAt = 0L;
         int newestDataScore = -1;
+        boolean newestIsComplete = false;
         Map<String, List<JSONObject>> chunkGroups = new HashMap<>();
         if (messages == null) {
             return null;
@@ -403,11 +408,14 @@ final class CloudSyncStore {
             }
             long updatedAt = backup.optLong("updated_at", 0L);
             int dataScore = backupDataScore(backup);
-            if (dataScore > newestDataScore
-                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)) {
+            boolean complete = backup.optBoolean("complete", false);
+            if ((complete && (!newestIsComplete || updatedAt > newestUpdatedAt))
+                    || (!complete && !newestIsComplete && (dataScore > newestDataScore
+                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)))) {
                 newest = backup;
                 newestUpdatedAt = updatedAt;
                 newestDataScore = dataScore;
+                newestIsComplete = complete;
             }
         }
         for (List<JSONObject> chunks : chunkGroups.values()) {
@@ -417,11 +425,14 @@ final class CloudSyncStore {
             }
             long updatedAt = backup.optLong("updated_at", 0L);
             int dataScore = backupDataScore(backup);
-            if (dataScore > newestDataScore
-                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)) {
+            boolean complete = backup.optBoolean("complete", false);
+            if ((complete && (!newestIsComplete || updatedAt > newestUpdatedAt))
+                    || (!complete && !newestIsComplete && (dataScore > newestDataScore
+                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)))) {
                 newest = backup;
                 newestUpdatedAt = updatedAt;
                 newestDataScore = dataScore;
+                newestIsComplete = complete;
             }
         }
         return newest;
@@ -541,18 +552,12 @@ final class CloudSyncStore {
         String localAlertSound = AlertSoundController.getSavedSound(appContext);
         long localAlertSoundUpdatedAt = syncPrefs(appContext)
                 .getLong(KEY_ALERT_SOUND_UPDATED_AT, localUpdatedAt);
-        AlertSoundController.importCustomSounds(
-                appContext,
-                data.optJSONArray(KEY_ALERT_CUSTOM_SOUNDS)
-        );
         String remoteAlertSound = data.optString(ALERT_SOUND, "");
         long remoteAlertSoundUpdatedAt = AlertSoundController.isBuiltInSound(remoteAlertSound)
-                || AlertSoundController.hasCustomSound(appContext, remoteAlertSound)
                 ? data.optLong(KEY_ALERT_SOUND_UPDATED_AT, remoteUpdatedAt)
                 : 0L;
         if (remoteAlertSoundUpdatedAt >= localAlertSoundUpdatedAt
-                && (AlertSoundController.isBuiltInSound(remoteAlertSound)
-                || AlertSoundController.hasCustomSound(appContext, remoteAlertSound))
+                && AlertSoundController.isBuiltInSound(remoteAlertSound)
                 && !remoteAlertSound.equals(localAlertSound)) {
             AlertSoundController.applyImportedSound(appContext, remoteAlertSound);
         }
@@ -577,14 +582,14 @@ final class CloudSyncStore {
     }
 
     static boolean shouldPushLocalBackup(Context context, JSONObject remoteBackup) {
+        if (hasPendingPush(context)) {
+            return true;
+        }
         if (!hasUsefulData(context)) {
             return false;
         }
         if (remoteBackup != null && backupDataScore(remoteBackup) > localDataScore(context)) {
             return false;
-        }
-        if (hasPendingPush(context)) {
-            return true;
         }
         long localUpdatedAt = getLastLocalChange(context);
         long remoteUpdatedAt = remoteBackup == null ? 0L : remoteBackup.optLong("updated_at", 0L);
@@ -947,7 +952,6 @@ final class CloudSyncStore {
         SharedPreferences offers = appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE);
         SharedPreferences app = appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE);
         return !offers.getBoolean(MONITOR_ENABLED, true)
-                || AlertSoundController.hasCustomSound(appContext)
                 || ThemeController.MODE_LIGHT.equals(app.getString(THEME_MODE, ThemeController.MODE_DARK));
     }
 

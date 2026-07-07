@@ -9,18 +9,15 @@ import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.OpenableColumns;
-import android.util.Base64;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -33,6 +30,7 @@ final class AlertSoundController {
 
     private static final String PREFS = "app_preferences";
     private static final String ALERT_SOUND = "alert_sound";
+    private static final String CLOUD_ALERT_SOUND = "alert_sound_cloud";
     private static final String CUSTOM_SOUND_LIST = "alert_sound_custom_list";
     private static final String LEGACY_CUSTOM_SOUND_NAME = "alert_sound_custom_name";
     private static final String LEGACY_CUSTOM_SOUND_VERSION = "alert_sound_custom_version";
@@ -117,7 +115,13 @@ final class AlertSoundController {
     }
 
     static String getBackupSound(Context context) {
-        return getSavedSound(context);
+        SharedPreferences preferences = prefs(context);
+        String cloudSound = preferences.getString(CLOUD_ALERT_SOUND, "");
+        if (isBuiltInSound(cloudSound)) {
+            return cloudSound;
+        }
+        String savedSound = getSavedSound(context);
+        return isBuiltInSound(savedSound) ? savedSound : DEFAULT_SOUND;
     }
 
     static boolean isBuiltInSound(String sound) {
@@ -131,7 +135,10 @@ final class AlertSoundController {
     static void saveSound(Context context, String sound) {
         String normalized = normalizeBuiltIn(sound);
         long changedAt = System.currentTimeMillis();
-        prefs(context).edit().putString(ALERT_SOUND, normalized).apply();
+        prefs(context).edit()
+                .putString(ALERT_SOUND, normalized)
+                .putString(CLOUD_ALERT_SOUND, normalized)
+                .apply();
         CloudSyncStore.rememberAlertSoundChanged(context, changedAt);
         CloudSyncStore.markLocalChanged(context);
         configureNotificationChannel(context);
@@ -168,8 +175,6 @@ final class AlertSoundController {
         prefs(appContext).edit()
                 .putString(ALERT_SOUND, key)
                 .apply();
-        CloudSyncStore.rememberAlertSoundChanged(appContext, changedAt);
-        CloudSyncStore.markLocalChanged(appContext);
         configureNotificationChannel(appContext);
         return key;
     }
@@ -178,10 +183,7 @@ final class AlertSoundController {
         if (!hasCustomSound(context, sound)) {
             return;
         }
-        long changedAt = System.currentTimeMillis();
         prefs(context).edit().putString(ALERT_SOUND, sound).apply();
-        CloudSyncStore.rememberAlertSoundChanged(context, changedAt);
-        CloudSyncStore.markLocalChanged(context);
         configureNotificationChannel(context);
     }
 
@@ -214,85 +216,24 @@ final class AlertSoundController {
         if (sound.equals(preferences.getString(ALERT_SOUND, DEFAULT_SOUND))) {
             editor.putString(ALERT_SOUND, DEFAULT_SOUND);
         }
-        long changedAt = System.currentTimeMillis();
         editor.apply();
-        CloudSyncStore.rememberAlertSoundChanged(appContext, changedAt);
-        CloudSyncStore.markLocalChanged(appContext);
         configureNotificationChannel(appContext);
     }
 
     static void applyImportedSound(Context context, String sound) {
-        if (!isBuiltInSound(sound) && !hasCustomSound(context, sound)) {
+        if (!isBuiltInSound(sound)) {
             return;
         }
-        prefs(context).edit().putString(ALERT_SOUND, sound).apply();
-        configureNotificationChannel(context);
-    }
-
-    static JSONArray exportCustomSounds(Context context) {
-        JSONArray array = new JSONArray();
-        Context appContext = context.getApplicationContext();
-        for (CustomSound sound : getCustomSounds(appContext)) {
-            File file = getCustomSoundFileById(appContext, sound.id);
-            String encoded = readFileAsBase64(file);
-            if (encoded == null || encoded.isEmpty()) {
-                continue;
-            }
-            JSONObject item = new JSONObject();
-            try {
-                item.put("id", sound.id);
-                item.put("name", sound.name);
-                item.put("version", sound.version);
-                item.put("data", encoded);
-                array.put(item);
-            } catch (JSONException ignored) {
-            }
+        SharedPreferences preferences = prefs(context);
+        SharedPreferences.Editor editor = preferences.edit()
+                .putString(CLOUD_ALERT_SOUND, sound);
+        if (!isCustomSound(getSavedSound(context))) {
+            editor.putString(ALERT_SOUND, sound);
         }
-        return array;
-    }
-
-    static boolean importCustomSounds(Context context, JSONArray array) {
-        if (array == null || array.length() == 0) {
-            return false;
+        editor.apply();
+        if (!isCustomSound(getSavedSound(context))) {
+            configureNotificationChannel(context);
         }
-        Context appContext = context.getApplicationContext();
-        List<CustomSound> customSounds = getCustomSounds(appContext);
-        boolean changed = false;
-        for (int index = 0; index < array.length(); index++) {
-            JSONObject item = array.optJSONObject(index);
-            if (item == null) {
-                continue;
-            }
-            String id = item.optString("id", "").trim();
-            String data = item.optString("data", "");
-            if (id.isEmpty() || data.isEmpty()) {
-                continue;
-            }
-            String name = item.optString(
-                    "name",
-                    appContext.getString(R.string.alert_sound_custom_default_name)
-            ).trim();
-            long version = item.optLong("version", 0L);
-            File file = getCustomSoundFileById(appContext, id);
-            if (writeBase64ToFile(data, file)) {
-                upsertCustomSound(
-                        customSounds,
-                        new CustomSound(
-                                id,
-                                name.isEmpty()
-                                        ? appContext.getString(R.string.alert_sound_custom_default_name)
-                                        : name,
-                                version
-                        )
-                );
-                changed = true;
-            }
-        }
-        if (changed) {
-            saveCustomSounds(appContext, customSounds);
-            configureNotificationChannel(appContext);
-        }
-        return changed;
     }
 
     static String getCurrentLabel(Context context) {
@@ -477,19 +418,6 @@ final class AlertSoundController {
         prefs(context).edit().putString(CUSTOM_SOUND_LIST, array.toString()).apply();
     }
 
-    private static void upsertCustomSound(List<CustomSound> customSounds, CustomSound imported) {
-        for (int index = 0; index < customSounds.size(); index++) {
-            CustomSound current = customSounds.get(index);
-            if (current.id.equals(imported.id)) {
-                if (imported.version >= current.version) {
-                    customSounds.set(index, imported);
-                }
-                return;
-            }
-        }
-        customSounds.add(imported);
-    }
-
     private static boolean containsCustomId(List<CustomSound> customSounds, String id) {
         for (CustomSound sound : customSounds) {
             if (sound.id.equals(id)) {
@@ -529,7 +457,15 @@ final class AlertSoundController {
             return "legacy";
         }
         String id = sound.substring((CUSTOM_SOUND + ":").length()).trim();
-        return id.isEmpty() ? "legacy" : id;
+        if (id.isEmpty()) {
+            return "legacy";
+        }
+        for (int index = 0; index < id.length(); index++) {
+            if (!Character.isDigit(id.charAt(index))) {
+                return "invalid";
+            }
+        }
+        return id;
     }
 
     private static File getCustomSoundFileById(Context context, String id) {
@@ -547,39 +483,6 @@ final class AlertSoundController {
                 new File(context.getApplicationContext().getFilesDir(), CUSTOM_SOUND_DIR),
                 LEGACY_CUSTOM_SOUND_FILE
         );
-    }
-
-    private static String readFileAsBase64(File file) {
-        if (file == null || !file.exists() || file.length() <= 0L) {
-            return null;
-        }
-        try (FileInputStream input = new FileInputStream(file);
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = input.read(buffer)) != -1) {
-                output.write(buffer, 0, read);
-            }
-            return Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP);
-        } catch (IOException exception) {
-            return null;
-        }
-    }
-
-    private static boolean writeBase64ToFile(String encoded, File file) {
-        try {
-            File parent = file.getParentFile();
-            if (parent != null && !parent.exists() && !parent.mkdirs()) {
-                return false;
-            }
-            byte[] bytes = Base64.decode(encoded, Base64.NO_WRAP);
-            try (FileOutputStream output = new FileOutputStream(file, false)) {
-                output.write(bytes);
-            }
-            return file.exists() && file.length() > 0L;
-        } catch (Exception exception) {
-            return false;
-        }
     }
 
     private static String normalizeBuiltIn(String sound) {

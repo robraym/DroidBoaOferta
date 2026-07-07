@@ -43,6 +43,7 @@ public class AlertsActivity extends AppCompatActivity {
     private final ExecutorService alertUpdateExecutor = Executors.newSingleThreadExecutor();
     private LinearLayout interestsContainer;
     private EditText interestsSearchInput;
+    private TextView alertsCountText;
     private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -60,6 +61,7 @@ public class AlertsActivity extends AppCompatActivity {
         offerRepository = new OfferRepository(this);
         interestsContainer = findViewById(R.id.container_interests);
         interestsSearchInput = findViewById(R.id.input_search_interests);
+        alertsCountText = findViewById(R.id.text_alerts_count);
 
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
@@ -105,8 +107,17 @@ public class AlertsActivity extends AppCompatActivity {
     }
 
     private void renderInterests() {
+        List<Interest> registeredInterests = interestRepository.getAll();
+        int registeredCount = registeredInterests.size();
+        alertsCountText.setText(registeredCount == 0
+                ? getString(R.string.alerts_registered_count_empty)
+                : getResources().getQuantityString(
+                        R.plurals.alerts_registered_count,
+                        registeredCount,
+                        registeredCount
+                ));
         List<Interest> interests = filterInterests(
-                interestRepository.getAll(),
+                registeredInterests,
                 interestsSearchInput.getText().toString()
         );
         interestsContainer.removeAllViews();

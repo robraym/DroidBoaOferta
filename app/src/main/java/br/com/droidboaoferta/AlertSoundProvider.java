@@ -6,7 +6,9 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -40,6 +42,10 @@ public final class AlertSoundProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+        int callingUid = Binder.getCallingUid();
+        if (callingUid != Process.myUid() && callingUid != Process.SYSTEM_UID) {
+            throw new FileNotFoundException("Acesso ao som não permitido.");
+        }
         List<String> pathSegments = uri.getPathSegments();
         if (pathSegments.isEmpty() || !PATH_SOUND.equals(pathSegments.get(0))) {
             throw new FileNotFoundException("Som não encontrado.");
@@ -51,6 +57,9 @@ public final class AlertSoundProvider extends ContentProvider {
         String soundKey = pathSegments.size() > 1
                 ? pathSegments.get(1)
                 : AlertSoundController.getSavedSound(context);
+        if (!AlertSoundController.hasCustomSound(context, soundKey)) {
+            throw new FileNotFoundException("Som personalizado não encontrado.");
+        }
         File sound = AlertSoundController.getCustomSoundFile(context, soundKey);
         if (!sound.exists() || sound.length() <= 0L) {
             throw new FileNotFoundException("Som personalizado não encontrado.");

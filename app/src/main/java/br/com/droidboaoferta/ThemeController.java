@@ -2,6 +2,8 @@ package br.com.droidboaoferta;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.appcompat.app.AppCompatDelegate;
 
@@ -48,6 +50,10 @@ final class ThemeController {
     }
 
     private static void applyMode(String mode) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            new Handler(Looper.getMainLooper()).post(() -> applyMode(mode));
+            return;
+        }
         switch (mode) {
             case MODE_LIGHT:
                 AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);

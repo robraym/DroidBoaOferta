@@ -48,7 +48,9 @@ final class OfferRepository {
         offers.removeIf(item -> isSameObservedOffer(item, offer));
         offers.add(0, offer);
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(offers)));
-        CloudSyncStore.rememberRecentChanged(context, System.currentTimeMillis());
+        long changedAt = System.currentTimeMillis();
+        CloudSyncStore.rememberRecentChanged(context, changedAt);
+        CloudSyncStore.markLocalChanged(context);
     }
 
     synchronized void clearProcessedForInterest(long interestId) {
@@ -63,7 +65,9 @@ final class OfferRepository {
         boolean changed = recent.removeIf(offer -> offer.getInterestId() == interestId);
         if (changed) {
             saveOffers(KEY_OFFERS, recent);
-            CloudSyncStore.rememberRecentChanged(context, System.currentTimeMillis());
+            long changedAt = System.currentTimeMillis();
+            CloudSyncStore.rememberRecentChanged(context, changedAt);
+            CloudSyncStore.markLocalChanged(context);
         }
     }
 
@@ -90,7 +94,9 @@ final class OfferRepository {
             ));
         }
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(reconciled)));
-        CloudSyncStore.rememberRecentChanged(context, System.currentTimeMillis());
+        long changedAt = System.currentTimeMillis();
+        CloudSyncStore.rememberRecentChanged(context, changedAt);
+        CloudSyncStore.markLocalChanged(context);
     }
 
     synchronized void archive(String id) {

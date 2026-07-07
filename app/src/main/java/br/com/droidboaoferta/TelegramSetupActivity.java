@@ -845,7 +845,6 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 .apply();
         selectedGroupIds = selected;
         CloudSyncStore.rememberSelectedGroupsChanged(this, previous, selected);
-        TelegramClientManager.getInstance().refreshSelectedGroupsHistory();
     }
 
     private void loadSelectedGroupsFromPreferences() {
