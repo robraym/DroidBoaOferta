@@ -40,6 +40,7 @@
     <string name="telegram_password_hint">Senha do Telegram</string>
     <string name="telegram_status_connected">Telegram conectado</string>
     <string name="telegram_groups_message">Escolha os grupos e canais de promoções que o Alertou poderá acompanhar.</string>
+    <string name="telegram_groups_refreshing">Atualizando grupos do Telegram...</string>
     <string name="telegram_no_groups">Nenhum grupo ou canal foi encontrado na lista principal.</string>
     <string name="telegram_status_disconnected">Telegram desconectado</string>
     <string name="telegram_disconnected_message">A sessão foi encerrada. Abra esta tela novamente para reconectar. Seus dados locais continuam guardados.</string>

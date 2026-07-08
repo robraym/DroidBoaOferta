@@ -43,6 +43,10 @@ import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import com.google.i18n.phonenumbers.Phonenumber;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,6 +61,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private static final String TAG = "TelegramSetup";
     private static final String PREFS = "telegram_preferences";
     private static final String PREF_SELECTED_GROUPS = "selected_groups";
+    private static final String PREF_CACHED_GROUPS = "cached_groups";
     private static final String PREF_LAST_PHONE = "last_phone";
 
     private TelegramClientManager clientManager;
@@ -77,6 +82,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private EditText groupsSearchInput;
     private List<TelegramGroup> availableGroups = Collections.emptyList();
     private Set<String> selectedGroupIds;
+    private boolean showingCachedGroups;
     private ActivityResultLauncher<IntentSenderRequest> phoneNumberHintLauncher;
     private ActivityResultLauncher<Intent> smsConsentLauncher;
     private boolean automaticPhoneHintRequested;
@@ -191,7 +197,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         groupsSearchInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
             public void afterTextChanged(Editable editable) {
-                renderGroups(availableGroups);
+                renderGroups(availableGroups, showingCachedGroups);
             }
         });
 
@@ -233,7 +239,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     public void onGroupsLoaded(List<TelegramGroup> groups) {
         runOnUiThread(() -> {
             loadSelectedGroupsFromPreferences();
-            renderGroups(groups);
+            renderGroups(groups, false);
         });
     }
 
@@ -321,17 +327,45 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     }
 
     private void renderGroups(List<TelegramGroup> groups) {
-        availableGroups = groups;
+        renderGroups(groups, false);
+    }
+
+    private void renderGroups(List<TelegramGroup> groups, boolean keepCachedState) {
+        List<TelegramGroup> displayGroups = groups == null ? Collections.emptyList() : groups;
+        if (keepCachedState) {
+            showingCachedGroups = true;
+        } else if (displayGroups.isEmpty() && selectedGroupIds != null && !selectedGroupIds.isEmpty()) {
+            List<TelegramGroup> cachedGroups = loadCachedGroupsFromPreferences();
+            if (!cachedGroups.isEmpty()) {
+                displayGroups = cachedGroups;
+                showingCachedGroups = true;
+            } else {
+                showingCachedGroups = false;
+            }
+        } else {
+            showingCachedGroups = false;
+            if (!displayGroups.isEmpty()) {
+                persistCachedGroups(displayGroups);
+            }
+        }
+        availableGroups = displayGroups;
         updateGroupsCountSummary();
-        List<TelegramGroup> visibleGroups = filterGroups(groups, groupsSearchInput.getText().toString());
+        List<TelegramGroup> visibleGroups = filterGroups(displayGroups, groupsSearchInput.getText().toString());
         groupsContainer.removeAllViews();
         if (visibleGroups.isEmpty()) {
             TextView emptyView = new TextView(this);
-            emptyView.setText(R.string.telegram_no_groups);
+            emptyView.setText(showingCachedGroups
+                    ? R.string.telegram_groups_refreshing
+                    : R.string.telegram_no_groups);
             emptyView.setTextColor(getColor(R.color.text_secondary));
             emptyView.setTextSize(14);
             groupsContainer.addView(emptyView);
             return;
+        }
+
+        if (showingCachedGroups) {
+            groupsContainer.addView(createInfoText(R.string.telegram_groups_refreshing));
+            groupsContainer.addView(createDivider());
         }
 
         for (int index = 0; index < visibleGroups.size(); index++) {
@@ -422,6 +456,9 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     }
 
     private List<TelegramGroup> filterGroups(List<TelegramGroup> groups, String query) {
+        if (groups == null || groups.isEmpty()) {
+            return Collections.emptyList();
+        }
         String normalizedQuery = OfferTextParser.normalize(query);
         if (normalizedQuery.isEmpty()) {
             return groups;
@@ -433,6 +470,15 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
             }
         }
         return filtered;
+    }
+
+    private TextView createInfoText(int messageResource) {
+        TextView infoText = new TextView(this);
+        infoText.setText(messageResource);
+        infoText.setTextColor(getColor(R.color.text_secondary));
+        infoText.setTextSize(13);
+        infoText.setPadding(dp(6), 0, dp(6), dp(10));
+        return infoText;
     }
 
     private View createDivider() {
@@ -853,6 +899,46 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 PREF_SELECTED_GROUPS,
                 new HashSet<>()
         ));
+    }
+
+    private void persistCachedGroups(List<TelegramGroup> groups) {
+        JSONArray cachedGroups = new JSONArray();
+        try {
+            for (TelegramGroup group : groups) {
+                cachedGroups.put(new JSONObject()
+                        .put("id", group.getId())
+                        .put("title", group.getTitle()));
+            }
+            getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(PREF_CACHED_GROUPS, cachedGroups.toString())
+                    .apply();
+        } catch (JSONException exception) {
+            Log.w(TAG, "Could not cache Telegram groups", exception);
+        }
+    }
+
+    private List<TelegramGroup> loadCachedGroupsFromPreferences() {
+        String rawGroups = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(PREF_CACHED_GROUPS, "[]");
+        List<TelegramGroup> cachedGroups = new ArrayList<>();
+        try {
+            JSONArray groups = new JSONArray(rawGroups);
+            for (int index = 0; index < groups.length(); index++) {
+                JSONObject group = groups.optJSONObject(index);
+                if (group == null) {
+                    continue;
+                }
+                long id = group.optLong("id", 0L);
+                String title = group.optString("title", "").trim();
+                if (id != 0L && !title.isEmpty()) {
+                    cachedGroups.add(new TelegramGroup(id, title));
+                }
+            }
+        } catch (JSONException exception) {
+            Log.w(TAG, "Could not read cached Telegram groups", exception);
+        }
+        return cachedGroups;
     }
 
     private void showStatus(int statusResource, int messageResource) {
