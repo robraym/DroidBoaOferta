@@ -44,7 +44,7 @@ final class AccentColorController {
         activity.getTheme().applyStyle(getStyleResource(getSavedMode(activity)), true);
     }
 
-    static int getSummaryResource(String mode) {
+    static int getSummaryResource(Context context, String mode) {
         switch (normalize(mode)) {
             case MODE_GREEN:
                 return R.string.accent_color_green;
@@ -63,7 +63,9 @@ final class AccentColorController {
             case MODE_MATRIX:
                 return R.string.accent_color_matrix;
             case MODE_WHITE:
-                return R.string.accent_color_white;
+                return ThemeController.MODE_LIGHT.equals(ThemeController.getSavedMode(context))
+                        ? R.string.accent_color_graphite
+                        : R.string.accent_color_white;
             case MODE_INDIGO:
                 return R.string.accent_color_indigo;
             case MODE_MAGENTA:

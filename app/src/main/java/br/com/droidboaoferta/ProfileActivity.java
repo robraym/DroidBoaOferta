@@ -269,6 +269,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         boolean monitorEnabled = isMonitorEnabled();
         themeSummary.setText(ThemeController.getSummaryResource(ThemeController.getSavedMode(this)));
         accentColorSummary.setText(AccentColorController.getSummaryResource(
+                this,
                 AccentColorController.getSavedMode(this)
         ));
         alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
@@ -530,7 +531,9 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 R.string.accent_color_teal,
                 R.string.accent_color_red,
                 R.string.accent_color_matrix,
-                R.string.accent_color_white,
+                ThemeController.MODE_LIGHT.equals(ThemeController.getSavedMode(this))
+                        ? R.string.accent_color_graphite
+                        : R.string.accent_color_white,
                 R.string.accent_color_indigo,
                 R.string.accent_color_magenta
         };
@@ -548,7 +551,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 selectedMode[0] = modes[optionIndex];
                 AccentColorController.saveMode(this, selectedMode[0]);
                 accentColorSummary.setText(
-                        AccentColorController.getSummaryResource(selectedMode[0])
+                        AccentColorController.getSummaryResource(this, selectedMode[0])
                 );
                 for (int current = 0; current < optionViews.size(); current++) {
                     updateAccentColorOption(
