@@ -55,7 +55,12 @@ public class AlertsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_alerts);
-        BottomNavigationController.setup(this, BottomNavigationController.ITEM_ALERTS);
+        BottomNavigationController.setup(
+                this,
+                BottomNavigationController.ITEM_ALERTS,
+                R.id.button_add_interest,
+                R.id.navigation_animated_content
+        );
 
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);
@@ -169,8 +174,8 @@ public class AlertsActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setBackgroundColor(getColor(R.color.card));
-        row.setMinimumHeight(dp(52));
-        row.setPadding(dp(6), dp(7), dp(6), dp(7));
+        row.setMinimumHeight(dp(48));
+        row.setPadding(dp(4), dp(4), dp(4), dp(4));
 
         TextView label = new TextView(this);
         label.setText(text);
@@ -178,7 +183,7 @@ public class AlertsActivity extends AppCompatActivity {
         label.setTextSize(14);
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
-        label.setPadding(0, 0, dp(4), 0);
+        label.setPadding(0, 0, dp(3), 0);
         row.addView(label, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         return row;
     }
@@ -190,8 +195,8 @@ public class AlertsActivity extends AppCompatActivity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(1)
         );
-        params.leftMargin = dp(6);
-        params.rightMargin = dp(6);
+        params.leftMargin = dp(4);
+        params.rightMargin = dp(4);
         divider.setLayoutParams(params);
         return divider;
     }
@@ -214,7 +219,7 @@ public class AlertsActivity extends AppCompatActivity {
         button.setScaleType(ImageView.ScaleType.CENTER);
         button.setPadding(dp(7), dp(7), dp(7), dp(7));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(32), dp(32));
-        params.rightMargin = dp(8);
+        params.rightMargin = dp(6);
         button.setLayoutParams(params);
         return button;
     }
@@ -228,7 +233,7 @@ public class AlertsActivity extends AppCompatActivity {
         button.setScaleType(ImageView.ScaleType.CENTER);
         button.setPadding(dp(8), dp(8), dp(8), dp(8));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(32), dp(32));
-        params.leftMargin = dp(6);
+        params.leftMargin = dp(4);
         button.setLayoutParams(params);
         return button;
     }

@@ -68,7 +68,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        BottomNavigationController.setup(this, BottomNavigationController.ITEM_HOME);
+        BottomNavigationController.setup(
+                this,
+                BottomNavigationController.ITEM_HOME,
+                R.id.navigation_animated_content
+        );
 
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);

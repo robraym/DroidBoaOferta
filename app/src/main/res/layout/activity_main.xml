@@ -39,6 +39,7 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/navigation_animated_content"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginStart="12dp"

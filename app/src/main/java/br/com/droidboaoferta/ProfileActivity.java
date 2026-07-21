@@ -26,6 +26,7 @@ import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.FrameLayout;
+import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -81,6 +82,8 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     private TextView monitorStatusSummary;
     private TextView themeSummary;
     private TextView alertSoundSummary;
+    private TextView navigationAnimationSummary;
+    private TextView errorTitle;
     private TextView errorSummary;
     private ImageButton monitorToggle;
     private InterestRepository interestRepository;
@@ -111,6 +114,8 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         monitorStatusSummary = findViewById(R.id.text_monitor_status_summary);
         themeSummary = findViewById(R.id.text_theme_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
+        navigationAnimationSummary = findViewById(R.id.text_navigation_animation_summary);
+        errorTitle = findViewById(R.id.text_error_title);
         errorSummary = findViewById(R.id.text_error_summary);
         monitorToggle = findViewById(R.id.button_monitor_toggle);
         accountCard = findViewById(R.id.card_telegram_account);
@@ -160,6 +165,9 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         });
         findViewById(R.id.row_theme).setOnClickListener(view -> showThemeDialog());
         findViewById(R.id.row_alert_sound).setOnClickListener(view -> showAlertSoundDialog());
+        findViewById(R.id.row_navigation_animation).setOnClickListener(
+                view -> showNavigationAnimationDialog()
+        );
         monitorToggle.setOnClickListener(view -> toggleMonitor());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
@@ -261,6 +269,9 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         boolean monitorEnabled = isMonitorEnabled();
         themeSummary.setText(ThemeController.getSummaryResource(ThemeController.getSavedMode(this)));
         alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
+        navigationAnimationSummary.setText(NavigationAnimationController.getSummaryResource(
+                NavigationAnimationController.getSavedMode(this)
+        ));
 
         if (groupCount == 0) {
             monitorStatusTitle.setText(R.string.dashboard_status_choose_groups);
@@ -433,6 +444,415 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         return option;
     }
 
+    private void showNavigationAnimationDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(18), dp(20), dp(12));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.navigation_animation_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView previewHint = new TextView(this);
+        previewHint.setText(R.string.navigation_animation_preview_hint);
+        previewHint.setTextColor(getColor(R.color.text_secondary));
+        previewHint.setTextSize(13);
+        previewHint.setPadding(0, dp(8), 0, dp(7));
+        content.addView(previewHint);
+
+        FrameLayout preview = new FrameLayout(this);
+        preview.setBackgroundResource(R.drawable.bg_input);
+        preview.setClipChildren(true);
+        preview.setClickable(true);
+        preview.setFocusable(true);
+        content.addView(preview, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(136)
+        ));
+
+        LinearLayout previewPanel = new LinearLayout(this);
+        previewPanel.setOrientation(LinearLayout.VERTICAL);
+        previewPanel.setGravity(Gravity.CENTER_VERTICAL);
+        previewPanel.setPadding(dp(18), dp(12), dp(18), dp(12));
+        previewPanel.setBackgroundResource(R.drawable.bg_card_compact);
+        FrameLayout.LayoutParams previewPanelParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        previewPanelParams.setMargins(dp(12), dp(8), dp(12), dp(42));
+        preview.addView(previewPanel, previewPanelParams);
+
+        TextView fixedSearch = new TextView(this);
+        fixedSearch.setText(R.string.search_hint);
+        fixedSearch.setTextColor(getColor(R.color.text_secondary));
+        fixedSearch.setTextSize(12);
+        fixedSearch.setGravity(Gravity.CENTER_VERTICAL);
+        fixedSearch.setPadding(dp(12), 0, dp(12), 0);
+        fixedSearch.setBackgroundResource(R.drawable.bg_search_bar);
+        FrameLayout.LayoutParams fixedSearchParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dp(27),
+                Gravity.BOTTOM
+        );
+        fixedSearchParams.setMargins(dp(36), 0, dp(36), dp(8));
+        preview.addView(fixedSearch, fixedSearchParams);
+
+        TextView previewTitle = new TextView(this);
+        previewTitle.setText(R.string.navigation_animation_preview_home);
+        previewTitle.setTextColor(getColor(R.color.text_primary));
+        previewTitle.setTextSize(19);
+        previewTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        previewPanel.addView(previewTitle);
+
+        View previewLinePrimary = createAnimationPreviewLine(getColor(R.color.action), 0.74f);
+        LinearLayout.LayoutParams primaryLineParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(8)
+        );
+        primaryLineParams.setMargins(0, dp(12), dp(42), 0);
+        previewPanel.addView(previewLinePrimary, primaryLineParams);
+
+        View previewLineSecondary = createAnimationPreviewLine(getColor(R.color.divider), 0.6f);
+        LinearLayout.LayoutParams secondaryLineParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(7)
+        );
+        secondaryLineParams.setMargins(0, dp(8), dp(76), 0);
+        previewPanel.addView(previewLineSecondary, secondaryLineParams);
+
+        GridLayout options = new GridLayout(this);
+        options.setColumnCount(2);
+        options.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
+        options.setUseDefaultMargins(false);
+        options.setPadding(0, dp(5), 0, dp(3));
+        content.addView(options, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        String[] modes = new String[]{
+                NavigationAnimationController.MODE_FADE,
+                NavigationAnimationController.MODE_SLIDE,
+                NavigationAnimationController.MODE_RISE,
+                NavigationAnimationController.MODE_DROP,
+                NavigationAnimationController.MODE_ZOOM,
+                NavigationAnimationController.MODE_ZOOM_OUT,
+                NavigationAnimationController.MODE_TURN,
+                NavigationAnimationController.MODE_BOUNCE,
+                NavigationAnimationController.MODE_GLIDE_ZOOM,
+                NavigationAnimationController.MODE_NONE
+        };
+        int[] labels = new int[]{
+                R.string.navigation_animation_fade,
+                R.string.navigation_animation_slide,
+                R.string.navigation_animation_rise,
+                R.string.navigation_animation_drop,
+                R.string.navigation_animation_zoom,
+                R.string.navigation_animation_zoom_out,
+                R.string.navigation_animation_turn,
+                R.string.navigation_animation_bounce,
+                R.string.navigation_animation_glide_zoom,
+                R.string.navigation_animation_none
+        };
+        List<TextView> optionViews = new ArrayList<>();
+        String savedMode = NavigationAnimationController.getSavedMode(this);
+        for (int index = 0; index < modes.length; index++) {
+            TextView option = createNavigationAnimationOption(
+                    labels[index],
+                    modes[index].equals(savedMode)
+            );
+            final int optionIndex = index;
+            option.setOnClickListener(view -> {
+                String selectedMode = modes[optionIndex];
+                NavigationAnimationController.saveMode(this, selectedMode);
+                navigationAnimationSummary.setText(
+                        NavigationAnimationController.getSummaryResource(selectedMode)
+                );
+                for (int current = 0; current < optionViews.size(); current++) {
+                    updateNavigationAnimationOption(
+                            optionViews.get(current),
+                            labels[current],
+                            current == optionIndex
+                    );
+                }
+                playNavigationAnimationPreview(previewPanel, previewTitle, selectedMode);
+            });
+            optionViews.add(option);
+            GridLayout.LayoutParams optionParams = new GridLayout.LayoutParams();
+            optionParams.width = 0;
+            optionParams.height = GridLayout.LayoutParams.WRAP_CONTENT;
+            optionParams.columnSpec = GridLayout.spec(index % 2, 1, 1f);
+            optionParams.rowSpec = GridLayout.spec(index / 2);
+            optionParams.setMargins(dp(2), dp(2), dp(2), dp(2));
+            option.setLayoutParams(optionParams);
+            options.addView(option);
+        }
+
+        preview.setOnClickListener(view -> playNavigationAnimationPreview(
+                previewPanel,
+                previewTitle,
+                NavigationAnimationController.getSavedMode(this)
+        ));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(24);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        preview.post(() -> playNavigationAnimationPreview(
+                previewPanel,
+                previewTitle,
+                NavigationAnimationController.getSavedMode(this)
+        ));
+    }
+
+    private View createAnimationPreviewLine(int color, float alpha) {
+        View line = new View(this);
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(color);
+        background.setCornerRadius(dp(8));
+        line.setBackground(background);
+        line.setAlpha(alpha);
+        return line;
+    }
+
+    private TextView createNavigationAnimationOption(int textResource, boolean selected) {
+        TextView option = new TextView(this);
+        option.setTextSize(14);
+        option.setGravity(Gravity.CENTER);
+        option.setMinHeight(dp(43));
+        option.setMaxLines(2);
+        option.setEllipsize(TextUtils.TruncateAt.END);
+        option.setPadding(dp(8), dp(5), dp(8), dp(5));
+        updateNavigationAnimationOption(option, textResource, selected);
+        return option;
+    }
+
+    private void updateNavigationAnimationOption(TextView option, int textResource,
+                                                 boolean selected) {
+        option.setText(selected
+                ? getString(R.string.theme_selected_format, getString(textResource))
+                : getString(textResource));
+        option.setTextColor(getColor(selected ? R.color.action : R.color.text_primary));
+        option.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        option.setBackgroundResource(selected
+                ? R.drawable.bg_button_secondary
+                : R.drawable.bg_row_pressed);
+    }
+
+    private void playNavigationAnimationPreview(LinearLayout panel, TextView title, String mode) {
+        panel.animate().cancel();
+        panel.animate().setInterpolator(new android.view.animation.DecelerateInterpolator());
+        panel.setAlpha(1f);
+        panel.setTranslationX(0f);
+        panel.setTranslationY(0f);
+        panel.setScaleX(1f);
+        panel.setScaleY(1f);
+        panel.setRotationY(0f);
+
+        if (NavigationAnimationController.MODE_NONE.equals(mode)) {
+            toggleAnimationPreviewTitle(title);
+            return;
+        }
+        if (NavigationAnimationController.MODE_SLIDE.equals(mode)) {
+            float distance = Math.max(panel.getWidth() * 0.24f, dp(56));
+            panel.animate()
+                    .alpha(0.55f)
+                    .translationX(-distance * 0.45f)
+                    .setDuration(90L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setTranslationX(distance);
+                        panel.animate()
+                                .alpha(1f)
+                                .translationX(0f)
+                                .setDuration(210L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        if (NavigationAnimationController.MODE_ZOOM.equals(mode)) {
+            panel.animate()
+                    .alpha(0.45f)
+                    .scaleX(1.03f)
+                    .scaleY(1.03f)
+                    .setDuration(85L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setScaleX(0.94f);
+                        panel.setScaleY(0.94f);
+                        panel.animate()
+                                .alpha(1f)
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(190L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        if (NavigationAnimationController.MODE_ZOOM_OUT.equals(mode)) {
+            panel.animate()
+                    .alpha(0.45f)
+                    .scaleX(0.94f)
+                    .scaleY(0.94f)
+                    .setDuration(85L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setScaleX(1.09f);
+                        panel.setScaleY(1.09f);
+                        panel.animate()
+                                .alpha(1f)
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(200L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        if (NavigationAnimationController.MODE_TURN.equals(mode)) {
+            panel.setCameraDistance(8000f * getResources().getDisplayMetrics().density);
+            panel.animate()
+                    .alpha(0.35f)
+                    .rotationY(-14f)
+                    .setDuration(100L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setRotationY(18f);
+                        panel.animate()
+                                .alpha(1f)
+                                .rotationY(0f)
+                                .setDuration(240L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        if (NavigationAnimationController.MODE_BOUNCE.equals(mode)) {
+            panel.animate()
+                    .alpha(0.35f)
+                    .scaleX(0.92f)
+                    .scaleY(0.92f)
+                    .setDuration(90L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setScaleX(0.84f);
+                        panel.setScaleY(0.84f);
+                        panel.animate()
+                                .alpha(1f)
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setInterpolator(new android.view.animation.OvershootInterpolator(1.35f))
+                                .setDuration(320L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        if (NavigationAnimationController.MODE_GLIDE_ZOOM.equals(mode)) {
+            float distance = Math.max(panel.getWidth() * 0.18f, dp(44));
+            panel.animate()
+                    .alpha(0.35f)
+                    .translationX(-distance * 0.45f)
+                    .scaleX(0.97f)
+                    .scaleY(0.97f)
+                    .setDuration(90L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setTranslationX(distance);
+                        panel.setScaleX(0.94f);
+                        panel.setScaleY(0.94f);
+                        panel.animate()
+                                .alpha(1f)
+                                .translationX(0f)
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(240L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        if (NavigationAnimationController.MODE_RISE.equals(mode)) {
+            panel.animate()
+                    .alpha(0.5f)
+                    .translationY(-dp(9))
+                    .setDuration(85L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setTranslationY(dp(34));
+                        panel.animate()
+                                .alpha(1f)
+                                .translationY(0f)
+                                .setDuration(220L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        if (NavigationAnimationController.MODE_DROP.equals(mode)) {
+            panel.animate()
+                    .alpha(0.5f)
+                    .translationY(dp(9))
+                    .setDuration(85L)
+                    .withEndAction(() -> {
+                        toggleAnimationPreviewTitle(title);
+                        panel.setTranslationY(-dp(34));
+                        panel.animate()
+                                .alpha(1f)
+                                .translationY(0f)
+                                .setDuration(220L)
+                                .start();
+                    })
+                    .start();
+            return;
+        }
+        panel.animate()
+                .alpha(0f)
+                .setDuration(150L)
+                .withEndAction(() -> {
+                    toggleAnimationPreviewTitle(title);
+                    panel.animate()
+                            .alpha(1f)
+                            .setDuration(180L)
+                            .start();
+                })
+                .start();
+    }
+
+    private void toggleAnimationPreviewTitle(TextView title) {
+        boolean showingHome = getString(R.string.navigation_animation_preview_home)
+                .contentEquals(title.getText());
+        title.setText(showingHome
+                ? R.string.navigation_animation_preview_telegram
+                : R.string.navigation_animation_preview_home);
+    }
+
     private void showAlertSoundDialog() {
         Dialog dialog = new Dialog(this);
         LinearLayout content = new LinearLayout(this);
@@ -475,8 +895,15 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         String[] sounds = AlertSoundController.getKeys();
         List<LinearLayout> soundOptions = new ArrayList<>();
         List<LinearLayout> customOptions = new ArrayList<>();
-        options.addView(createSoundSectionHeader(R.string.alert_sound_custom_section));
-        for (AlertSoundController.CustomSound customSound : AlertSoundController.getCustomSounds(this)) {
+        List<AlertSoundController.CustomSound> savedCustomSounds =
+                AlertSoundController.getCustomSounds(this);
+        View customSectionHeader = null;
+        if (!savedCustomSounds.isEmpty()) {
+            customSectionHeader = createSoundSectionHeader(R.string.alert_sound_custom_section);
+            options.addView(customSectionHeader);
+        }
+        View finalCustomSectionHeader = customSectionHeader;
+        for (AlertSoundController.CustomSound customSound : savedCustomSounds) {
             String customKey = customSound.getKey();
             LinearLayout customOption = createCustomSoundRow(
                     customKey,
@@ -517,6 +944,9 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
                 alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
                 options.removeView(finalCustomOption);
                 customOptions.remove(finalCustomOption);
+                if (customOptions.isEmpty() && finalCustomSectionHeader != null) {
+                    options.removeView(finalCustomSectionHeader);
+                }
                 String currentSound = AlertSoundController.getSavedSound(this);
                 for (LinearLayout customSoundOption : customOptions) {
                     String optionSound = (String) customSoundOption.getTag();
@@ -543,7 +973,13 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         }
         options.addView(createSoundSectionHeader(R.string.alert_sound_builtin_section));
 
-        for (String sound : sounds) {
+        GridLayout builtInGrid = new GridLayout(this);
+        builtInGrid.setColumnCount(2);
+        builtInGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
+        builtInGrid.setUseDefaultMargins(false);
+
+        for (int soundIndex = 0; soundIndex < sounds.length; soundIndex++) {
+            String sound = sounds[soundIndex];
             LinearLayout option = createDialogOption(
                     AlertSoundController.getLabel(this, sound),
                     sound.equals(savedSound)
@@ -576,15 +1012,26 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
                 }
                 playAlertSoundPreview(sound);
             });
-            options.addView(option);
+            GridLayout.LayoutParams optionParams = new GridLayout.LayoutParams();
+            optionParams.width = 0;
+            optionParams.height = GridLayout.LayoutParams.WRAP_CONTENT;
+            optionParams.columnSpec = GridLayout.spec(soundIndex % 2, 1, 1f);
+            optionParams.rowSpec = GridLayout.spec(soundIndex / 2);
+            optionParams.setMargins(dp(2), dp(2), dp(2), dp(2));
+            option.setLayoutParams(optionParams);
+            builtInGrid.addView(option);
         }
+        options.addView(builtInGrid, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(false);
         scrollView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         scrollView.addView(options);
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                Math.min(dp(480), (int) (getResources().getDisplayMetrics().heightPixels * 0.58f))
+                Math.min(dp(500), (int) (getResources().getDisplayMetrics().heightPixels * 0.62f))
         );
         content.addView(scrollView, scrollParams);
 
@@ -613,7 +1060,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         if (shownWindow != null) {
             WindowManager.LayoutParams params = new WindowManager.LayoutParams();
             params.copyFrom(shownWindow.getAttributes());
-            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(24);
             params.height = WindowManager.LayoutParams.WRAP_CONTENT;
             params.dimAmount = 0.65f;
             shownWindow.setAttributes(params);
@@ -650,6 +1097,7 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         LinearLayout option = new LinearLayout(this);
         option.setOrientation(LinearLayout.HORIZONTAL);
         option.setGravity(Gravity.CENTER_VERTICAL);
+        option.setMinimumHeight(dp(44));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -720,19 +1168,19 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
 
     private FrameLayout createSoundRadio() {
         FrameLayout container = new FrameLayout(this);
-        container.setPadding(0, 0, dp(12), 0);
-        container.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(40)));
+        container.setPadding(0, 0, dp(6), 0);
+        container.setLayoutParams(new LinearLayout.LayoutParams(dp(32), dp(36)));
 
         View ring = new View(this);
         ring.setTag("radio_ring");
-        FrameLayout.LayoutParams ringParams = new FrameLayout.LayoutParams(dp(22), dp(22));
+        FrameLayout.LayoutParams ringParams = new FrameLayout.LayoutParams(dp(20), dp(20));
         ringParams.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
         ring.setLayoutParams(ringParams);
         container.addView(ring);
 
         View dot = new View(this);
         dot.setTag("radio_dot");
-        FrameLayout.LayoutParams dotParams = new FrameLayout.LayoutParams(dp(10), dp(10));
+        FrameLayout.LayoutParams dotParams = new FrameLayout.LayoutParams(dp(8), dp(8));
         dotParams.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
         dotParams.leftMargin = dp(6);
         dot.setLayoutParams(dotParams);
@@ -771,10 +1219,12 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         updateSoundRadio(radio, selected);
         label.setText(text);
         label.setTextColor(getColor(R.color.text_primary));
-        label.setTextSize(15.0f);
+        label.setTextSize(14.0f);
         label.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
-        option.setPadding(0, dp(6), dp(8), dp(6));
-        option.setBackgroundResource(android.R.color.transparent);
+        option.setPadding(dp(5), dp(4), dp(7), dp(4));
+        option.setBackgroundResource(selected
+                ? R.drawable.bg_alert_sound_selected_option
+                : R.drawable.bg_row_pressed);
     }
 
     private void updateCustomSoundRow(LinearLayout card, View radio, TextView fileName,
@@ -785,8 +1235,10 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         fileName.setTextColor(getColor(R.color.text_primary));
         fileName.setTextSize(14.0f);
         fileName.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
-        card.setPadding(0, dp(6), dp(8), dp(6));
-        card.setBackgroundResource(android.R.color.transparent);
+        card.setPadding(dp(5), dp(4), dp(7), dp(4));
+        card.setBackgroundResource(selected
+                ? R.drawable.bg_alert_sound_selected_option
+                : R.drawable.bg_row_pressed);
     }
 
     private void updateSoundRadio(View radio, boolean selected) {
@@ -963,10 +1415,14 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     }
 
     private void refreshErrorSummary() {
-        if (errorSummary == null) {
+        if (errorTitle == null || errorSummary == null) {
             return;
         }
         int count = AppErrorStore.getAll(this).size();
+        int textColor = getColor(count == 0 ? R.color.text_primary : R.color.danger);
+        int summaryColor = getColor(count == 0 ? R.color.text_secondary : R.color.danger);
+        errorTitle.setTextColor(textColor);
+        errorSummary.setTextColor(summaryColor);
         errorSummary.setText(count == 0
                 ? getString(R.string.profile_errors_none)
                 : getString(R.string.profile_errors_count, count));

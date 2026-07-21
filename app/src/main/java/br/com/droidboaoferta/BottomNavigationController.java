@@ -23,7 +23,7 @@ final class BottomNavigationController {
     private BottomNavigationController() {
     }
 
-    static void setup(Activity activity, int currentItem) {
+    static void setup(Activity activity, int currentItem, int... animatedContentViewIds) {
         setupItem(activity, currentItem, ITEM_HOME, R.id.nav_home,
                 R.id.nav_home_indicator, R.id.nav_home_icon, R.id.nav_home_label,
                 MainActivity.class);
@@ -41,6 +41,7 @@ final class BottomNavigationController {
                 TrashedOffersActivity.class);
         hideNavigationWhileKeyboardIsOpen(activity);
         resetInitialFocus(activity);
+        NavigationAnimationController.bind(activity, animatedContentViewIds);
     }
 
     static void resetInitialFocus(Activity activity) {
@@ -116,7 +117,9 @@ final class BottomNavigationController {
             } else {
                 intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             }
+            NavigationAnimationController.prepare(targetActivity, item > currentItem);
             activity.startActivity(intent);
+            NavigationAnimationController.suppressWindowTransition(activity);
         });
     }
 }

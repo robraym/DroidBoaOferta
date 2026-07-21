@@ -126,7 +126,12 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_telegram_setup);
-        BottomNavigationController.setup(this, BottomNavigationController.ITEM_SOURCES);
+        BottomNavigationController.setup(
+                this,
+                BottomNavigationController.ITEM_SOURCES,
+                R.id.section_telegram_status,
+                R.id.scroll_groups
+        );
 
         statusText = findViewById(R.id.text_telegram_status);
         instructionsText = findViewById(R.id.text_telegram_instructions);
@@ -390,8 +395,8 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
             row.setBackgroundColor(getColor(R.color.card));
-            row.setMinimumHeight(dp(52));
-            row.setPadding(dp(6), dp(7), dp(6), dp(7));
+            row.setMinimumHeight(dp(48));
+            row.setPadding(dp(4), dp(4), dp(4), dp(4));
             row.setClickable(true);
             row.setFocusable(true);
             row.setOnClickListener(view -> checkBox.setChecked(!checkBox.isChecked()));
@@ -410,7 +415,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     1f
             );
-            labelParams.leftMargin = dp(8);
+            labelParams.leftMargin = dp(6);
             row.addView(label, labelParams);
             groupsContainer.addView(row, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -488,8 +493,8 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(1)
         );
-        params.leftMargin = dp(46);
-        params.rightMargin = dp(6);
+        params.leftMargin = dp(42);
+        params.rightMargin = dp(4);
         divider.setLayoutParams(params);
         return divider;
     }

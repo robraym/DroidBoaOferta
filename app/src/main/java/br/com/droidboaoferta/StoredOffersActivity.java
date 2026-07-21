@@ -139,7 +139,11 @@ abstract class StoredOffersActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_offer_list);
-        BottomNavigationController.setup(this, getBottomNavigationItem());
+        BottomNavigationController.setup(
+                this,
+                getBottomNavigationItem(),
+                R.id.navigation_animated_content
+        );
 
         offerRepository = new OfferRepository(this);
         offersContainer = findViewById(R.id.container_offers);
