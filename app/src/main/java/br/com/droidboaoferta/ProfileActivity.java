@@ -44,7 +44,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-public class ProfileActivity extends AppCompatActivity implements TelegramClientManager.Listener {
+public class ProfileActivity extends AlertouActivity implements TelegramClientManager.Listener {
     private static final String TELEGRAM_PREFS = "telegram_preferences";
     private static final String SELECTED_GROUPS = "selected_groups";
     private static final String OFFER_PREFS = "offer_preferences";
@@ -76,11 +76,11 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     private TextView profileName;
     private TextView profileSummary;
     private TextView profileStatus;
-    private TextView appVersion;
     private TextView syncSummary;
     private TextView monitorStatusTitle;
     private TextView monitorStatusSummary;
     private TextView themeSummary;
+    private TextView accentColorSummary;
     private TextView alertSoundSummary;
     private TextView navigationAnimationSummary;
     private TextView errorTitle;
@@ -89,7 +89,6 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
     private InterestRepository interestRepository;
     private LinearLayout accountCard;
     private LinearLayout syncRow;
-    private LinearLayout logoutRow;
     private View accountChevron;
     private MediaPlayer alertSoundPreview;
     private Dialog alertSoundDialog;
@@ -108,11 +107,11 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         profileName = findViewById(R.id.text_profile_name);
         profileSummary = findViewById(R.id.text_profile_summary);
         profileStatus = findViewById(R.id.text_profile_status);
-        appVersion = findViewById(R.id.text_app_version);
         syncSummary = findViewById(R.id.text_sync_summary);
         monitorStatusTitle = findViewById(R.id.text_monitor_status_title);
         monitorStatusSummary = findViewById(R.id.text_monitor_status_summary);
         themeSummary = findViewById(R.id.text_theme_summary);
+        accentColorSummary = findViewById(R.id.text_accent_color_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
         navigationAnimationSummary = findViewById(R.id.text_navigation_animation_summary);
         errorTitle = findViewById(R.id.text_error_title);
@@ -120,7 +119,6 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         monitorToggle = findViewById(R.id.button_monitor_toggle);
         accountCard = findViewById(R.id.card_telegram_account);
         syncRow = findViewById(R.id.row_sync);
-        logoutRow = findViewById(R.id.row_logout);
         accountChevron = findViewById(R.id.image_account_chevron);
         alertSoundPickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -159,11 +157,16 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
 
         findViewById(R.id.button_back).setOnClickListener(view -> finish());
         accountCard.setOnClickListener(view -> {
-            if (clientManager.getState() != TelegramClientManager.State.READY) {
+            if (clientManager.getState() == TelegramClientManager.State.READY) {
+                showTelegramAccountDialog();
+            } else {
                 startActivity(new Intent(this, TelegramSetupActivity.class));
             }
         });
         findViewById(R.id.row_theme).setOnClickListener(view -> showThemeDialog());
+        findViewById(R.id.row_accent_color).setOnClickListener(
+                view -> showAccentColorDialog()
+        );
         findViewById(R.id.row_alert_sound).setOnClickListener(view -> showAlertSoundDialog());
         findViewById(R.id.row_navigation_animation).setOnClickListener(
                 view -> showNavigationAnimationDialog()
@@ -171,8 +174,6 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         monitorToggle.setOnClickListener(view -> toggleMonitor());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
-        logoutRow.setOnClickListener(view -> showLogoutConfirmation());
-        appVersion.setText(getString(R.string.profile_app_version, BuildConfig.VERSION_NAME));
     }
 
     @Override
@@ -253,11 +254,10 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
             profileStatus.setText(getTelegramStateText(state));
             avatarText.setText(R.string.icon_telegram_letter);
         }
-        accountCard.setClickable(!connected);
-        accountCard.setFocusable(!connected);
-        accountChevron.setVisibility(connected ? View.GONE : View.VISIBLE);
+        accountCard.setClickable(true);
+        accountCard.setFocusable(true);
+        accountChevron.setVisibility(View.VISIBLE);
         syncRow.setVisibility(connected ? View.VISIBLE : View.GONE);
-        logoutRow.setVisibility(connected ? View.VISIBLE : View.GONE);
         refreshSyncSummary();
         refreshErrorSummary();
         refreshSettingsControls();
@@ -268,6 +268,9 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         List<Interest> interests = interestRepository.getAll();
         boolean monitorEnabled = isMonitorEnabled();
         themeSummary.setText(ThemeController.getSummaryResource(ThemeController.getSavedMode(this)));
+        accentColorSummary.setText(AccentColorController.getSummaryResource(
+                AccentColorController.getSavedMode(this)
+        ));
         alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
         navigationAnimationSummary.setText(NavigationAnimationController.getSummaryResource(
                 NavigationAnimationController.getSavedMode(this)
@@ -442,6 +445,220 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
         option.setGravity(Gravity.CENTER_VERTICAL);
         option.setPadding(0, dp(12), 0, dp(12));
         return option;
+    }
+
+    private void showAccentColorDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(18), dp(20), dp(12));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.accent_color_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView previewHint = new TextView(this);
+        previewHint.setText(R.string.accent_color_preview_hint);
+        previewHint.setTextColor(getColor(R.color.text_secondary));
+        previewHint.setTextSize(13);
+        previewHint.setPadding(0, dp(7), 0, dp(7));
+        content.addView(previewHint);
+
+        LinearLayout preview = new LinearLayout(this);
+        preview.setOrientation(LinearLayout.VERTICAL);
+        preview.setPadding(dp(16), dp(12), dp(16), dp(12));
+        preview.setBackgroundResource(R.drawable.bg_input);
+        content.addView(preview, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(112)
+        ));
+
+        TextView previewTitle = new TextView(this);
+        previewTitle.setText(R.string.accent_color_preview_title);
+        previewTitle.setTextColor(getColor(R.color.text_primary));
+        previewTitle.setTextSize(18);
+        previewTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        preview.addView(previewTitle);
+
+        View previewIndicator = new View(this);
+        LinearLayout.LayoutParams indicatorParams = new LinearLayout.LayoutParams(dp(92), dp(7));
+        indicatorParams.topMargin = dp(9);
+        preview.addView(previewIndicator, indicatorParams);
+
+        TextView previewAction = new TextView(this);
+        previewAction.setText(R.string.accent_color_preview_action);
+        previewAction.setTextSize(13);
+        previewAction.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(dp(148), dp(34));
+        actionParams.topMargin = dp(9);
+        preview.addView(previewAction, actionParams);
+
+        GridLayout options = new GridLayout(this);
+        options.setColumnCount(2);
+        options.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
+        options.setUseDefaultMargins(false);
+        options.setPadding(0, dp(6), 0, dp(3));
+        content.addView(options, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        String[] modes = new String[]{
+                AccentColorController.MODE_BLUE,
+                AccentColorController.MODE_GREEN,
+                AccentColorController.MODE_YELLOW,
+                AccentColorController.MODE_PURPLE,
+                AccentColorController.MODE_ORANGE,
+                AccentColorController.MODE_PINK,
+                AccentColorController.MODE_TEAL,
+                AccentColorController.MODE_RED,
+                AccentColorController.MODE_MATRIX,
+                AccentColorController.MODE_ELECTRIC,
+                AccentColorController.MODE_INDIGO,
+                AccentColorController.MODE_MAGENTA
+        };
+        int[] labels = new int[]{
+                R.string.accent_color_blue,
+                R.string.accent_color_green,
+                R.string.accent_color_yellow,
+                R.string.accent_color_purple,
+                R.string.accent_color_orange,
+                R.string.accent_color_pink,
+                R.string.accent_color_teal,
+                R.string.accent_color_red,
+                R.string.accent_color_matrix,
+                R.string.accent_color_electric,
+                R.string.accent_color_indigo,
+                R.string.accent_color_magenta
+        };
+        String initialMode = AccentColorController.getSavedMode(this);
+        String[] selectedMode = new String[]{initialMode};
+        List<TextView> optionViews = new ArrayList<>();
+        for (int index = 0; index < modes.length; index++) {
+            TextView option = createAccentColorOption(
+                    labels[index],
+                    modes[index],
+                    modes[index].equals(selectedMode[0])
+            );
+            final int optionIndex = index;
+            option.setOnClickListener(view -> {
+                selectedMode[0] = modes[optionIndex];
+                AccentColorController.saveMode(this, selectedMode[0]);
+                accentColorSummary.setText(
+                        AccentColorController.getSummaryResource(selectedMode[0])
+                );
+                for (int current = 0; current < optionViews.size(); current++) {
+                    updateAccentColorOption(
+                            optionViews.get(current),
+                            labels[current],
+                            modes[current],
+                            current == optionIndex
+                    );
+                }
+                updateAccentColorPreview(
+                        previewTitle,
+                        previewIndicator,
+                        previewAction,
+                        selectedMode[0]
+                );
+            });
+            optionViews.add(option);
+            GridLayout.LayoutParams optionParams = new GridLayout.LayoutParams();
+            optionParams.width = 0;
+            optionParams.height = GridLayout.LayoutParams.WRAP_CONTENT;
+            optionParams.columnSpec = GridLayout.spec(index % 2, 1, 1f);
+            optionParams.rowSpec = GridLayout.spec(index / 2);
+            optionParams.setMargins(dp(2), dp(2), dp(2), dp(2));
+            option.setLayoutParams(optionParams);
+            options.addView(option);
+        }
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setOnDismissListener(ignored -> {
+            if (!initialMode.equals(AccentColorController.getSavedMode(this)) && !isFinishing()) {
+                recreate();
+            }
+        });
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(24);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        updateAccentColorPreview(previewTitle, previewIndicator, previewAction, selectedMode[0]);
+    }
+
+    private TextView createAccentColorOption(int labelResource, String mode, boolean selected) {
+        TextView option = new TextView(this);
+        option.setTextSize(14);
+        option.setGravity(Gravity.CENTER_VERTICAL);
+        option.setMinHeight(dp(43));
+        option.setMaxLines(1);
+        option.setEllipsize(TextUtils.TruncateAt.END);
+        option.setCompoundDrawablePadding(dp(8));
+        option.setPadding(dp(10), dp(5), dp(8), dp(5));
+        updateAccentColorOption(option, labelResource, mode, selected);
+        return option;
+    }
+
+    private void updateAccentColorOption(TextView option, int labelResource, String mode,
+                                         boolean selected) {
+        int primaryColor = AccentColorController.getPrimaryColor(this, mode);
+        option.setText(selected
+                ? getString(R.string.theme_selected_format, getString(labelResource))
+                : getString(labelResource));
+        option.setTextColor(selected ? primaryColor : getColor(R.color.text_primary));
+        option.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+
+        GradientDrawable swatch = new GradientDrawable();
+        swatch.setShape(GradientDrawable.OVAL);
+        swatch.setColor(primaryColor);
+        swatch.setSize(dp(18), dp(18));
+        option.setCompoundDrawablesRelativeWithIntrinsicBounds(swatch, null, null, null);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(selected
+                ? AccentColorController.getSoftColor(this, mode)
+                : Color.TRANSPARENT);
+        background.setCornerRadius(dp(15));
+        option.setBackground(background);
+    }
+
+    private void updateAccentColorPreview(TextView title, View indicator, TextView action,
+                                          String mode) {
+        int primaryColor = AccentColorController.getPrimaryColor(this, mode);
+        int softColor = AccentColorController.getSoftColor(this, mode);
+        title.setTextColor(primaryColor);
+        setRoundedColorBackground(indicator, primaryColor, 8);
+        action.setTextColor(primaryColor);
+        setRoundedColorBackground(action, softColor, 18);
+    }
+
+    private void setRoundedColorBackground(View view, int color, int radiusDp) {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(color);
+        background.setCornerRadius(dp(radiusDp));
+        view.setBackground(background);
     }
 
     private void showNavigationAnimationDialog() {
@@ -1364,6 +1581,133 @@ public class ProfileActivity extends AppCompatActivity implements TelegramClient
             default:
                 return getString(R.string.dashboard_telegram_starting);
         }
+    }
+
+    private void showTelegramAccountDialog() {
+        if (clientManager.getState() != TelegramClientManager.State.READY) {
+            startActivity(new Intent(this, TelegramSetupActivity.class));
+            return;
+        }
+
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.profile_telegram_details_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView summary = new TextView(this);
+        summary.setText(R.string.profile_telegram_details_summary);
+        summary.setTextColor(getColor(R.color.text_secondary));
+        summary.setTextSize(14);
+        summary.setPadding(0, dp(5), 0, dp(14));
+        content.addView(summary);
+
+        String accountName = clientManager.getAccountName();
+        String accountPhone = clientManager.getAccountPhone();
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setPadding(dp(12), dp(4), dp(12), dp(4));
+        details.setBackgroundResource(R.drawable.bg_card_compact);
+        details.addView(createTelegramDetailRow(
+                R.string.profile_telegram_details_name,
+                TextUtils.isEmpty(accountName)
+                        ? getString(R.string.profile_telegram_details_unavailable)
+                        : accountName
+        ));
+        details.addView(createTelegramDetailDivider());
+        details.addView(createTelegramDetailRow(
+                R.string.profile_telegram_details_phone,
+                TextUtils.isEmpty(accountPhone)
+                        ? getString(R.string.profile_telegram_details_unavailable)
+                        : getString(R.string.profile_telegram_phone, accountPhone)
+        ));
+        details.addView(createTelegramDetailDivider());
+        details.addView(createTelegramDetailRow(
+                R.string.profile_telegram_details_status,
+                getString(R.string.profile_telegram_status_connected)
+        ));
+        details.addView(createTelegramDetailDivider());
+        details.addView(createTelegramDetailRow(
+                R.string.profile_telegram_details_version,
+                BuildConfig.VERSION_NAME
+        ));
+        details.addView(createTelegramDetailDivider());
+        details.addView(createTelegramDetailRow(
+                R.string.profile_telegram_details_build,
+                String.valueOf(BuildConfig.VERSION_CODE)
+        ));
+        content.addView(details);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        actions.setPadding(0, dp(12), 0, 0);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        TextView disconnect = createDialogAction(R.string.profile_action_disconnect);
+        disconnect.setTextColor(getColor(R.color.danger));
+        disconnect.setOnClickListener(view -> {
+            dialog.dismiss();
+            showLogoutConfirmation();
+        });
+        actions.addView(disconnect);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private LinearLayout createTelegramDetailRow(int labelResource, String value) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(dp(54));
+        row.setPadding(dp(2), dp(7), dp(2), dp(7));
+
+        TextView label = new TextView(this);
+        label.setText(labelResource);
+        label.setTextColor(getColor(R.color.text_secondary));
+        label.setTextSize(13);
+        row.addView(label);
+
+        TextView valueText = new TextView(this);
+        valueText.setText(value);
+        valueText.setTextColor(getColor(R.color.text_primary));
+        valueText.setTextSize(16);
+        valueText.setPadding(0, dp(2), 0, 0);
+        row.addView(valueText);
+        return row;
+    }
+
+    private View createTelegramDetailDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.divider));
+        divider.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1)
+        ));
+        return divider;
     }
 
     private void showLogoutConfirmation() {

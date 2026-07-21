@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AlertouActivity {
     private static final String TELEGRAM_PREFS = "telegram_preferences";
     private static final String SELECTED_GROUPS = "selected_groups";
     private static final String OFFER_PREFS = "offer_preferences";

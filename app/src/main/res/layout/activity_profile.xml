@@ -12,7 +12,7 @@
         android:paddingStart="16dp"
         android:paddingTop="0dp"
         android:paddingEnd="16dp"
-        android:paddingBottom="20dp">
+        android:paddingBottom="8dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -44,12 +44,12 @@
             android:id="@+id/card_telegram_account"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:background="@drawable/bg_card_compact"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
-            android:minHeight="84dp"
+            android:minHeight="80dp"
             android:orientation="horizontal"
             android:paddingStart="14dp"
             android:paddingTop="12dp"
@@ -112,7 +112,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:background="@drawable/bg_button_inline"
-                android:contentDescription="@string/action_change"
+                android:contentDescription="@string/profile_telegram_details_title"
                 android:padding="8dp"
                 android:src="@drawable/ic_chevron_right" />
         </LinearLayout>
@@ -120,12 +120,21 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:background="@drawable/bg_card_compact"
             android:orientation="vertical"
             android:padding="6dp">
 
             <include layout="@layout/row_profile_theme" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="60dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/divider" />
+
+            <include layout="@layout/row_profile_accent_color" />
 
             <View
                 android:layout_width="match_parent"
@@ -180,24 +189,7 @@
                 android:background="@color/divider" />
 
             <include layout="@layout/row_profile_terms" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginStart="60dp"
-                android:layout_marginEnd="8dp"
-                android:background="@color/divider" />
-
-            <include layout="@layout/row_profile_logout" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/text_app_version"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:text="@string/profile_app_version_placeholder"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
     </LinearLayout>
 </ScrollView>

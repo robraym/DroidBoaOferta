@@ -29,7 +29,7 @@ import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
 
-abstract class StoredOffersActivity extends AppCompatActivity {
+abstract class StoredOffersActivity extends AlertouActivity {
     private OfferRepository offerRepository;
     private LinearLayout offersContainer;
     private EditText searchInput;

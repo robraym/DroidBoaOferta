@@ -66,7 +66,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class TelegramSetupActivity extends AppCompatActivity implements TelegramClientManager.Listener {
+public class TelegramSetupActivity extends AlertouActivity implements TelegramClientManager.Listener {
     private static final String TAG = "TelegramSetup";
     private static final String PREFS = "telegram_preferences";
     private static final String PREF_SELECTED_GROUPS = "selected_groups";

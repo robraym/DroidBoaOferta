@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="colorActionPressed" format="color" />
+    <attr name="colorActionSoft" format="color" />
+    <attr name="colorActionSoftPressed" format="color" />
+</resources>

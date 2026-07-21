@@ -7,7 +7,7 @@ import android.os.Looper;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-public class SplashActivity extends AppCompatActivity {
+public class SplashActivity extends AlertouActivity {
     private static final long SPLASH_DELAY_MS = 550L;
 
     @Override

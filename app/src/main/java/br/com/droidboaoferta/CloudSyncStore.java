@@ -54,6 +54,7 @@ final class CloudSyncStore {
     private static final String MONITOR_ENABLED = "monitor_enabled";
     private static final String APP_PREFS = "app_preferences";
     private static final String THEME_MODE = "theme_mode";
+    private static final String ACCENT_COLOR = "accent_color";
     private static final String ALERT_SOUND = "alert_sound";
 
     private CloudSyncStore() {
@@ -324,6 +325,7 @@ final class CloudSyncStore {
                     updatedAt
             ));
             data.put(THEME_MODE, app.getString(THEME_MODE, ThemeController.MODE_DARK));
+            data.put(ACCENT_COLOR, AccentColorController.getSavedMode(appContext));
             data.put(KEY_THEME_UPDATED_AT, ensureThemeUpdatedAt(appContext, updatedAt));
             String backupAlertSound = AlertSoundController.getBackupSound(appContext);
             data.put(ALERT_SOUND, backupAlertSound);
@@ -538,14 +540,24 @@ final class CloudSyncStore {
 
         SharedPreferences appPreferences = appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE);
         String localThemeMode = appPreferences.getString(THEME_MODE, ThemeController.MODE_DARK);
+        String localAccentColor = AccentColorController.getSavedMode(appContext);
         long localThemeUpdatedAt = syncPrefs(appContext).getLong(KEY_THEME_UPDATED_AT, localUpdatedAt);
         long remoteThemeUpdatedAt = data.optLong(KEY_THEME_UPDATED_AT, remoteUpdatedAt);
         boolean useRemoteTheme = remoteThemeUpdatedAt >= localThemeUpdatedAt;
         String themeMode = useRemoteTheme
                 ? data.optString(THEME_MODE, ThemeController.MODE_DARK)
                 : localThemeMode;
-        if (!themeMode.equals(localThemeMode)) {
-            appPreferences.edit().putString(THEME_MODE, themeMode).apply();
+        String accentColor = useRemoteTheme
+                ? AccentColorController.normalize(data.optString(
+                        ACCENT_COLOR,
+                        AccentColorController.MODE_BLUE
+                ))
+                : localAccentColor;
+        if (!themeMode.equals(localThemeMode) || !accentColor.equals(localAccentColor)) {
+            appPreferences.edit()
+                    .putString(THEME_MODE, themeMode)
+                    .putString(ACCENT_COLOR, accentColor)
+                    .apply();
             ThemeController.applySavedTheme(appContext);
         }
 
@@ -952,7 +964,10 @@ final class CloudSyncStore {
         SharedPreferences offers = appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE);
         SharedPreferences app = appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE);
         return !offers.getBoolean(MONITOR_ENABLED, true)
-                || ThemeController.MODE_LIGHT.equals(app.getString(THEME_MODE, ThemeController.MODE_DARK));
+                || ThemeController.MODE_LIGHT.equals(app.getString(THEME_MODE, ThemeController.MODE_DARK))
+                || !AccentColorController.MODE_BLUE.equals(
+                        AccentColorController.getSavedMode(appContext)
+                );
     }
 
     private static int localDataScore(Context context) {

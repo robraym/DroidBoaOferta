@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class AlertsActivity extends AppCompatActivity {
+public class AlertsActivity extends AlertouActivity {
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
 

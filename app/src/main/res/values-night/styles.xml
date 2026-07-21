@@ -7,7 +7,10 @@
         <item name="android:statusBarColor">@color/background</item>
         <item name="android:navigationBarColor">@color/background</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="colorAccent">@color/action</item>
+        <item name="colorAccent">@color/action_blue</item>
+        <item name="colorActionPressed">@color/action_blue_pressed</item>
+        <item name="colorActionSoft">@color/action_blue_soft</item>
+        <item name="colorActionSoftPressed">@color/action_blue_soft_pressed</item>
         <item name="alertDialogTheme">@style/Theme.DroidBoaOferta.Dialog</item>
     </style>
 
@@ -15,7 +18,10 @@
         <item name="android:windowBackground">@drawable/bg_dialog</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
-        <item name="colorAccent">@color/action</item>
+        <item name="colorAccent">@color/action_blue</item>
+        <item name="colorActionPressed">@color/action_blue_pressed</item>
+        <item name="colorActionSoft">@color/action_blue_soft</item>
+        <item name="colorActionSoftPressed">@color/action_blue_soft_pressed</item>
     </style>
 
     <style name="Theme.DroidBoaOferta.Splash" parent="Theme.AppCompat.DayNight.NoActionBar">
@@ -25,6 +31,9 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:statusBarColor">@color/background</item>
         <item name="android:navigationBarColor">@color/background</item>
-        <item name="colorAccent">@color/action</item>
+        <item name="colorAccent">@color/action_blue</item>
+        <item name="colorActionPressed">@color/action_blue_pressed</item>
+        <item name="colorActionSoft">@color/action_blue_soft</item>
+        <item name="colorActionSoftPressed">@color/action_blue_soft_pressed</item>
     </style>
 </resources>

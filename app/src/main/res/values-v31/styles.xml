@@ -8,7 +8,7 @@
         <item name="android:statusBarColor">@color/background</item>
         <item name="android:navigationBarColor">@color/background</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="colorAccent">@color/action</item>
+        <item name="colorAccent">@color/action_blue</item>
         <item name="alertDialogTheme">@style/Theme.DroidBoaOferta.Dialog</item>
     </style>
 
@@ -20,7 +20,7 @@
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@color/background</item>
         <item name="android:navigationBarColor">@color/background</item>
-        <item name="colorAccent">@color/action</item>
+        <item name="colorAccent">@color/action_blue</item>
         <item name="android:windowSplashScreenBackground">@color/background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_transparent</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
