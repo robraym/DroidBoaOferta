@@ -4,7 +4,7 @@
     android:layout_width="48dp"
     android:layout_height="48dp"
     android:layout_gravity="start|top"
-    android:background="@drawable/bg_search_bar"
+    android:background="@drawable/bg_floating_search"
     android:clickable="true"
     android:focusable="true">
 
