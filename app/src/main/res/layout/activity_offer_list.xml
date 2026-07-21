@@ -38,14 +38,20 @@
             android:src="@drawable/ic_profile" />
     </LinearLayout>
 
+    <FrameLayout
+        android:id="@+id/floating_search_content_area"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
     <LinearLayout
         android:id="@+id/navigation_animated_content"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="match_parent"
         android:layout_marginStart="12dp"
         android:layout_marginTop="12dp"
         android:layout_marginEnd="12dp"
-        android:layout_weight="1"
+        android:layout_marginBottom="6dp"
         android:background="@drawable/bg_card_compact"
         android:orientation="vertical"
         android:padding="6dp">
@@ -81,10 +87,12 @@
         </LinearLayout>
 
         <ScrollView
+            android:id="@+id/floating_search_dismiss_surface"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:clipToPadding="false">
+            android:clipToPadding="false"
+            android:paddingBottom="58dp">
 
             <LinearLayout
                 android:id="@+id/container_offers"
@@ -94,41 +102,8 @@
         </ScrollView>
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/search_stored_offers_bar"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:layout_marginStart="48dp"
-        android:layout_marginTop="13dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="13dp"
-        android:background="@drawable/bg_search_bar"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="18dp"
-        android:paddingEnd="18dp">
-
-        <ImageView
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:contentDescription="@string/search_hint"
-            android:src="@drawable/ic_search" />
-
-        <EditText
-            android:id="@+id/input_search_stored_offers"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:hint="@string/search_hint"
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:singleLine="true"
-            android:textColor="@color/text_primary"
-            android:textColorHint="@color/text_secondary"
-            android:textSize="18sp" />
-    </LinearLayout>
+        <include layout="@layout/view_floating_search" />
+    </FrameLayout>
 
     <include layout="@layout/view_bottom_navigation" />
 </LinearLayout>

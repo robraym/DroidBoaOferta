@@ -37,66 +37,21 @@
             android:src="@drawable/ic_profile" />
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/button_add_interest"
+    <FrameLayout
+        android:id="@+id/floating_search_content_area"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
+        android:layout_height="0dp"
         android:layout_marginTop="10dp"
-        android:layout_marginEnd="12dp"
-        android:background="@drawable/bg_card_compact"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:minHeight="54dp"
-        android:orientation="horizontal"
-        android:paddingStart="16dp"
-        android:paddingTop="6dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="6dp">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/dashboard_create_alert_title"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
-                android:maxLines="1"
-                android:text="@string/dashboard_create_alert_summary"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <ImageView
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/bg_button_inline"
-            android:contentDescription="@string/action_add_alert"
-            android:padding="10dp"
-            android:src="@drawable/ic_add_alert" />
-    </LinearLayout>
+        android:layout_weight="1">
 
     <ScrollView
         android:id="@+id/navigation_animated_content"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
         android:clipToPadding="false"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:paddingBottom="8dp">
+        android:paddingBottom="58dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -108,29 +63,66 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="48dp"
+                android:minHeight="56dp"
                 android:gravity="center_vertical"
-                android:orientation="vertical"
-                android:paddingStart="6dp"
-                android:paddingTop="5dp"
-                android:paddingEnd="8dp"
-                android:paddingBottom="5dp">
+                android:orientation="horizontal"
+                android:paddingStart="8dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="6dp"
+                android:paddingBottom="6dp">
 
-                <TextView
-                    android:layout_width="match_parent"
+                <LinearLayout
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="@string/alerts_list_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="18sp" />
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/text_alerts_count"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="@string/alerts_registered_count_empty"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/alerts_list_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="18sp" />
+
+                    <TextView
+                        android:id="@+id/text_alerts_count"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/alerts_registered_count_empty"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/button_add_interest"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_button_inline"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:minWidth="118dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="9dp"
+                    android:paddingEnd="11dp">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:contentDescription="@string/action_add_alert"
+                        android:padding="6dp"
+                        android:src="@drawable/ic_add_alert" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="3dp"
+                        android:text="@string/dashboard_create_alert_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -141,41 +133,8 @@
         </LinearLayout>
     </ScrollView>
 
-    <LinearLayout
-        android:id="@+id/search_interests_bar"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginStart="48dp"
-        android:layout_marginTop="9dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="10dp"
-        android:background="@drawable/bg_search_bar"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="15dp"
-        android:paddingEnd="15dp">
-
-        <ImageView
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:contentDescription="@string/search_hint"
-            android:src="@drawable/ic_search" />
-
-        <EditText
-            android:id="@+id/input_search_interests"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:hint="@string/search_hint"
-            android:imeOptions="actionSearch"
-            android:inputType="text"
-            android:singleLine="true"
-            android:textColor="@color/text_primary"
-            android:textColorHint="@color/text_secondary"
-            android:textSize="18sp" />
-    </LinearLayout>
+        <include layout="@layout/view_floating_search" />
+    </FrameLayout>
 
     <include layout="@layout/view_bottom_navigation" />
 </LinearLayout>

@@ -44,6 +44,7 @@ public class AlertsActivity extends AppCompatActivity {
     private LinearLayout interestsContainer;
     private EditText interestsSearchInput;
     private TextView alertsCountText;
+    private FloatingSearchController floatingSearchController;
     private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -58,14 +59,18 @@ public class AlertsActivity extends AppCompatActivity {
         BottomNavigationController.setup(
                 this,
                 BottomNavigationController.ITEM_ALERTS,
-                R.id.button_add_interest,
                 R.id.navigation_animated_content
         );
 
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);
         interestsContainer = findViewById(R.id.container_interests);
-        interestsSearchInput = findViewById(R.id.input_search_interests);
+        floatingSearchController = FloatingSearchController.attach(
+                this,
+                "alerts",
+                R.id.navigation_animated_content
+        );
+        interestsSearchInput = floatingSearchController.getInput();
         alertsCountText = findViewById(R.id.text_alerts_count);
 
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
@@ -101,6 +106,7 @@ public class AlertsActivity extends AppCompatActivity {
 
     @Override
     protected void onStop() {
+        floatingSearchController.collapse(false);
         unregisterReceiver(syncReceiver);
         super.onStop();
     }

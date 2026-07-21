@@ -1,5 +1,6 @@
 package br.com.droidboaoferta;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
@@ -18,11 +19,16 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -30,9 +36,12 @@ import android.widget.TextView;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.IntentSenderRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.gms.auth.api.phone.SmsRetriever;
 import com.google.android.gms.auth.api.identity.GetPhoneNumberHintIntentRequest;
@@ -63,6 +72,8 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private static final String PREF_SELECTED_GROUPS = "selected_groups";
     private static final String PREF_CACHED_GROUPS = "cached_groups";
     private static final String PREF_LAST_PHONE = "last_phone";
+    private static final String PREF_SEARCH_POSITION_X = "groups_search_position_x";
+    private static final String PREF_SEARCH_POSITION_Y = "groups_search_position_y";
 
     private TelegramClientManager clientManager;
     private TextView statusText;
@@ -75,11 +86,23 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
     private Button receiveSmsButton;
     private LinearLayout statusSection;
     private View loginSpacer;
+    private FrameLayout groupsContentArea;
     private ScrollView groupsScroll;
     private LinearLayout groupsContainer;
     private TextView groupsCountText;
-    private LinearLayout groupsSearchBar;
+    private FrameLayout groupsSearchBar;
+    private View groupsSearchIcon;
     private EditText groupsSearchInput;
+    private ValueAnimator groupsSearchAnimator;
+    private boolean groupsSearchExpanded;
+    private boolean groupsSearchDragging;
+    private boolean groupsSearchExpandsRight;
+    private float groupsSearchTouchDownX;
+    private float groupsSearchTouchDownY;
+    private int groupsSearchStartX;
+    private int groupsSearchStartY;
+    private int groupsSearchCollapsedX;
+    private int groupsSearchCollapsedY;
     private List<TelegramGroup> availableGroups = Collections.emptyList();
     private Set<String> selectedGroupIds;
     private boolean showingCachedGroups;
@@ -143,10 +166,12 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         receiveSmsButton = findViewById(R.id.button_receive_sms);
         statusSection = findViewById(R.id.section_telegram_status);
         loginSpacer = findViewById(R.id.spacer_telegram_login);
+        groupsContentArea = findViewById(R.id.groups_content_area);
         groupsScroll = findViewById(R.id.scroll_groups);
         groupsContainer = findViewById(R.id.container_groups);
         groupsCountText = findViewById(R.id.text_groups_count);
         groupsSearchBar = findViewById(R.id.search_groups_bar);
+        groupsSearchIcon = findViewById(R.id.icon_search_groups);
         groupsSearchInput = findViewById(R.id.input_search_groups);
 
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
@@ -205,6 +230,47 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
                 renderGroups(availableGroups, showingCachedGroups);
             }
         });
+        groupsSearchBar.setOnClickListener(view -> expandGroupsSearch());
+        groupsSearchBar.setOnTouchListener(this::handleGroupsSearchTouch);
+        groupsContentArea.addOnLayoutChangeListener((view, left, top, right, bottom,
+                                                     oldLeft, oldTop, oldRight, oldBottom) -> {
+            boolean sizeChanged = right - left != oldRight - oldLeft
+                    || bottom - top != oldBottom - oldTop;
+            if (groupsSearchExpanded && sizeChanged) {
+                positionExpandedGroupsSearchAboveKeyboard();
+            } else if (!groupsSearchExpanded && !groupsSearchDragging && sizeChanged) {
+                positionCollapsedGroupsSearch();
+            }
+        });
+        groupsSearchInput.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus && groupsSearchExpanded) {
+                collapseGroupsSearch(true);
+            }
+        });
+        groupsSearchInput.setOnEditorActionListener((view, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                collapseGroupsSearch(true);
+                return true;
+            }
+            return false;
+        });
+        groupsScroll.setOnTouchListener((view, event) -> {
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN && groupsSearchExpanded) {
+                collapseGroupsSearch(true);
+            }
+            return false;
+        });
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (groupsSearchExpanded) {
+                    collapseGroupsSearch(true);
+                    return;
+                }
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+        });
 
         loadSelectedGroupsFromPreferences();
 
@@ -232,6 +298,7 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         smsHandler.removeCallbacks(smsCountdownRunnable);
         unregisterSmsReceiver();
         clientManager.clearListener(this);
+        collapseGroupsSearch(false);
         super.onStop();
     }
 
@@ -253,8 +320,14 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
         authenticationInput.setFilters(new InputFilter[0]);
         statusSection.setVisibility(ready ? View.GONE : View.VISIBLE);
         loginSpacer.setVisibility(ready ? View.GONE : View.VISIBLE);
+        groupsContentArea.setVisibility(ready ? View.VISIBLE : View.GONE);
         groupsScroll.setVisibility(ready ? View.VISIBLE : View.GONE);
         groupsSearchBar.setVisibility(ready ? View.VISIBLE : View.GONE);
+        if (!ready) {
+            collapseGroupsSearch(false);
+        } else if (!groupsSearchExpanded) {
+            groupsContentArea.post(this::positionCollapsedGroupsSearch);
+        }
         receiveSmsButton.setVisibility(View.GONE);
         smsHandler.removeCallbacks(smsCountdownRunnable);
 
@@ -333,6 +406,256 @@ public class TelegramSetupActivity extends AppCompatActivity implements Telegram
 
     private void renderGroups(List<TelegramGroup> groups) {
         renderGroups(groups, false);
+    }
+
+    private void expandGroupsSearch() {
+        if (groupsSearchExpanded || groupsContentArea.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        FrameLayout.LayoutParams currentParams =
+                (FrameLayout.LayoutParams) groupsSearchBar.getLayoutParams();
+        groupsSearchCollapsedX = currentParams.leftMargin;
+        groupsSearchCollapsedY = currentParams.topMargin;
+        int parentWidth = groupsContentArea.getWidth();
+        int desiredWidth = Math.min(dp(300), parentWidth - dp(16));
+        int rightCapacity = parentWidth - groupsSearchCollapsedX;
+        int leftCapacity = groupsSearchCollapsedX + dp(48);
+        groupsSearchExpandsRight = rightCapacity >= leftCapacity;
+        int targetWidth = Math.min(
+                desiredWidth,
+                groupsSearchExpandsRight ? rightCapacity : leftCapacity
+        );
+        int targetLeft = groupsSearchExpandsRight
+                ? groupsSearchCollapsedX
+                : groupsSearchCollapsedX + dp(48) - targetWidth;
+        FrameLayout.LayoutParams iconParams =
+                (FrameLayout.LayoutParams) groupsSearchIcon.getLayoutParams();
+        iconParams.gravity = (groupsSearchExpandsRight ? Gravity.START : Gravity.END)
+                | Gravity.CENTER_VERTICAL;
+        groupsSearchIcon.setLayoutParams(iconParams);
+        groupsSearchInput.setPaddingRelative(
+                groupsSearchExpandsRight ? dp(48) : dp(15),
+                0,
+                groupsSearchExpandsRight ? dp(15) : dp(48),
+                0
+        );
+        groupsSearchExpanded = true;
+        groupsSearchInput.setVisibility(View.VISIBLE);
+        groupsSearchInput.setAlpha(0f);
+        animateGroupsSearchBounds(targetWidth, targetLeft, groupsSearchCollapsedY, 190L);
+        groupsSearchInput.animate().alpha(1f).setDuration(150L).start();
+        groupsSearchInput.setFocusableInTouchMode(true);
+        groupsSearchInput.setShowSoftInputOnFocus(true);
+        groupsSearchInput.postDelayed(() -> {
+            if (!groupsSearchExpanded) {
+                return;
+            }
+            groupsSearchInput.requestFocus();
+            groupsSearchInput.setSelection(groupsSearchInput.length());
+            showGroupsSearchKeyboard();
+            groupsSearchInput.postDelayed(this::showGroupsSearchKeyboard, 250L);
+            groupsSearchInput.postDelayed(this::showGroupsSearchKeyboard, 500L);
+            groupsSearchInput.postDelayed(this::positionExpandedGroupsSearchAboveKeyboard, 300L);
+            groupsSearchInput.postDelayed(this::positionExpandedGroupsSearchAboveKeyboard, 600L);
+        }, 200L);
+    }
+
+    private void showGroupsSearchKeyboard() {
+        if (!groupsSearchExpanded
+                || groupsSearchInput.getVisibility() != View.VISIBLE
+                || !groupsSearchInput.hasFocus()) {
+            return;
+        }
+        WindowCompat.getInsetsController(getWindow(), groupsSearchInput)
+                .show(WindowInsetsCompat.Type.ime());
+        InputMethodManager inputMethodManager =
+                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (inputMethodManager != null) {
+            inputMethodManager.showSoftInput(
+                    groupsSearchInput,
+                    InputMethodManager.SHOW_IMPLICIT
+            );
+        }
+    }
+
+    private void collapseGroupsSearch(boolean animate) {
+        groupsSearchExpanded = false;
+        InputMethodManager inputMethodManager =
+                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (inputMethodManager != null) {
+            inputMethodManager.hideSoftInputFromWindow(groupsSearchInput.getWindowToken(), 0);
+        }
+        groupsSearchInput.clearFocus();
+        if (!groupsSearchInput.getText().toString().isEmpty()) {
+            groupsSearchInput.setText("");
+        }
+        groupsSearchInput.animate().cancel();
+        if (!animate) {
+            if (groupsSearchAnimator != null) {
+                groupsSearchAnimator.cancel();
+            }
+            setGroupsSearchBarBounds(dp(48), groupsSearchCollapsedX, groupsSearchCollapsedY);
+            groupsSearchInput.setAlpha(0f);
+            groupsSearchInput.setVisibility(View.GONE);
+            return;
+        }
+        groupsSearchInput.animate()
+                .alpha(0f)
+                .setDuration(90L)
+                .withEndAction(() -> {
+                    if (!groupsSearchExpanded) {
+                        groupsSearchInput.setVisibility(View.GONE);
+                    }
+                })
+                .start();
+        animateGroupsSearchBounds(
+                dp(48),
+                groupsSearchCollapsedX,
+                groupsSearchCollapsedY,
+                160L
+        );
+    }
+
+    private boolean handleGroupsSearchTouch(View view, MotionEvent event) {
+        if (groupsSearchExpanded) {
+            return false;
+        }
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) groupsSearchBar.getLayoutParams();
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                if (groupsSearchAnimator != null) {
+                    groupsSearchAnimator.cancel();
+                }
+                groupsSearchTouchDownX = event.getRawX();
+                groupsSearchTouchDownY = event.getRawY();
+                groupsSearchStartX = params.leftMargin;
+                groupsSearchStartY = params.topMargin;
+                groupsSearchDragging = false;
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                float deltaX = event.getRawX() - groupsSearchTouchDownX;
+                float deltaY = event.getRawY() - groupsSearchTouchDownY;
+                int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
+                if (!groupsSearchDragging
+                        && Math.hypot(deltaX, deltaY) >= touchSlop) {
+                    groupsSearchDragging = true;
+                }
+                if (groupsSearchDragging) {
+                    int maxX = Math.max(0, groupsContentArea.getWidth() - dp(48));
+                    int maxY = Math.max(0, groupsContentArea.getHeight() - dp(48));
+                    int x = Math.max(0, Math.min(maxX, groupsSearchStartX + Math.round(deltaX)));
+                    int y = Math.max(0, Math.min(maxY, groupsSearchStartY + Math.round(deltaY)));
+                    setGroupsSearchBarBounds(dp(48), x, y);
+                }
+                return true;
+            case MotionEvent.ACTION_UP:
+                if (groupsSearchDragging) {
+                    persistGroupsSearchPosition();
+                    groupsSearchDragging = false;
+                } else {
+                    view.performClick();
+                }
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                groupsSearchDragging = false;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void persistGroupsSearchPosition() {
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) groupsSearchBar.getLayoutParams();
+        int maxX = Math.max(1, groupsContentArea.getWidth() - dp(48));
+        int maxY = Math.max(1, groupsContentArea.getHeight() - dp(48));
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putFloat(PREF_SEARCH_POSITION_X, params.leftMargin / (float) maxX)
+                .putFloat(PREF_SEARCH_POSITION_Y, params.topMargin / (float) maxY)
+                .apply();
+        groupsSearchCollapsedX = params.leftMargin;
+        groupsSearchCollapsedY = params.topMargin;
+    }
+
+    private void positionCollapsedGroupsSearch() {
+        int width = groupsContentArea.getWidth();
+        int height = groupsContentArea.getHeight();
+        if (width <= 0 || height <= 0 || groupsSearchExpanded || groupsSearchDragging) {
+            return;
+        }
+        int maxX = Math.max(0, width - dp(48));
+        int maxY = Math.max(0, height - dp(48));
+        SharedPreferences preferences = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int x;
+        int y;
+        if (preferences.contains(PREF_SEARCH_POSITION_X)
+                && preferences.contains(PREF_SEARCH_POSITION_Y)) {
+            float fractionX = Math.max(0f, Math.min(1f,
+                    preferences.getFloat(PREF_SEARCH_POSITION_X, 1f)));
+            float fractionY = Math.max(0f, Math.min(1f,
+                    preferences.getFloat(PREF_SEARCH_POSITION_Y, 1f)));
+            x = Math.round(maxX * fractionX);
+            y = Math.round(maxY * fractionY);
+        } else {
+            x = Math.max(0, maxX - dp(12));
+            y = Math.max(0, maxY - dp(10));
+        }
+        groupsSearchCollapsedX = x;
+        groupsSearchCollapsedY = y;
+        setGroupsSearchBarBounds(dp(48), x, y);
+    }
+
+    private void positionExpandedGroupsSearchAboveKeyboard() {
+        if (!groupsSearchExpanded || groupsContentArea.getHeight() <= 0) {
+            return;
+        }
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) groupsSearchBar.getLayoutParams();
+        int safeTop = Math.max(
+                dp(8),
+                groupsContentArea.getHeight() - groupsSearchBar.getHeight() - dp(12)
+        );
+        if (params.topMargin <= safeTop) {
+            return;
+        }
+        animateGroupsSearchBounds(params.width, params.leftMargin, safeTop, 150L);
+    }
+
+    private void animateGroupsSearchBounds(int targetWidth, int targetLeft,
+                                           int targetTop, long duration) {
+        if (groupsSearchAnimator != null) {
+            groupsSearchAnimator.cancel();
+        }
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) groupsSearchBar.getLayoutParams();
+        int startWidth = params.width;
+        int startLeft = params.leftMargin;
+        int startTop = params.topMargin;
+        groupsSearchAnimator = ValueAnimator.ofFloat(0f, 1f);
+        groupsSearchAnimator.setDuration(duration);
+        groupsSearchAnimator.addUpdateListener(animation -> {
+            float progress = (Float) animation.getAnimatedValue();
+            int width = startWidth + Math.round((targetWidth - startWidth) * progress);
+            int left = startLeft + Math.round((targetLeft - startLeft) * progress);
+            int top = startTop + Math.round((targetTop - startTop) * progress);
+            setGroupsSearchBarBounds(width, left, top);
+        });
+        groupsSearchAnimator.start();
+    }
+
+    private void setGroupsSearchBarBounds(int width, int left, int top) {
+        FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams) groupsSearchBar.getLayoutParams();
+        if (params.width == width && params.leftMargin == left && params.topMargin == top) {
+            return;
+        }
+        params.width = width;
+        params.leftMargin = left;
+        params.topMargin = top;
+        params.gravity = Gravity.START | Gravity.TOP;
+        groupsSearchBar.setLayoutParams(params);
     }
 
     private void renderGroups(List<TelegramGroup> groups, boolean keepCachedState) {

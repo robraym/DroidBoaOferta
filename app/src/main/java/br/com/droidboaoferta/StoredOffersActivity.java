@@ -35,6 +35,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
     private EditText searchInput;
     private ImageButton headerAction;
     private LinearLayout cardHeader;
+    private FloatingSearchController floatingSearchController;
     private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -147,7 +148,12 @@ abstract class StoredOffersActivity extends AppCompatActivity {
 
         offerRepository = new OfferRepository(this);
         offersContainer = findViewById(R.id.container_offers);
-        searchInput = findViewById(R.id.input_search_stored_offers);
+        floatingSearchController = FloatingSearchController.attach(
+                this,
+                "stored_" + getBottomNavigationItem(),
+                R.id.floating_search_dismiss_surface
+        );
+        searchInput = floatingSearchController.getInput();
         ((TextView) findViewById(R.id.text_screen_title)).setText(getTitleResource());
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
@@ -195,6 +201,7 @@ abstract class StoredOffersActivity extends AppCompatActivity {
 
     @Override
     protected void onStop() {
+        floatingSearchController.collapse(false);
         unregisterReceiver(syncReceiver);
         super.onStop();
     }

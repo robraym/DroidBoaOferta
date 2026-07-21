@@ -60,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout offersContainer;
     private ImageButton trashAllOffersButton;
     private EditText offersSearchInput;
+    private FloatingSearchController floatingSearchController;
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
     private List<ObservedOffer> displayedOffers = Collections.emptyList();
@@ -77,7 +78,12 @@ public class MainActivity extends AppCompatActivity {
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);
         offersContainer = findViewById(R.id.container_offers);
-        offersSearchInput = findViewById(R.id.input_search_offers);
+        floatingSearchController = FloatingSearchController.attach(
+                this,
+                "home",
+                R.id.floating_search_dismiss_surface
+        );
+        offersSearchInput = floatingSearchController.getInput();
 
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
@@ -118,6 +124,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onStop() {
+        floatingSearchController.collapse(false);
         unregisterReceiver(offerReceiver);
         super.onStop();
     }
