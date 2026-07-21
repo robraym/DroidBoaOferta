@@ -14,7 +14,8 @@ final class AccentColorController {
     static final String MODE_TEAL = "teal";
     static final String MODE_RED = "red";
     static final String MODE_MATRIX = "matrix";
-    static final String MODE_ELECTRIC = "electric";
+    static final String MODE_WHITE = "white";
+    private static final String LEGACY_MODE_ELECTRIC = "electric";
     static final String MODE_INDIGO = "indigo";
     static final String MODE_MAGENTA = "magenta";
 
@@ -61,8 +62,8 @@ final class AccentColorController {
                 return R.string.accent_color_red;
             case MODE_MATRIX:
                 return R.string.accent_color_matrix;
-            case MODE_ELECTRIC:
-                return R.string.accent_color_electric;
+            case MODE_WHITE:
+                return R.string.accent_color_white;
             case MODE_INDIGO:
                 return R.string.accent_color_indigo;
             case MODE_MAGENTA:
@@ -82,6 +83,9 @@ final class AccentColorController {
     }
 
     static String normalize(String mode) {
+        if (LEGACY_MODE_ELECTRIC.equals(mode)) {
+            return MODE_WHITE;
+        }
         if (MODE_GREEN.equals(mode)
                 || MODE_YELLOW.equals(mode)
                 || MODE_PURPLE.equals(mode)
@@ -90,7 +94,7 @@ final class AccentColorController {
                 || MODE_TEAL.equals(mode)
                 || MODE_RED.equals(mode)
                 || MODE_MATRIX.equals(mode)
-                || MODE_ELECTRIC.equals(mode)
+                || MODE_WHITE.equals(mode)
                 || MODE_INDIGO.equals(mode)
                 || MODE_MAGENTA.equals(mode)) {
             return mode;
@@ -116,8 +120,8 @@ final class AccentColorController {
                 return R.style.ThemeOverlay_DroidBoaOferta_Accent_Red;
             case MODE_MATRIX:
                 return R.style.ThemeOverlay_DroidBoaOferta_Accent_Matrix;
-            case MODE_ELECTRIC:
-                return R.style.ThemeOverlay_DroidBoaOferta_Accent_Electric;
+            case MODE_WHITE:
+                return R.style.ThemeOverlay_DroidBoaOferta_Accent_White;
             case MODE_INDIGO:
                 return R.style.ThemeOverlay_DroidBoaOferta_Accent_Indigo;
             case MODE_MAGENTA:
@@ -146,8 +150,8 @@ final class AccentColorController {
                 return R.color.action_red;
             case MODE_MATRIX:
                 return R.color.action_matrix;
-            case MODE_ELECTRIC:
-                return R.color.action_electric;
+            case MODE_WHITE:
+                return R.color.action_white;
             case MODE_INDIGO:
                 return R.color.action_indigo;
             case MODE_MAGENTA:
@@ -176,8 +180,8 @@ final class AccentColorController {
                 return R.color.action_red_soft;
             case MODE_MATRIX:
                 return R.color.action_matrix_soft;
-            case MODE_ELECTRIC:
-                return R.color.action_electric_soft;
+            case MODE_WHITE:
+                return R.color.action_white_soft;
             case MODE_INDIGO:
                 return R.color.action_indigo_soft;
             case MODE_MAGENTA:

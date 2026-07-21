@@ -516,7 +516,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 AccentColorController.MODE_TEAL,
                 AccentColorController.MODE_RED,
                 AccentColorController.MODE_MATRIX,
-                AccentColorController.MODE_ELECTRIC,
+                AccentColorController.MODE_WHITE,
                 AccentColorController.MODE_INDIGO,
                 AccentColorController.MODE_MAGENTA
         };
@@ -530,7 +530,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 R.string.accent_color_teal,
                 R.string.accent_color_red,
                 R.string.accent_color_matrix,
-                R.string.accent_color_electric,
+                R.string.accent_color_white,
                 R.string.accent_color_indigo,
                 R.string.accent_color_magenta
         };

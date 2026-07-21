@@ -100,11 +100,11 @@
         <item name="colorActionSoftPressed">@color/action_matrix_soft_pressed</item>
     </style>
 
-    <style name="ThemeOverlay.DroidBoaOferta.Accent.Electric" parent="">
-        <item name="colorAccent">@color/action_electric</item>
-        <item name="colorActionPressed">@color/action_electric_pressed</item>
-        <item name="colorActionSoft">@color/action_electric_soft</item>
-        <item name="colorActionSoftPressed">@color/action_electric_soft_pressed</item>
+    <style name="ThemeOverlay.DroidBoaOferta.Accent.White" parent="">
+        <item name="colorAccent">@color/action_white</item>
+        <item name="colorActionPressed">@color/action_white_pressed</item>
+        <item name="colorActionSoft">@color/action_white_soft</item>
+        <item name="colorActionSoftPressed">@color/action_white_soft_pressed</item>
     </style>
 
     <style name="ThemeOverlay.DroidBoaOferta.Accent.Indigo" parent="">

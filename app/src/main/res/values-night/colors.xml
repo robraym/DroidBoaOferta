@@ -43,10 +43,10 @@
     <color name="action_matrix_pressed">#20D800</color>
     <color name="action_matrix_soft">#163517</color>
     <color name="action_matrix_soft_pressed">#204B20</color>
-    <color name="action_electric">#5D9BFF</color>
-    <color name="action_electric_pressed">#397BE0</color>
-    <color name="action_electric_soft">#172844</color>
-    <color name="action_electric_soft_pressed">#20385E</color>
+    <color name="action_white">#F4F4F5</color>
+    <color name="action_white_pressed">#D8D8DC</color>
+    <color name="action_white_soft">#2A2D32</color>
+    <color name="action_white_soft_pressed">#383C43</color>
     <color name="action_indigo">#8B98FF</color>
     <color name="action_indigo_pressed">#6C78E0</color>
     <color name="action_indigo_soft">#202642</color>
