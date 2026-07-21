@@ -68,7 +68,7 @@
                 android:orientation="horizontal"
                 android:paddingStart="8dp"
                 android:paddingTop="6dp"
-                android:paddingEnd="6dp"
+                android:paddingEnd="0dp"
                 android:paddingBottom="6dp">
 
                 <LinearLayout
@@ -94,35 +94,15 @@
                         android:textSize="14sp" />
                 </LinearLayout>
 
-                <LinearLayout
+                <ImageButton
                     android:id="@+id/button_add_interest"
-                    android:layout_width="wrap_content"
+                    android:layout_width="40dp"
                     android:layout_height="40dp"
-                    android:background="@drawable/bg_button_inline"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:minWidth="118dp"
-                    android:orientation="horizontal"
-                    android:paddingStart="9dp"
-                    android:paddingEnd="11dp">
-
-                    <ImageView
-                        android:layout_width="28dp"
-                        android:layout_height="28dp"
-                        android:contentDescription="@string/action_add_alert"
-                        android:padding="6dp"
-                        android:src="@drawable/ic_add_alert" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="3dp"
-                        android:text="@string/dashboard_create_alert_title"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
+                    android:background="@drawable/bg_button_circle_action"
+                    android:contentDescription="@string/action_add_alert"
+                    android:padding="9dp"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_add_alert" />
             </LinearLayout>
 
             <LinearLayout
