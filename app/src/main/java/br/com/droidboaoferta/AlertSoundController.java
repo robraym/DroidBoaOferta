@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.media.AudioAttributes;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.OpenableColumns;
@@ -37,8 +38,13 @@ final class AlertSoundController {
     private static final String CUSTOM_SOUND_DIR = "alert_sounds";
     private static final String LEGACY_CUSTOM_SOUND_FILE = "custom_alert_sound";
     private static final String CUSTOM_SOUND_FILE_PREFIX = "custom_alert_sound_";
-    private static final String CHANNEL_PREFIX = "good_offers_sound_";
+    // Android does not allow an existing notification channel's sound to be changed.
+    // Keep this generation in the id so installations with the old channel receive a
+    // freshly created channel using the sound selected in the profile.
+    private static final String CHANNEL_PREFIX = "good_offers_sound_v3_";
+    private static final String PREVIOUS_CHANNEL_PREFIX = "good_offers_sound_";
     private static final String LEGACY_CHANNEL = "good_offers";
+    private static final String DEBUG_TEST_CHANNEL = "debug_alert_sound_builtin_v1";
 
     private static final String[] KEYS = {
             DEFAULT_SOUND,
@@ -92,6 +98,7 @@ final class AlertSoundController {
             R.raw.boa_compra
     };
     private static final Set<String> VALID_KEYS = new HashSet<>(Arrays.asList(KEYS));
+    private static MediaPlayer samsungAlertPlayer;
 
     private AlertSoundController() {
     }
@@ -321,6 +328,42 @@ final class AlertSoundController {
                 .build();
     }
 
+    static void playSelectedSoundIfNeeded(Context context) {
+        if (!usesSamsungManualAlertSound()) {
+            return;
+        }
+        Context appContext = context.getApplicationContext();
+        AudioAttributes attributes = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+        try {
+            if (samsungAlertPlayer != null) {
+                samsungAlertPlayer.release();
+            }
+            MediaPlayer player = MediaPlayer.create(
+                    appContext,
+                    getSoundUri(appContext),
+                    null,
+                    attributes,
+                    0
+            );
+            if (player == null) {
+                return;
+            }
+            samsungAlertPlayer = player;
+            player.setOnCompletionListener(completedPlayer -> {
+                completedPlayer.release();
+                if (samsungAlertPlayer == completedPlayer) {
+                    samsungAlertPlayer = null;
+                }
+            });
+            player.start();
+        } catch (RuntimeException ignored) {
+            samsungAlertPlayer = null;
+        }
+    }
+
     static String getChannelId(Context context) {
         String savedSound = getSavedSound(context);
         if (isCustomSound(savedSound)) {
@@ -353,7 +396,10 @@ final class AlertSoundController {
         String selectedChannel = getChannelId(appContext);
         for (NotificationChannel existing : manager.getNotificationChannels()) {
             String id = existing.getId();
-            if ((LEGACY_CHANNEL.equals(id) || id.startsWith(CHANNEL_PREFIX))
+            if ((DEBUG_TEST_CHANNEL.equals(id)
+                    || LEGACY_CHANNEL.equals(id)
+                    || id.startsWith(PREVIOUS_CHANNEL_PREFIX)
+                    || id.startsWith(CHANNEL_PREFIX))
                     && !selectedChannel.equals(id)) {
                 manager.deleteNotificationChannel(id);
             }
@@ -368,8 +414,18 @@ final class AlertSoundController {
                 NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription(appContext.getString(R.string.offer_channel_description));
-        channel.setSound(getSoundUri(appContext), attributes);
+        if (usesSamsungManualAlertSound()) {
+            channel.setSound(null, null);
+        } else {
+            channel.setSound(getSoundUri(appContext), attributes);
+        }
         manager.createNotificationChannel(channel);
+    }
+
+    private static boolean usesSamsungManualAlertSound() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && Build.MANUFACTURER != null
+                && "samsung".equalsIgnoreCase(Build.MANUFACTURER);
     }
 
     private static List<CustomSound> readCustomSounds(Context context) {
