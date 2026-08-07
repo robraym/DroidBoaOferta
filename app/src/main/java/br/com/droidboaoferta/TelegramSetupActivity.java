@@ -60,8 +60,10 @@ import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -89,6 +91,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private FrameLayout groupsContentArea;
     private ScrollView groupsScroll;
     private LinearLayout groupsContainer;
+    private LinearLayout groupRankingContainer;
     private TextView groupsCountText;
     private FrameLayout groupsSearchBar;
     private View groupsSearchIcon;
@@ -676,6 +679,22 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 persistCachedGroups(displayGroups);
             }
         }
+        List<GroupSpeedRepository.Ranking> ranking = loadGroupRanking(displayGroups);
+        Map<Long, GroupSpeedRepository.Ranking> rankingByGroupId = new HashMap<>();
+        for (GroupSpeedRepository.Ranking item : ranking) {
+            rankingByGroupId.put(item.getChatId(), item);
+        }
+        displayGroups = new ArrayList<>(displayGroups);
+        displayGroups.sort((first, second) -> {
+            GroupSpeedRepository.Ranking firstRanking = rankingByGroupId.get(first.getId());
+            GroupSpeedRepository.Ranking secondRanking = rankingByGroupId.get(second.getId());
+            int firstPoints = firstRanking == null ? 0 : firstRanking.getPoints();
+            int secondPoints = secondRanking == null ? 0 : secondRanking.getPoints();
+            if (firstPoints != secondPoints) {
+                return Integer.compare(secondPoints, firstPoints);
+            }
+            return first.getTitle().compareToIgnoreCase(second.getTitle());
+        });
         availableGroups = displayGroups;
         updateGroupsCountSummary();
         List<TelegramGroup> visibleGroups = filterGroups(displayGroups, groupsSearchInput.getText().toString());
@@ -699,6 +718,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         for (int index = 0; index < visibleGroups.size(); index++) {
             TelegramGroup group = visibleGroups.get(index);
             String groupId = Long.toString(group.getId());
+            GroupSpeedRepository.Ranking groupRanking = rankingByGroupId.get(group.getId());
             CheckBox checkBox = new CheckBox(this);
             checkBox.setTag(groupId);
             checkBox.setButtonTintList(getColorStateList(R.color.selector_checkbox));
@@ -710,15 +730,14 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             label.setText(group.getTitle());
             label.setTextColor(getColor(R.color.text_primary));
             label.setTextSize(14);
-            label.setSingleLine(false);
-            label.setMaxLines(2);
+            label.setSingleLine(true);
             label.setEllipsize(TextUtils.TruncateAt.END);
 
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
             row.setBackgroundColor(getColor(R.color.card));
-            row.setMinimumHeight(dp(48));
+            row.setMinimumHeight(dp(56));
             row.setPadding(dp(4), dp(4), dp(4), dp(4));
             row.setClickable(true);
             row.setFocusable(true);
@@ -731,6 +750,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 }
                 persistSelectedGroups();
                 updateGroupsCountSummary();
+                groupsContainer.post(() -> renderGroups(availableGroups, showingCachedGroups));
             });
             row.addView(checkBox, new LinearLayout.LayoutParams(dp(32), dp(32)));
             LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
@@ -739,7 +759,25 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                     1f
             );
             labelParams.leftMargin = dp(6);
-            row.addView(label, labelParams);
+            labelParams.rightMargin = dp(6);
+            LinearLayout labels = new LinearLayout(this);
+            labels.setOrientation(LinearLayout.VERTICAL);
+            labels.addView(label);
+            if (groupRanking != null && groupRanking.getPoints() > 0) {
+                TextView score = new TextView(this);
+                score.setText(getString(R.string.telegram_group_ranking_compact,
+                        indexOfRank(ranking, group.getId()), groupRanking.getPoints()));
+                score.setTextColor(getColor(R.color.action));
+                score.setTextSize(12);
+                score.setSingleLine(true);
+                LinearLayout.LayoutParams scoreParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                scoreParams.topMargin = dp(2);
+                labels.addView(score, scoreParams);
+            }
+            row.addView(labels, labelParams);
             groupsContainer.addView(row, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
@@ -748,6 +786,129 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 groupsContainer.addView(createDivider());
             }
         }
+    }
+
+    private List<GroupSpeedRepository.Ranking> loadGroupRanking(List<TelegramGroup> groups) {
+        if (groups == null || groups.isEmpty() || selectedGroupIds == null || selectedGroupIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        OfferRepository offers = new OfferRepository(this);
+        List<ObservedOffer> observedOffers = new ArrayList<>();
+        observedOffers.addAll(offers.getRecent());
+        observedOffers.addAll(offers.getArchived());
+        observedOffers.addAll(offers.getTrashed());
+        GroupSpeedRepository speedRepository = new GroupSpeedRepository(this);
+        speedRepository.seedFromOffers(observedOffers, groups, selectedGroupIds);
+        return speedRepository.getRanking(groups, selectedGroupIds);
+    }
+
+    private int indexOfRank(List<GroupSpeedRepository.Ranking> ranking, long groupId) {
+        int position = 1;
+        for (GroupSpeedRepository.Ranking item : ranking) {
+            if (item.getPoints() > 0) {
+                if (item.getChatId() == groupId) {
+                    return position;
+                }
+                position++;
+            }
+        }
+        return 0;
+    }
+
+    private void renderGroupRanking() {
+        groupRankingContainer.removeAllViews();
+        if (availableGroups == null || availableGroups.isEmpty() || selectedGroupIds == null
+                || selectedGroupIds.isEmpty()) {
+            return;
+        }
+
+        OfferRepository offers = new OfferRepository(this);
+        List<ObservedOffer> observedOffers = new ArrayList<>();
+        observedOffers.addAll(offers.getRecent());
+        observedOffers.addAll(offers.getArchived());
+        observedOffers.addAll(offers.getTrashed());
+
+        GroupSpeedRepository speedRepository = new GroupSpeedRepository(this);
+        speedRepository.seedFromOffers(observedOffers, availableGroups, selectedGroupIds);
+        List<GroupSpeedRepository.Ranking> ranking =
+                speedRepository.getRanking(availableGroups, selectedGroupIds);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.bg_card_compact);
+        card.setPadding(dp(12), dp(10), dp(12), dp(8));
+
+        TextView title = new TextView(this);
+        title.setText(R.string.telegram_group_ranking_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(16);
+        card.addView(title);
+
+        TextView summary = new TextView(this);
+        summary.setText(R.string.telegram_group_ranking_summary);
+        summary.setTextColor(getColor(R.color.text_secondary));
+        summary.setTextSize(13);
+        LinearLayout.LayoutParams summaryParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        summaryParams.topMargin = dp(2);
+        card.addView(summary, summaryParams);
+
+        boolean hasPoints = false;
+        for (GroupSpeedRepository.Ranking item : ranking) {
+            if (item.getPoints() > 0) {
+                hasPoints = true;
+                break;
+            }
+        }
+        if (!hasPoints) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.telegram_group_ranking_empty);
+            empty.setTextColor(getColor(R.color.text_secondary));
+            empty.setTextSize(13);
+            LinearLayout.LayoutParams emptyParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            emptyParams.topMargin = dp(8);
+            card.addView(empty, emptyParams);
+        } else {
+            int position = 1;
+            for (GroupSpeedRepository.Ranking item : ranking) {
+                if (item.getPoints() == 0) {
+                    continue;
+                }
+                LinearLayout row = new LinearLayout(this);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(0, dp(8), 0, dp(4));
+
+                TextView rank = new TextView(this);
+                rank.setText(String.format(Locale.getDefault(), "%dº", position));
+                rank.setTextColor(getColor(R.color.action));
+                rank.setTextSize(14);
+                row.addView(rank, new LinearLayout.LayoutParams(dp(30),
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+
+                LinearLayout labels = new LinearLayout(this);
+                labels.setOrientation(LinearLayout.VERTICAL);
+                TextView groupTitle = new TextView(this);
+                groupTitle.setText(item.getTitle());
+                groupTitle.setTextColor(getColor(R.color.text_primary));
+                groupTitle.setTextSize(14);
+                groupTitle.setSingleLine(true);
+                groupTitle.setEllipsize(TextUtils.TruncateAt.END);
+                labels.addView(groupTitle);
+                TextView points = new TextView(this);
+                points.setText(getString(R.string.telegram_group_ranking_row,
+                        item.getPoints(), item.getFirstPlaces()));
+                points.setTextColor(getColor(R.color.text_secondary));
+                points.setTextSize(12);
+                labels.addView(points);
+                row.addView(labels, new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                card.addView(row);
+                position++;
+            }
+        }
+        groupRankingContainer.addView(card, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
     }
 
     private void updateGroupsCountSummary() {

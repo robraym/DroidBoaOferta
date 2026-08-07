@@ -299,6 +299,11 @@
     <string name="monitor_channel_description">Mantém a conexão local com os grupos escolhidos</string>
     <string name="monitor_service_title">Monitorando</string>
     <string name="monitor_service_summary">Promoções do telegram</string>
+    <string name="telegram_group_ranking_title">Grupos mais rápidos</string>
+    <string name="telegram_group_ranking_summary">Quem costuma publicar a mesma promoção primeiro.</string>
+    <string name="telegram_group_ranking_empty">Acompanhe promoções repetidas para formar o ranking.</string>
+    <string name="telegram_group_ranking_row">%1$d pontos · %2$d vezes primeiro</string>
+    <string name="telegram_group_ranking_compact">%1$dº lugar · %2$d pontos</string>
     <string name="icon_percent" translatable="false">%</string>
     <string name="icon_telegram_letter" translatable="false">T</string>
     <string name="icon_back" translatable="false">‹</string>

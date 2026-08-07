@@ -142,6 +142,9 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                 offerLink
         );
         offerRepository.add(offer);
+        new GroupSpeedRepository(appContext).record(
+                chatId, sourceTitle, interest, price, offer.getObservedAt(), offerLink
+        );
         MonitorStatusStore.markApprovedOffer(appContext);
         if (notifyUser) {
             showOfferNotification(offer, chatId, messageId);
