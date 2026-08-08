@@ -63,6 +63,10 @@ final class TelegramClientManager {
                                          long messageDate, String sourceTitle,
                                          TelegramMessagePayload payload) {
         }
+
+        default void onQualityHistoryMessage(long chatId, long messageId, long messageDate,
+                                             String sourceTitle, TelegramMessagePayload payload) {
+        }
     }
 
     interface LowestPriceCallback {
@@ -91,6 +95,7 @@ final class TelegramClientManager {
     private final Map<Long, JSONObject> chats = new HashMap<>();
     private final Map<String, InterestHistorySearch> interestHistorySearches = new HashMap<>();
     private final Map<String, LowestPriceSearch> lowestPriceSearches = new HashMap<>();
+    private final Map<String, QualityHistorySearch> qualityHistorySearches = new HashMap<>();
     private final Map<Long, LowestPriceBatch> lowestPriceBatches = new HashMap<>();
     private final Map<String, CachedLowestPriceResult> cachedLowestPriceResults = new HashMap<>();
     private final Set<Long> groupChatIds = new HashSet<>();
@@ -245,6 +250,25 @@ final class TelegramClientManager {
                 requestInterestHistoryPage(search, 0L);
             } catch (NumberFormatException exception) {
                 Log.w(TAG, "Invalid selected chat id", exception);
+            }
+        }
+    }
+
+    synchronized void refreshQualityHistorySince(long sinceMillis) {
+        if (state != State.READY) {
+            return;
+        }
+        Set<String> selectedGroups = appContext.getSharedPreferences(
+                "telegram_preferences", Context.MODE_PRIVATE).getStringSet(
+                "selected_groups", Collections.emptySet());
+        for (String selectedGroup : selectedGroups) {
+            try {
+                long chatId = Long.parseLong(selectedGroup);
+                String extra = "quality_history:" + chatId;
+                QualityHistorySearch search = new QualityHistorySearch(chatId, sinceMillis, extra);
+                qualityHistorySearches.put(extra, search);
+                requestQualityHistoryPage(search, 0L);
+            } catch (NumberFormatException ignored) {
             }
         }
     }
@@ -620,6 +644,9 @@ final class TelegramClientManager {
         } else if ("foundChatMessages".equals(type)
                 && result.optString("@extra").startsWith("lowest_price:")) {
             handleLowestPriceMessages(result);
+        } else if ("messages".equals(type)
+                && result.optString("@extra").startsWith("quality_history:")) {
+            handleQualityHistoryPage(result);
         } else if ("foundChatMessages".equals(type)
                 && "backup_prune_search".equals(result.optString("@extra"))) {
             handleBackupPruneSearch(result.optJSONArray("messages"));
@@ -640,6 +667,10 @@ final class TelegramClientManager {
             }
             if (result.optString("@extra").startsWith("interest_history:")) {
                 interestHistorySearches.remove(result.optString("@extra"));
+            }
+            if (result.optString("@extra").startsWith("quality_history:")) {
+                qualityHistorySearches.remove(result.optString("@extra"));
+                return;
             }
             if (result.optString("@extra").startsWith("cloud_sync_search")) {
                 requestCloudSyncHistoryFallback(readCloudPullGeneration(result.optString("@extra")));
@@ -834,6 +865,55 @@ final class TelegramClientManager {
         );
     }
 
+    private synchronized void handleQualityHistoryPage(JSONObject result) {
+        String extra = result.optString("@extra");
+        QualityHistorySearch search = qualityHistorySearches.get(extra);
+        if (search == null) {
+            return;
+        }
+        JSONArray messages = result.optJSONArray("messages");
+        long oldestDate = Long.MAX_VALUE;
+        long lastMessageId = 0L;
+        if (messages != null) {
+            for (int index = 0; index < messages.length(); index++) {
+                JSONObject message = messages.optJSONObject(index);
+                if (message == null) {
+                    continue;
+                }
+                long messageDate = message.optLong("date", 0L) * 1000L;
+                oldestDate = Math.min(oldestDate, messageDate);
+                lastMessageId = message.optLong("id", lastMessageId);
+                if (messageDate >= search.sinceMillis) {
+                    publishQualityHistoryMessage(message);
+                }
+            }
+        }
+        search.loadedMessages += messages == null ? 0 : messages.length();
+        if (messages == null || messages.length() < 100 || oldestDate < search.sinceMillis
+                || search.loadedMessages >= 400 || lastMessageId == 0L) {
+            qualityHistorySearches.remove(extra);
+            return;
+        }
+        requestQualityHistoryPage(search, lastMessageId);
+    }
+
+    private void publishQualityHistoryMessage(JSONObject message) {
+        MessageListener currentListener = messageListener;
+        if (currentListener == null) {
+            return;
+        }
+        long chatId = message.optLong("chat_id");
+        TelegramMessagePayload payload = TelegramMessagePayload.fromMessage(message);
+        if (payload.getText().isEmpty()) {
+            return;
+        }
+        JSONObject chat = chats.get(chatId);
+        String sourceTitle = chat == null ? appContext.getString(R.string.telegram_source_unknown)
+                : chat.optString("title", appContext.getString(R.string.telegram_source_unknown));
+        currentListener.onQualityHistoryMessage(chatId, message.optLong("id"),
+                message.optLong("date", 0L) * 1000L, sourceTitle, payload);
+    }
+
     private void requestInterestHistoryPage(InterestHistorySearch search, long fromMessageId) {
         try {
             send(new JSONObject()
@@ -850,6 +930,21 @@ final class TelegramClientManager {
         } catch (JSONException exception) {
             interestHistorySearches.remove(search.extra);
             notifyError(exception.getMessage());
+        }
+    }
+
+    private void requestQualityHistoryPage(QualityHistorySearch search, long fromMessageId) {
+        try {
+            send(new JSONObject()
+                    .put("@type", "getChatHistory")
+                    .put("chat_id", search.chatId)
+                    .put("from_message_id", fromMessageId)
+                    .put("offset", 0)
+                    .put("limit", 100)
+                    .put("only_local", false)
+                    .put("@extra", search.extra));
+        } catch (JSONException exception) {
+            qualityHistorySearches.remove(search.extra);
         }
     }
 
@@ -1728,6 +1823,19 @@ final class TelegramClientManager {
             this.interestId = interestId;
             this.chatId = chatId;
             this.term = term;
+            this.extra = extra;
+        }
+    }
+
+    private static final class QualityHistorySearch {
+        final long chatId;
+        final long sinceMillis;
+        final String extra;
+        int loadedMessages;
+
+        QualityHistorySearch(long chatId, long sinceMillis, String extra) {
+            this.chatId = chatId;
+            this.sinceMillis = sinceMillis;
             this.extra = extra;
         }
     }

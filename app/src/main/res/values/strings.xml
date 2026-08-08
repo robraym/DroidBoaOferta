@@ -7,6 +7,7 @@
     <string name="telegram_groups_card_title">Grupos de promoções</string>
     <string name="telegram_groups_count_empty">0 selecionados de 0 grupos</string>
     <string name="telegram_groups_count_format">%1$s de %2$s</string>
+    <string name="telegram_groups_count_with_evaluation">%1$d de %2$d ativos · Semana dia %3$d de 7</string>
     <plurals name="telegram_groups_selected_count">
         <item quantity="one">%d selecionado</item>
         <item quantity="other">%d selecionados</item>
@@ -286,7 +287,7 @@
     <string name="lowest_price_searching_action">Buscando…</string>
     <string name="lowest_price_searching">Buscando nos grupos selecionados…</string>
     <string name="lowest_price_found">Menor preço encontrado.</string>
-    <string name="lowest_price_found_format">Menor preço observado nos seus grupos: %1$s</string>
+    <string name="lowest_price_found_format">Menor preço observado nos seus grupos: %1$s</string>k
     <string name="lowest_price_found_so_far">Menor até agora: %1$s</string>
     <string name="lowest_price_not_found">Nenhuma oferta recente com link foi encontrada para esse termo.</string>
     <string name="lowest_price_no_groups">Escolha pelo menos um grupo do Telegram.</string>
@@ -304,6 +305,20 @@
     <string name="telegram_group_ranking_empty">Acompanhe promoções repetidas para formar o ranking.</string>
     <string name="telegram_group_ranking_row">%1$d pontos · %2$d vezes primeiro</string>
     <string name="telegram_group_ranking_compact">%1$dº lugar · %2$d pontos</string>
+    <string name="telegram_group_quality_collecting">Avaliando · dia %1$d de 7</string>
+    <string name="telegram_groups_evaluation">Semana de avaliação · dia %1$d de 7</string>
+    <string name="telegram_group_quality_progress">%1$d promoções</string>
+    <string name="telegram_group_quality_no_offers">Sem promoções ainda</string>
+    <string name="telegram_group_quality_good">Bom · %1$d promoções</string>
+    <string name="telegram_group_quality_neutral">Pouca evidência · %1$d promoções</string>
+    <string name="telegram_group_quality_low">Fraco · sem promoções</string>
+    <string name="telegram_group_summary">%1$s · %2$s</string>
+    <string name="telegram_group_ranking_detail_title">Desempenho da semana</string>
+    <string name="telegram_group_ranking_detail_total">%1$d pontos acumulados</string>
+    <string name="telegram_group_ranking_detail_item">%1$dº a publicar · %2$d pontos</string>
+    <string name="telegram_group_ranking_detail_empty">Ainda não há promoções comparáveis nesta semana.</string>
+    <string name="telegram_group_history_title">Histórico semanal</string>
+    <string name="telegram_group_history_awards">★ Campeão: %1$dx · Top 3: %2$dx</string>
     <string name="icon_percent" translatable="false">%</string>
     <string name="icon_telegram_letter" translatable="false">T</string>
     <string name="icon_back" translatable="false">‹</string>

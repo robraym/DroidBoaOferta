@@ -38,6 +38,12 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         TelegramClientManager clientManager = TelegramClientManager.getInstance();
         clientManager.setMessageListener(this);
         clientManager.start(appContext);
+        GroupQualityRepository qualityRepository = new GroupQualityRepository(appContext);
+        if (qualityRepository.prepareYesterdayHistory()) {
+            clientManager.refreshQualityHistorySince(System.currentTimeMillis()
+                    - (System.currentTimeMillis() % (24L * 60L * 60L * 1000L))
+                    - 24L * 60L * 60L * 1000L);
+        }
     }
 
     synchronized void refreshInterestHistory(Context context, long interestId, String term,
@@ -64,6 +70,9 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         if (!selectedGroups.contains(Long.toString(chatId)) || text.trim().isEmpty()) {
             return;
         }
+        new GroupQualityRepository(appContext).recordMessage(
+                chatId, messageId, messageDate > 0L ? messageDate : System.currentTimeMillis()
+        );
         MonitorStatusStore.markAnalyzedMessage(appContext);
 
         List<Interest> interests = interestRepository.getAll();
@@ -80,6 +89,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                     sourceTitle,
                     text,
                     price,
+                    true,
                     true,
                     payload.findBestLink(interest.getTerm())
             );
@@ -117,19 +127,46 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                 text,
                 price,
                 false,
+                false,
                 payload.findBestLink(target.getTerm())
         );
     }
 
+    @Override
+    public void onQualityHistoryMessage(long chatId, long messageId, long messageDate,
+                                        String sourceTitle, TelegramMessagePayload payload) {
+        String text = payload.getText();
+        if (text.trim().isEmpty()) {
+            return;
+        }
+        long observedAt = messageDate > 0L ? messageDate : System.currentTimeMillis();
+        new GroupQualityRepository(appContext).recordMessage(chatId, messageId, observedAt);
+        for (Interest interest : interestRepository.getAll()) {
+            double price = OfferTextParser.extractPriceForInterest(text, interest.getTerm());
+            if (!Double.isNaN(price)) {
+                processMessageForInterest(interest, chatId, messageId, messageDate, sourceTitle,
+                        text, price, false, true, payload.findBestLink(interest.getTerm()));
+            }
+        }
+    }
+
     private void processMessageForInterest(Interest interest, long chatId, long messageId,
                                            long messageDate, String sourceTitle, String text,
-                                           double price, boolean notifyUser, String offerLink) {
+                                           double price, boolean notifyUser, boolean recordQuality,
+                                           String offerLink) {
         if (!OfferTextParser.matchesInterest(text, interest.getTerm())
                 || !OfferTextParser.isPlausiblePriceForInterest(price, interest.getTerm())
                 || price > interest.getMaximumPrice()
                 || !OfferEligibility.isRecent(messageDate, System.currentTimeMillis())
-                || !OfferEligibility.hasUsableLink(offerLink)
-                || !offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
+                || !OfferEligibility.hasUsableLink(offerLink)) {
+            return;
+        }
+        if (recordQuality) {
+            new GroupQualityRepository(appContext).recordApprovedOffer(
+                    chatId, messageId, messageDate > 0L ? messageDate : System.currentTimeMillis()
+            );
+        }
+        if (!offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
             return;
         }
         ObservedOffer offer = new ObservedOffer(

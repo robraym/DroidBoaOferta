@@ -93,6 +93,8 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private LinearLayout groupsContainer;
     private LinearLayout groupRankingContainer;
     private TextView groupsCountText;
+    private TextView groupsEvaluationText;
+    private int groupEvaluationDay;
     private FrameLayout groupsSearchBar;
     private View groupsSearchIcon;
     private EditText groupsSearchInput;
@@ -108,6 +110,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private int groupsSearchCollapsedY;
     private List<TelegramGroup> availableGroups = Collections.emptyList();
     private Set<String> selectedGroupIds;
+    private final Set<Long> expandedGroupRankingIds = new HashSet<>();
     private boolean showingCachedGroups;
     private ActivityResultLauncher<IntentSenderRequest> phoneNumberHintLauncher;
     private ActivityResultLauncher<Intent> smsConsentLauncher;
@@ -173,6 +176,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         groupsScroll = findViewById(R.id.scroll_groups);
         groupsContainer = findViewById(R.id.container_groups);
         groupsCountText = findViewById(R.id.text_groups_count);
+        groupsEvaluationText = findViewById(R.id.text_groups_evaluation);
         groupsSearchBar = findViewById(R.id.search_groups_bar);
         groupsSearchIcon = findViewById(R.id.icon_search_groups);
         groupsSearchInput = findViewById(R.id.input_search_groups);
@@ -680,12 +684,33 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             }
         }
         List<GroupSpeedRepository.Ranking> ranking = loadGroupRanking(displayGroups);
+        GroupWeeklyHistoryRepository weeklyHistory = new GroupWeeklyHistoryRepository(this);
+        weeklyHistory.captureCompletedWeekIfDue(ranking);
+        Map<Long, GroupWeeklyHistoryRepository.Awards> awardsByGroupId = weeklyHistory.getAwards();
         Map<Long, GroupSpeedRepository.Ranking> rankingByGroupId = new HashMap<>();
         for (GroupSpeedRepository.Ranking item : ranking) {
             rankingByGroupId.put(item.getChatId(), item);
         }
+        Map<Long, GroupQualityRepository.Stats> qualityByGroupId =
+                new GroupQualityRepository(this).getStats(displayGroups, selectedGroupIds);
+        Map<Long, Integer> approvedCounts = new GroupSpeedRepository(this)
+                .getApprovedOfferCounts(displayGroups, selectedGroupIds);
+        for (Map.Entry<Long, Integer> count : approvedCounts.entrySet()) {
+            GroupQualityRepository.Stats stats = qualityByGroupId.get(count.getKey());
+            if (stats != null) {
+                stats.ensureApprovedOffers(count.getValue());
+            }
+        }
+        updateGroupsEvaluationSummary(qualityByGroupId);
         displayGroups = new ArrayList<>(displayGroups);
         displayGroups.sort((first, second) -> {
+            GroupQualityRepository.Stats firstQuality = qualityByGroupId.get(first.getId());
+            GroupQualityRepository.Stats secondQuality = qualityByGroupId.get(second.getId());
+            int firstQualityOrder = firstQuality == null ? 0 : firstQuality.getQualityOrder();
+            int secondQualityOrder = secondQuality == null ? 0 : secondQuality.getQualityOrder();
+            if (firstQualityOrder != secondQualityOrder) {
+                return Integer.compare(secondQualityOrder, firstQualityOrder);
+            }
             GroupSpeedRepository.Ranking firstRanking = rankingByGroupId.get(first.getId());
             GroupSpeedRepository.Ranking secondRanking = rankingByGroupId.get(second.getId());
             int firstPoints = firstRanking == null ? 0 : firstRanking.getPoints();
@@ -719,6 +744,8 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             TelegramGroup group = visibleGroups.get(index);
             String groupId = Long.toString(group.getId());
             GroupSpeedRepository.Ranking groupRanking = rankingByGroupId.get(group.getId());
+            GroupQualityRepository.Stats groupQuality = qualityByGroupId.get(group.getId());
+            GroupWeeklyHistoryRepository.Awards groupAwards = awardsByGroupId.get(group.getId());
             CheckBox checkBox = new CheckBox(this);
             checkBox.setTag(groupId);
             checkBox.setButtonTintList(getColorStateList(R.color.selector_checkbox));
@@ -727,7 +754,8 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             checkBox.setChecked(selectedGroupIds.contains(groupId));
 
             TextView label = new TextView(this);
-            label.setText(group.getTitle());
+            label.setText(groupAwards != null && groupAwards.getChampionships() > 0
+                    ? "★ " + group.getTitle() : group.getTitle());
             label.setTextColor(getColor(R.color.text_primary));
             label.setTextSize(14);
             label.setSingleLine(true);
@@ -735,13 +763,10 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
 
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setGravity(android.view.Gravity.TOP);
             row.setBackgroundColor(getColor(R.color.card));
             row.setMinimumHeight(dp(56));
             row.setPadding(dp(4), dp(4), dp(4), dp(4));
-            row.setClickable(true);
-            row.setFocusable(true);
-            row.setOnClickListener(view -> checkBox.setChecked(!checkBox.isChecked()));
             checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (isChecked) {
                     selectedGroupIds.add(groupId);
@@ -752,7 +777,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 updateGroupsCountSummary();
                 groupsContainer.post(() -> renderGroups(availableGroups, showingCachedGroups));
             });
-            row.addView(checkBox, new LinearLayout.LayoutParams(dp(32), dp(32)));
+            LinearLayout.LayoutParams checkBoxParams = new LinearLayout.LayoutParams(dp(32), dp(32));
+            checkBoxParams.topMargin = dp(3);
+            row.addView(checkBox, checkBoxParams);
             LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
                     0,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -763,19 +790,33 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             LinearLayout labels = new LinearLayout(this);
             labels.setOrientation(LinearLayout.VERTICAL);
             labels.addView(label);
+            TextView score = new TextView(this);
+            score.setText(buildGroupSummary(groupRanking, groupQuality, ranking, group.getId()));
+            score.setTextColor(getColor(groupQuality != null && groupQuality.hasLowQuality()
+                    ? R.color.text_secondary : R.color.action));
+            score.setTextSize(12);
+            score.setSingleLine(false);
+            score.setMaxLines(2);
+            score.setEllipsize(TextUtils.TruncateAt.END);
+            score.setVisibility(TextUtils.isEmpty(score.getText()) ? View.GONE : View.VISIBLE);
             if (groupRanking != null && groupRanking.getPoints() > 0) {
-                TextView score = new TextView(this);
-                score.setText(getString(R.string.telegram_group_ranking_compact,
-                        indexOfRank(ranking, group.getId()), groupRanking.getPoints()));
-                score.setTextColor(getColor(R.color.action));
-                score.setTextSize(12);
-                score.setSingleLine(true);
-                LinearLayout.LayoutParams scoreParams = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                scoreParams.topMargin = dp(2);
-                labels.addView(score, scoreParams);
+                score.setClickable(true);
+                score.setFocusable(true);
+                score.setOnClickListener(view -> {
+                    if (!expandedGroupRankingIds.add(group.getId())) {
+                        expandedGroupRankingIds.remove(group.getId());
+                    }
+                    groupsContainer.post(() -> renderGroups(availableGroups, showingCachedGroups));
+                });
+            }
+            LinearLayout.LayoutParams scoreParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            scoreParams.topMargin = dp(2);
+            labels.addView(score, scoreParams);
+            if (expandedGroupRankingIds.contains(group.getId())) {
+                labels.addView(createGroupRankingTree(group, groupAwards));
             }
             row.addView(labels, labelParams);
             groupsContainer.addView(row, new LinearLayout.LayoutParams(
@@ -797,6 +838,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         observedOffers.addAll(offers.getRecent());
         observedOffers.addAll(offers.getArchived());
         observedOffers.addAll(offers.getTrashed());
+        new GroupQualityRepository(this).seedApprovedOffers(observedOffers, groups, selectedGroupIds);
         GroupSpeedRepository speedRepository = new GroupSpeedRepository(this);
         speedRepository.seedFromOffers(observedOffers, groups, selectedGroupIds);
         return speedRepository.getRanking(groups, selectedGroupIds);
@@ -813,6 +855,166 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             }
         }
         return 0;
+    }
+
+    private String buildGroupSummary(GroupSpeedRepository.Ranking ranking,
+                                     GroupQualityRepository.Stats quality,
+                                     List<GroupSpeedRepository.Ranking> allRanking,
+                                     long groupId) {
+        if (quality == null) {
+            return "";
+        }
+        String qualityText;
+        if (quality.getDaysObserved() < 7) {
+            qualityText = quality.getApprovedOffers() == 0
+                    ? getString(R.string.telegram_group_quality_no_offers)
+                    : getString(R.string.telegram_group_quality_progress,
+                    quality.getApprovedOffers());
+        } else if (quality.hasLowQuality()) {
+            qualityText = getString(R.string.telegram_group_quality_low);
+        } else if (quality.hasGoodQuality()) {
+            qualityText = getString(R.string.telegram_group_quality_good,
+                    quality.getApprovedOffers());
+        } else {
+            qualityText = getString(R.string.telegram_group_quality_neutral,
+                    quality.getApprovedOffers());
+        }
+        if (ranking == null || ranking.getPoints() == 0) {
+            return qualityText;
+        }
+        return getString(R.string.telegram_group_summary,
+                getString(R.string.telegram_group_ranking_compact,
+                        indexOfRank(allRanking, groupId), ranking.getPoints()), qualityText);
+    }
+
+    private void updateGroupsEvaluationSummary(Map<Long, GroupQualityRepository.Stats> quality) {
+        int observationDay = 0;
+        for (GroupQualityRepository.Stats stats : quality.values()) {
+            observationDay = Math.max(observationDay, stats.getDaysObserved());
+        }
+        groupEvaluationDay = observationDay;
+        groupsEvaluationText.setVisibility(View.GONE);
+        updateGroupsCountSummary();
+    }
+
+    private LinearLayout createGroupRankingTree(TelegramGroup group,
+                                                GroupWeeklyHistoryRepository.Awards awards) {
+        List<GroupSpeedRepository.RankingDetail> details = new GroupSpeedRepository(this)
+                .getDetails(availableGroups, selectedGroupIds, group.getId());
+        LinearLayout tree = new LinearLayout(this);
+        tree.setOrientation(LinearLayout.VERTICAL);
+        tree.setPadding(dp(4), dp(8), 0, dp(4));
+
+        TextView root = new TextView(this);
+        root.setText("└─ " + getString(R.string.telegram_group_ranking_detail_title));
+        root.setTextColor(getColor(R.color.text_secondary));
+        root.setTextSize(13);
+        tree.addView(root);
+
+        for (int index = 0; index < details.size(); index++) {
+            GroupSpeedRepository.RankingDetail detail = details.get(index);
+            boolean last = index == details.size() - 1;
+            TextView product = new TextView(this);
+            product.setText("   " + (last ? "└─ " : "├─ ")
+                    + formatProductName(detail.getProduct()));
+            product.setTextColor(getColor(R.color.text_primary));
+            product.setTextSize(13);
+            LinearLayout.LayoutParams productParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            productParams.topMargin = dp(6);
+            tree.addView(product, productParams);
+
+            TextView points = new TextView(this);
+            points.setText("      " + (last ? "   " : "│  ") + "└─ "
+                    + getString(R.string.telegram_group_ranking_detail_item,
+                    detail.getPosition(), detail.getPoints()));
+            points.setTextColor(getColor(R.color.action));
+            points.setTextSize(12);
+            tree.addView(points);
+        }
+        if (awards != null && awards.getTopThree() > 0) {
+            TextView history = new TextView(this);
+            history.setText("└─ " + getString(R.string.telegram_group_history_title));
+            history.setTextColor(getColor(R.color.text_secondary));
+            history.setTextSize(13);
+            LinearLayout.LayoutParams historyParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            historyParams.topMargin = dp(8);
+            tree.addView(history, historyParams);
+
+            TextView awardsText = new TextView(this);
+            awardsText.setText("   └─ " + getString(R.string.telegram_group_history_awards,
+                    awards.getChampionships(), awards.getTopThree()));
+            awardsText.setTextColor(getColor(R.color.action));
+            awardsText.setTextSize(12);
+            tree.addView(awardsText);
+        }
+        return tree;
+    }
+
+    private void showGroupRankingDetails(TelegramGroup group,
+                                         GroupSpeedRepository.Ranking ranking) {
+        List<GroupSpeedRepository.RankingDetail> details = new GroupSpeedRepository(this)
+                .getDetails(availableGroups, selectedGroupIds, group.getId());
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(20), dp(6), dp(20), dp(8));
+
+        TextView total = new TextView(this);
+        total.setText(getString(R.string.telegram_group_ranking_detail_total, ranking.getPoints()));
+        total.setTextColor(getColor(R.color.action));
+        total.setTextSize(15);
+        content.addView(total);
+
+        if (details.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.telegram_group_ranking_detail_empty);
+            empty.setTextColor(getColor(R.color.text_secondary));
+            empty.setTextSize(14);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            params.topMargin = dp(12);
+            content.addView(empty, params);
+        } else {
+            for (GroupSpeedRepository.RankingDetail detail : details) {
+                LinearLayout item = new LinearLayout(this);
+                item.setOrientation(LinearLayout.VERTICAL);
+                item.setPadding(dp(4), dp(12), 0, 0);
+
+                TextView product = new TextView(this);
+                product.setText(formatProductName(detail.getProduct()));
+                product.setTextColor(getColor(R.color.text_primary));
+                product.setTextSize(15);
+                item.addView(product);
+
+                TextView branch = new TextView(this);
+                branch.setText("↳ " + getString(R.string.telegram_group_ranking_detail_item,
+                        detail.getPosition(), detail.getPoints()));
+                branch.setTextColor(getColor(R.color.text_secondary));
+                branch.setTextSize(13);
+                LinearLayout.LayoutParams branchParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                branchParams.leftMargin = dp(10);
+                branchParams.topMargin = dp(2);
+                item.addView(branch, branchParams);
+                content.addView(item);
+            }
+        }
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(content);
+        new AlertDialog.Builder(this)
+                .setTitle(group.getTitle())
+                .setMessage(getString(R.string.telegram_group_ranking_detail_title))
+                .setView(scrollView)
+                .setPositiveButton(R.string.action_close, null)
+                .show();
+    }
+
+    private String formatProductName(String product) {
+        if (product == null || product.isEmpty()) {
+            return getString(R.string.telegram_source_unknown);
+        }
+        return product.substring(0, 1).toUpperCase(Locale.getDefault()) + product.substring(1);
     }
 
     private void renderGroupRanking() {
@@ -914,6 +1116,11 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private void updateGroupsCountSummary() {
         int totalGroups = availableGroups == null ? 0 : availableGroups.size();
         int selectedGroups = countSelectedAvailableGroups();
+        if (groupEvaluationDay > 0) {
+            groupsCountText.setText(getString(R.string.telegram_groups_count_with_evaluation,
+                    selectedGroups, totalGroups, groupEvaluationDay));
+            return;
+        }
         String selectedText = getResources().getQuantityString(
                 R.plurals.telegram_groups_selected_count,
                 selectedGroups,

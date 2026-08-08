@@ -214,6 +214,15 @@
                         android:text="@string/telegram_groups_count_empty"
                         android:textColor="@color/text_secondary"
                         android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/text_groups_evaluation"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <LinearLayout

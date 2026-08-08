@@ -6,7 +6,6 @@ import android.content.SharedPreferences;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -20,8 +19,8 @@ import java.util.Set;
 final class GroupSpeedRepository {
     private static final String PREFS = "group_speed_preferences";
     private static final String KEY_EVENTS = "promotion_events";
-    private static final long WINDOW_MS = 90L * 24L * 60L * 60L * 1000L;
-    private static final long RACE_WINDOW_MS = 3L * 60L * 60L * 1000L;
+    private static final long WINDOW_MS = 7L * 24L * 60L * 60L * 1000L;
+    private static final long RACE_WINDOW_MS = 12L * 60L * 60L * 1000L;
     private static final int MAX_EVENTS = 800;
 
     private final SharedPreferences preferences;
@@ -84,14 +83,16 @@ final class GroupSpeedRepository {
         for (List<Event> events : races.values()) {
             events.sort(Comparator.comparingLong(event -> event.observedAt));
             List<Event> race = new ArrayList<>();
-            long previousObservedAt = 0L;
+            long raceStartedAt = 0L;
             for (Event event : events) {
-                if (!race.isEmpty() && event.observedAt - previousObservedAt > RACE_WINDOW_MS) {
+                if (!race.isEmpty() && event.observedAt - raceStartedAt > RACE_WINDOW_MS) {
                     awardRace(race, ranking);
                     race.clear();
                 }
+                if (race.isEmpty()) {
+                    raceStartedAt = event.observedAt;
+                }
                 race.add(event);
-                previousObservedAt = event.observedAt;
             }
             awardRace(race, ranking);
         }
@@ -100,6 +101,85 @@ final class GroupSpeedRepository {
                 .thenComparing(Comparator.comparingInt(Ranking::getFirstPlaces).reversed())
                 .thenComparing(Ranking::getTitle, String.CASE_INSENSITIVE_ORDER));
         return result;
+    }
+
+    synchronized List<RankingDetail> getDetails(List<TelegramGroup> groups, Set<String> selectedIds,
+                                                 long targetChatId) {
+        Set<Long> selectedChatIds = new HashSet<>();
+        for (TelegramGroup group : groups) {
+            if (selectedIds.contains(Long.toString(group.getId()))) {
+                selectedChatIds.add(group.getId());
+            }
+        }
+        Map<String, List<Event>> races = new HashMap<>();
+        long oldest = System.currentTimeMillis() - WINDOW_MS;
+        for (Event event : readEvents()) {
+            if (event.observedAt >= oldest && selectedChatIds.contains(event.chatId)) {
+                races.computeIfAbsent(event.signature, ignored -> new ArrayList<>()).add(event);
+            }
+        }
+        List<RankingDetail> details = new ArrayList<>();
+        for (List<Event> events : races.values()) {
+            events.sort(Comparator.comparingLong(event -> event.observedAt));
+            List<Event> race = new ArrayList<>();
+            long raceStartedAt = 0L;
+            for (Event event : events) {
+                if (!race.isEmpty() && event.observedAt - raceStartedAt > RACE_WINDOW_MS) {
+                    addDetailsForRace(race, targetChatId, details);
+                    race.clear();
+                }
+                if (race.isEmpty()) {
+                    raceStartedAt = event.observedAt;
+                }
+                race.add(event);
+            }
+            addDetailsForRace(race, targetChatId, details);
+        }
+        details.sort(Comparator.comparingLong(RankingDetail::getObservedAt).reversed());
+        return details;
+    }
+
+    synchronized Map<Long, Integer> getApprovedOfferCounts(List<TelegramGroup> groups,
+                                                            Set<String> selectedIds) {
+        Set<Long> selectedChatIds = new HashSet<>();
+        for (TelegramGroup group : groups) {
+            if (selectedIds.contains(Long.toString(group.getId()))) {
+                selectedChatIds.add(group.getId());
+            }
+        }
+        long oldest = System.currentTimeMillis() - WINDOW_MS;
+        Map<Long, Set<String>> uniqueOffers = new HashMap<>();
+        for (Event event : readEvents()) {
+            if (event.observedAt >= oldest && selectedChatIds.contains(event.chatId)) {
+                uniqueOffers.computeIfAbsent(event.chatId, ignored -> new HashSet<>()).add(event.id);
+            }
+        }
+        Map<Long, Integer> counts = new HashMap<>();
+        for (Map.Entry<Long, Set<String>> item : uniqueOffers.entrySet()) {
+            counts.put(item.getKey(), item.getValue().size());
+        }
+        return counts;
+    }
+
+    private void addDetailsForRace(List<Event> race, long targetChatId,
+                                   List<RankingDetail> details) {
+        Map<Long, Event> firstByGroup = new HashMap<>();
+        for (Event event : race) {
+            firstByGroup.putIfAbsent(event.chatId, event);
+        }
+        if (firstByGroup.size() < 2) {
+            return;
+        }
+        List<Event> arrivals = new ArrayList<>(firstByGroup.values());
+        arrivals.sort(Comparator.comparingLong(event -> event.observedAt));
+        for (int index = 0; index < arrivals.size(); index++) {
+            Event event = arrivals.get(index);
+            if (event.chatId == targetChatId) {
+                details.add(new RankingDetail(event.signature, event.observedAt,
+                        index + 1, pointsForPosition(index)));
+                return;
+            }
+        }
     }
 
     private void awardRace(List<Event> race, Map<Long, Ranking> ranking) {
@@ -120,16 +200,26 @@ final class GroupSpeedRepository {
         for (int index = 0; index < arrivals.size(); index++) {
             Ranking item = ranking.get(arrivals.get(index).chatId);
             item.participations++;
-            item.points += index == 0 ? 10 : index == 1 ? 6 : index == 2 ? 3 : 1;
+            item.points += pointsForPosition(index);
             if (index == 0) {
                 item.firstPlaces++;
             }
         }
     }
 
+    private int pointsForPosition(int position) {
+        if (position == 0) return 10;
+        if (position == 1) return 8;
+        if (position == 2) return 6;
+        if (position == 3) return 5;
+        if (position == 4) return 4;
+        if (position == 5) return 3;
+        return position < 10 ? 2 : 1;
+    }
+
     private String signature(String interest, double price, String link) {
         String product = interest == null ? "" : OfferTextParser.normalize(interest);
-        return product + "|" + String.format(Locale.ROOT, "%.2f", price);
+        return product;
     }
 
     private String normalizeTitle(String title) {
@@ -143,11 +233,17 @@ final class GroupSpeedRepository {
             for (int index = 0; index < array.length(); index++) {
                 JSONObject item = array.getJSONObject(index);
                 events.add(new Event(item.getString("id"), item.getLong("chat_id"),
-                        item.optString("title"), item.getString("signature"), item.getLong("observed_at")));
+                        item.optString("title"), normalizeSignature(item.getString("signature")),
+                        item.getLong("observed_at")));
             }
         } catch (Exception ignored) {
         }
         return events;
+    }
+
+    private String normalizeSignature(String value) {
+        int separator = value == null ? -1 : value.indexOf('|');
+        return separator < 0 ? value : value.substring(0, separator);
     }
 
     private void saveEvents(List<Event> events) {
@@ -177,6 +273,25 @@ final class GroupSpeedRepository {
         int getPoints() { return points; }
         int getFirstPlaces() { return firstPlaces; }
         int getParticipations() { return participations; }
+    }
+
+    static final class RankingDetail {
+        private final String product;
+        private final long observedAt;
+        private final int position;
+        private final int points;
+
+        RankingDetail(String product, long observedAt, int position, int points) {
+            this.product = product;
+            this.observedAt = observedAt;
+            this.position = position;
+            this.points = points;
+        }
+
+        String getProduct() { return product; }
+        long getObservedAt() { return observedAt; }
+        int getPosition() { return position; }
+        int getPoints() { return points; }
     }
 
     private static final class Event {
