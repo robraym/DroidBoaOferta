@@ -24,9 +24,11 @@ final class GroupSpeedRepository {
     private static final int MAX_EVENTS = 800;
 
     private final SharedPreferences preferences;
+    private final GroupPromotionExpiryRepository expiryRepository;
 
     GroupSpeedRepository(Context context) {
         preferences = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        expiryRepository = new GroupPromotionExpiryRepository(context);
     }
 
     synchronized void record(long chatId, String title, Interest interest, double price,
@@ -103,6 +105,25 @@ final class GroupSpeedRepository {
         return result;
     }
 
+    synchronized boolean isOfferExpired(ObservedOffer offer) {
+        return expiryRepository.isExpiredForOffer(signature(offer.getInterest(), offer.getPrice(), offer.getLink()),
+                offer.getObservedAt());
+    }
+
+    synchronized long getRoundStartedAt(ObservedOffer offer) {
+        String product = signature(offer.getInterest(), offer.getPrice(), offer.getLink());
+        List<Event> matching = new ArrayList<>();
+        for (Event event : readEvents()) if (product.equals(event.signature)) matching.add(event);
+        matching.sort(Comparator.comparingLong(event -> event.observedAt));
+        long startedAt = offer.getObservedAt();
+        for (Event event : matching) {
+            if (event.observedAt > offer.getObservedAt()) break;
+            if (event.observedAt - startedAt > RACE_WINDOW_MS) startedAt = event.observedAt;
+            if (startedAt == offer.getObservedAt() || event.observedAt <= offer.getObservedAt()) startedAt = Math.min(startedAt, event.observedAt);
+        }
+        return startedAt;
+    }
+
     synchronized List<RankingDetail> getDetails(List<TelegramGroup> groups, Set<String> selectedIds,
                                                  long targetChatId) {
         Set<Long> selectedChatIds = new HashSet<>();
@@ -149,9 +170,18 @@ final class GroupSpeedRepository {
         }
         long oldest = System.currentTimeMillis() - WINDOW_MS;
         Map<Long, Set<String>> uniqueOffers = new HashMap<>();
+        Map<String, Long> raceStarts = new HashMap<>();
+        for (Event event : readEvents()) {
+            Long first = raceStarts.get(event.signature);
+            if (first == null || event.observedAt < first) raceStarts.put(event.signature, event.observedAt);
+        }
         for (Event event : readEvents()) {
             if (event.observedAt >= oldest && selectedChatIds.contains(event.chatId)) {
-                uniqueOffers.computeIfAbsent(event.chatId, ignored -> new HashSet<>()).add(event.id);
+                long roundStartedAt = raceStarts.containsKey(event.signature)
+                        ? raceStarts.get(event.signature) : event.observedAt;
+                if (!expiryRepository.isExpiredAt(event.signature, roundStartedAt, event.observedAt)) {
+                    uniqueOffers.computeIfAbsent(event.chatId, ignored -> new HashSet<>()).add(event.id);
+                }
             }
         }
         Map<Long, Integer> counts = new HashMap<>();
@@ -163,20 +193,31 @@ final class GroupSpeedRepository {
 
     private void addDetailsForRace(List<Event> race, long targetChatId,
                                    List<RankingDetail> details) {
+        if (race.isEmpty()) return;
+        race.sort(Comparator.comparingLong(event -> event.observedAt));
+        long roundStartedAt = race.get(0).observedAt;
         Map<Long, Event> firstByGroup = new HashMap<>();
         for (Event event : race) {
-            firstByGroup.putIfAbsent(event.chatId, event);
-        }
-        if (firstByGroup.size() < 2) {
-            return;
+            if (!expiryRepository.isExpiredAt(event.signature, roundStartedAt, event.observedAt)) {
+                firstByGroup.putIfAbsent(event.chatId, event);
+            }
         }
         List<Event> arrivals = new ArrayList<>(firstByGroup.values());
         arrivals.sort(Comparator.comparingLong(event -> event.observedAt));
+        Event targetEvent = null;
+        for (Event event : race) if (event.chatId == targetChatId) { targetEvent = event; break; }
+        if (targetEvent == null) return;
+        boolean expired = expiryRepository.isExpiredAt(targetEvent.signature, roundStartedAt, targetEvent.observedAt);
+        if (expired || arrivals.size() < 2) {
+            details.add(new RankingDetail(targetEvent.signature, targetEvent.observedAt,
+                    roundStartedAt, 0, 0, expired));
+            return;
+        }
         for (int index = 0; index < arrivals.size(); index++) {
             Event event = arrivals.get(index);
             if (event.chatId == targetChatId) {
                 details.add(new RankingDetail(event.signature, event.observedAt,
-                        index + 1, pointsForPosition(index)));
+                        roundStartedAt, index + 1, pointsForPosition(index), false));
                 return;
             }
         }
@@ -187,10 +228,12 @@ final class GroupSpeedRepository {
             return;
         }
         race.sort(Comparator.comparingLong(event -> event.observedAt));
+        long roundStartedAt = race.get(0).observedAt;
         Set<Long> seenGroups = new HashSet<>();
         List<Event> arrivals = new ArrayList<>();
         for (Event event : race) {
-            if (seenGroups.add(event.chatId)) {
+            if (!expiryRepository.isExpiredAt(event.signature, roundStartedAt, event.observedAt)
+                    && seenGroups.add(event.chatId)) {
                 arrivals.add(event);
             }
         }
@@ -278,20 +321,27 @@ final class GroupSpeedRepository {
     static final class RankingDetail {
         private final String product;
         private final long observedAt;
+        private final long roundStartedAt;
         private final int position;
         private final int points;
+        private final boolean expired;
 
-        RankingDetail(String product, long observedAt, int position, int points) {
+        RankingDetail(String product, long observedAt, long roundStartedAt, int position, int points,
+                      boolean expired) {
             this.product = product;
             this.observedAt = observedAt;
+            this.roundStartedAt = roundStartedAt;
             this.position = position;
             this.points = points;
+            this.expired = expired;
         }
 
         String getProduct() { return product; }
         long getObservedAt() { return observedAt; }
+        long getRoundStartedAt() { return roundStartedAt; }
         int getPosition() { return position; }
         int getPoints() { return points; }
+        boolean isExpired() { return expired; }
     }
 
     private static final class Event {

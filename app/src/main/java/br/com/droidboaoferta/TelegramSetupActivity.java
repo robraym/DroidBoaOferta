@@ -917,7 +917,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             TextView product = new TextView(this);
             product.setText("   " + (last ? "└─ " : "├─ ")
                     + formatProductName(detail.getProduct()));
-            product.setTextColor(getColor(R.color.text_primary));
+            product.setTextColor(getColor(detail.isExpired() ? R.color.text_secondary : R.color.text_primary));
             product.setTextSize(13);
             LinearLayout.LayoutParams productParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -925,10 +925,11 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             tree.addView(product, productParams);
 
             TextView points = new TextView(this);
-            points.setText("      " + (last ? "   " : "│  ") + "└─ "
-                    + getString(R.string.telegram_group_ranking_detail_item,
-                    detail.getPosition(), detail.getPoints()));
-            points.setTextColor(getColor(R.color.action));
+            points.setText("      " + (last ? "   " : "│  ") + "└─ " + (detail.isExpired()
+                    ? getString(R.string.telegram_group_promotion_expired)
+                    : getString(R.string.telegram_group_ranking_detail_item,
+                    detail.getPosition(), detail.getPoints())));
+            points.setTextColor(getColor(detail.isExpired() ? R.color.text_secondary : R.color.action));
             points.setTextSize(12);
             tree.addView(points);
         }

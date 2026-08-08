@@ -29,12 +29,17 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -337,15 +342,18 @@ public class MainActivity extends AlertouActivity {
                     offer.getSource(),
                     groupLabel + " " + displayedTime
             );
+            GroupSpeedRepository speed = new GroupSpeedRepository(this);
+            boolean expired = speed.isOfferExpired(offer);
             LinearLayout row = createOfferRow(
                     offer.getInterest(),
                     currency.format(offer.getPrice()),
                     displayedTime,
                     offer.getSource(),
-                    contentDescription
+                    contentDescription,
+                    expired
             );
             FrameLayout swipeContainer = createSwipeContainer(row);
-            attachSwipeActions(row, offer);
+            attachSwipeActions(row, offer, expired);
             LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
@@ -419,7 +427,7 @@ public class MainActivity extends AlertouActivity {
     }
 
     private LinearLayout createOfferRow(String title, String price, String time, String source,
-                                        String contentDescription) {
+                                        String contentDescription, boolean expired) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setBackgroundColor(getColor(R.color.card));
@@ -435,7 +443,7 @@ public class MainActivity extends AlertouActivity {
 
         TextView titleView = new TextView(this);
         titleView.setText(title);
-        titleView.setTextColor(getColor(R.color.text_primary));
+        titleView.setTextColor(getColor(expired ? R.color.text_secondary : R.color.text_primary));
         titleView.setTextSize(14);
         titleView.setSingleLine(true);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
@@ -443,7 +451,7 @@ public class MainActivity extends AlertouActivity {
 
         TextView priceView = new TextView(this);
         priceView.setText(price);
-        priceView.setTextColor(getColor(R.color.text_primary));
+        priceView.setTextColor(getColor(expired ? R.color.text_secondary : R.color.text_primary));
         priceView.setTextSize(14);
         priceView.setSingleLine(true);
         priceView.setPadding(dp(6), 0, 0, 0);
@@ -457,7 +465,7 @@ public class MainActivity extends AlertouActivity {
 
         TextView timeView = new TextView(this);
         timeView.setText(time);
-        timeView.setTextColor(getColor(R.color.action));
+        timeView.setTextColor(getColor(expired ? R.color.text_secondary : R.color.action));
         timeView.setTextSize(11.5f);
         timeView.setSingleLine(true);
         metaLine.addView(timeView);
@@ -471,6 +479,14 @@ public class MainActivity extends AlertouActivity {
         sourceView.setPadding(dp(4), 0, 0, 0);
         metaLine.addView(sourceView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         row.addView(metaLine);
+        if (expired) {
+            TextView status = new TextView(this);
+            status.setText(R.string.telegram_group_promotion_expired);
+            status.setTextColor(getColor(R.color.text_secondary));
+            status.setTextSize(11.5f);
+            status.setPadding(0, dp(2), 0, 0);
+            row.addView(status);
+        }
         return row;
     }
 
@@ -499,15 +515,17 @@ public class MainActivity extends AlertouActivity {
         return divider;
     }
 
-    private void attachSwipeActions(View row, ObservedOffer offer) {
+    private void attachSwipeActions(View row, ObservedOffer offer, boolean expired) {
         final float[] downX = new float[1];
         final float[] downY = new float[1];
+        final long[] downAt = new long[1];
         final boolean[] swiping = new boolean[1];
         row.setOnTouchListener((view, event) -> {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     downX[0] = event.getRawX();
                     downY[0] = event.getRawY();
+                    downAt[0] = event.getEventTime();
                     swiping[0] = false;
                     view.animate().cancel();
                     view.setTranslationX(0);
@@ -539,7 +557,13 @@ public class MainActivity extends AlertouActivity {
                         refreshDashboard();
                         return true;
                     }
-                    if (!swiping[0]
+                    if (!swiping[0] && Math.abs(deltaX) < dp(10) && Math.abs(deltaY) < dp(10)
+                            && expired) {
+                        showPromotionValidityDialog(offer, true);
+                    } else if (!swiping[0] && Math.abs(deltaX) < dp(10) && Math.abs(deltaY) < dp(10)
+                            && event.getEventTime() - downAt[0] >= 500L) {
+                        showPromotionValidityDialog(offer, false);
+                    } else if (!swiping[0]
                             && Math.abs(deltaX) < dp(10)
                             && Math.abs(deltaY) < dp(10)
                             && !offer.getLink().isEmpty()) {
@@ -554,6 +578,71 @@ public class MainActivity extends AlertouActivity {
                     return true;
             }
         });
+    }
+
+    private void showPromotionValidityDialog(ObservedOffer offer, boolean expired) {
+        GroupSpeedRepository speed = new GroupSpeedRepository(this);
+        GroupPromotionExpiryRepository expiry = new GroupPromotionExpiryRepository(this);
+        String product = offer.getInterest();
+        long roundStartedAt = speed.getRoundStartedAt(offer);
+        if (expired) {
+            new AlertDialog.Builder(this)
+                    .setTitle(product)
+                    .setMessage(R.string.telegram_group_promotion_expired)
+                    .setPositiveButton(R.string.telegram_group_promotion_resume_action, (dialog, which) -> {
+                        boolean resumed = expiry.resumeForOffer(OfferTextParser.normalize(product),
+                                offer.getObservedAt(), System.currentTimeMillis());
+                        refreshDashboard();
+                        if (resumed) {
+                            Toast.makeText(this, R.string.telegram_group_promotion_resumed,
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+            return;
+        }
+        EditText time = new EditText(this);
+        time.setInputType(InputType.TYPE_CLASS_DATETIME);
+        time.setSingleLine(true);
+        time.setHint("HH:mm");
+        time.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(offer.getObservedAt())));
+        int padding = dp(24);
+        LinearLayout content = new LinearLayout(this);
+        content.setPadding(padding, 0, padding, 0);
+        content.addView(time, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        new AlertDialog.Builder(this)
+                .setTitle(product)
+                .setMessage(R.string.telegram_group_promotion_expire_summary)
+                .setView(content)
+                .setPositiveButton(R.string.telegram_group_promotion_expire_action, (dialog, which) -> {
+                    long cutoff = timeOnSameDay(offer.getObservedAt(), time.getText().toString());
+                    if (cutoff > 0L) {
+                        expiry.markExpired(OfferTextParser.normalize(product), roundStartedAt, cutoff);
+                        refreshDashboard();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private long timeOnSameDay(long referenceAt, String value) {
+        try {
+            String[] parts = value.trim().split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+            if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return 0L;
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(referenceAt);
+            calendar.set(Calendar.HOUR_OF_DAY, hour);
+            calendar.set(Calendar.MINUTE, minute);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            return calendar.getTimeInMillis();
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     private void requestParentIntercept(View view, boolean disallow) {

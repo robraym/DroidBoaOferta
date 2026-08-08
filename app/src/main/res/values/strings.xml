@@ -317,6 +317,11 @@
     <string name="telegram_group_ranking_detail_total">%1$d pontos acumulados</string>
     <string name="telegram_group_ranking_detail_item">%1$dº a publicar · %2$d pontos</string>
     <string name="telegram_group_ranking_detail_empty">Ainda não há promoções comparáveis nesta semana.</string>
+    <string name="telegram_group_promotion_expired">Promoção encerrada</string>
+    <string name="telegram_group_promotion_resumed">Promoção reativada</string>
+    <string name="telegram_group_promotion_expire_action">Marcar como encerrada</string>
+    <string name="telegram_group_promotion_resume_action">Voltar a avaliar</string>
+    <string name="telegram_group_promotion_expire_summary">Publicações após este horário deixam de pontuar.</string>
     <string name="telegram_group_history_title">Histórico semanal</string>
     <string name="telegram_group_history_awards">★ Campeão: %1$dx · Top 3: %2$dx</string>
     <string name="icon_percent" translatable="false">%</string>
