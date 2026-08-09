@@ -46,6 +46,11 @@ final class OfferTextParser {
             "(?i)R\\$\\s*" + PRICE_VALUE
     );
     private static final Pattern LINK = Pattern.compile("https?://[^\\s<>]+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PRODUCT_SECTION_START = Pattern.compile(
+            "(?im)(?:^|\\R)\\s*[^\\p{L}\\p{N}\\r\\n]{0,4}\\s*"
+                    + "(?:smartphone|celular|telefone|notebook|laptop|tablet|televisor|tv|"
+                    + "monitor|console|headphone|fone|rel[oó]gio|smartwatch)\\b"
+    );
 
     private OfferTextParser() {
     }
@@ -90,6 +95,14 @@ final class OfferTextParser {
         PriceCandidate best = null;
         long bestScore = Long.MAX_VALUE;
         for (PriceCandidate candidate : candidates) {
+            if (startsDifferentProductBeforePrice(
+                    text,
+                    interest,
+                    interestOffset,
+                    candidate.offset
+            )) {
+                continue;
+            }
             long score = Math.abs((long) candidate.offset - interestOffset)
                     + candidate.priority * 8L;
             if (candidate.offset >= interestOffset) {
@@ -101,6 +114,24 @@ final class OfferTextParser {
             }
         }
         return best == null ? Double.NaN : best.price;
+    }
+
+    private static boolean startsDifferentProductBeforePrice(String text, String interest,
+                                                              int interestOffset,
+                                                              int priceOffset) {
+        if (priceOffset <= interestOffset || interest == null) {
+            return false;
+        }
+        int interestEnd = Math.min(text.length(), interestOffset + interest.length());
+        String between = text.substring(interestEnd, priceOffset);
+        Matcher sectionMatcher = PRODUCT_SECTION_START.matcher(between);
+        if (!sectionMatcher.find()) {
+            return false;
+        }
+        String productSection = between.substring(sectionMatcher.start());
+        String normalizedInterest = normalize(interest);
+        return !normalizedInterest.isEmpty()
+                && !normalize(productSection).contains(normalizedInterest);
     }
 
     static String extractLink(String text) {
@@ -188,10 +219,36 @@ final class OfferTextParser {
         if (interestStart < 0) {
             return false;
         }
+        if (isMentionedOnlyAsNumberedVariant(normalizedMessage.trim(), normalizedInterest)) {
+            return false;
+        }
         if (containsAccessoryTerm(normalizedInterest)) {
             return true;
         }
         return !looksLikeAccessoryOffer(normalizedMessage.trim(), normalizedInterest);
+    }
+
+    private static boolean isMentionedOnlyAsNumberedVariant(String message, String interest) {
+        String paddedMessage = " " + message + " ";
+        String mention = " " + interest + " ";
+        int searchFrom = 0;
+        boolean foundNumberedVariant = false;
+        while (true) {
+            int mentionStart = paddedMessage.indexOf(mention, searchFrom);
+            if (mentionStart < 0) {
+                return foundNumberedVariant;
+            }
+            int suffixStart = mentionStart + mention.length();
+            int suffixEnd = paddedMessage.indexOf(' ', suffixStart);
+            String suffix = suffixEnd < 0
+                    ? paddedMessage.substring(suffixStart).trim()
+                    : paddedMessage.substring(suffixStart, suffixEnd).trim();
+            if (!suffix.matches("[2-9]")) {
+                return false;
+            }
+            foundNumberedVariant = true;
+            searchFrom = suffixEnd < 0 ? paddedMessage.length() : suffixEnd;
+        }
     }
 
     static boolean isPlausiblePriceForInterest(double price, String interest) {

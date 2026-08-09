@@ -155,6 +155,33 @@ public class OfferTextParserTest {
     }
 
     @Test
+    public void rejectsModelMentionedOnlyInEditorialHeadlineBeforeAnotherProduct() {
+        String text = "Câmera melhor que iPhone 17 Pro Max e S26 Ultra segundo DXOmark\n\n"
+                + "➡️ Smartphone HUAWEI Pura 80 Pro 12GB+512GB\n"
+                + "Câmera Ultra-iluminação de 1 Polegada Câmera Teleobjetiva Macro "
+                + "Ultra-iluminação Cancelamento de Ruído por IA 5.17 Ah "
+                + "Dual SuperCharge Celular Vermelho\n\n"
+                + "✅ R$ 3.699 10X SEM JUROS\n"
+                + "Cupom: OFERTA8D08";
+
+        assertTrue(Double.isNaN(OfferTextParser.extractPriceForInterest(text, "S26 Ultra")));
+        assertTrue(Double.isNaN(OfferTextParser.extractPriceForInterest(text, "iPhone 17")));
+    }
+
+    @Test
+    public void acceptsRepeatedInterestInsideNewProductSection() {
+        String text = "S26 Ultra ganha destaque em teste de câmera\n\n"
+                + "➡️ Smartphone Samsung Galaxy S26 Ultra 512GB\n"
+                + "Por R$ 6.999,00";
+
+        assertEquals(
+                6999.00,
+                OfferTextParser.extractPriceForInterest(text, "S26 Ultra"),
+                0.001
+        );
+    }
+
+    @Test
     public void rejectsExtremeLowOutlierFromPriceSuggestion() {
         double price = OfferTextParser.selectPlausibleLowest(Arrays.asList(9.0, 799.0, 849.0));
         assertEquals(799.00, price, 0.001);
@@ -209,6 +236,21 @@ public class OfferTextParserTest {
                 "Galaxy Watch Ultra LTE com pulseira extra por R$ 2.999,00",
                 "Galaxy Watch Ultra"
         ));
+    }
+
+    @Test
+    public void doesNotMatchBaseModelInsideNumberedSuccessor() {
+        String text = "HUAWEI FreeClip 2 por R$ 999,00";
+
+        assertTrue(!OfferTextParser.matchesInterest(text, "FreeClip"));
+        assertTrue(OfferTextParser.matchesInterest(text, "FreeClip 2"));
+    }
+
+    @Test
+    public void stillMatchesBaseModelWhenItIsMentionedSeparately() {
+        String text = "FreeClip por R$ 799,00. Também disponível o FreeClip 2.";
+
+        assertTrue(OfferTextParser.matchesInterest(text, "FreeClip"));
     }
 
     @Test

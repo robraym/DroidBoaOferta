@@ -208,7 +208,7 @@ final class GroupSpeedRepository {
         for (Event event : race) if (event.chatId == targetChatId) { targetEvent = event; break; }
         if (targetEvent == null) return;
         boolean expired = expiryRepository.isExpiredAt(targetEvent.signature, roundStartedAt, targetEvent.observedAt);
-        if (expired || arrivals.size() < 2) {
+        if (expired) {
             details.add(new RankingDetail(targetEvent.signature, targetEvent.observedAt,
                     roundStartedAt, 0, 0, expired));
             return;
@@ -236,9 +236,6 @@ final class GroupSpeedRepository {
                     && seenGroups.add(event.chatId)) {
                 arrivals.add(event);
             }
-        }
-        if (arrivals.size() < 2) {
-            return;
         }
         for (int index = 0; index < arrivals.size(); index++) {
             Ranking item = ranking.get(arrivals.get(index).chatId);

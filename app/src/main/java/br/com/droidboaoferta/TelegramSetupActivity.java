@@ -15,8 +15,11 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.Gravity;
@@ -816,7 +819,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             scoreParams.topMargin = dp(2);
             labels.addView(score, scoreParams);
             if (expandedGroupRankingIds.contains(group.getId())) {
-                labels.addView(createGroupRankingTree(group, groupAwards));
+                labels.addView(createExpandedGroupDetails(group, groupAwards));
             }
             row.addView(labels, labelParams);
             groupsContainer.addView(row, new LinearLayout.LayoutParams(
@@ -897,60 +900,90 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         updateGroupsCountSummary();
     }
 
-    private LinearLayout createGroupRankingTree(TelegramGroup group,
-                                                GroupWeeklyHistoryRepository.Awards awards) {
+    private LinearLayout createExpandedGroupDetails(TelegramGroup group,
+                                                    GroupWeeklyHistoryRepository.Awards awards) {
         List<GroupSpeedRepository.RankingDetail> details = new GroupSpeedRepository(this)
                 .getDetails(availableGroups, selectedGroupIds, group.getId());
-        LinearLayout tree = new LinearLayout(this);
-        tree.setOrientation(LinearLayout.VERTICAL);
-        tree.setPadding(dp(4), dp(8), 0, dp(4));
-
-        TextView root = new TextView(this);
-        root.setText("└─ " + getString(R.string.telegram_group_ranking_detail_title));
-        root.setTextColor(getColor(R.color.text_secondary));
-        root.setTextSize(13);
-        tree.addView(root);
+        LinearLayout detailsContainer = new LinearLayout(this);
+        detailsContainer.setOrientation(LinearLayout.VERTICAL);
+        detailsContainer.setPadding(0, dp(6), 0, dp(4));
+        boolean hasHistory = awards != null && awards.getTopThree() > 0;
 
         for (int index = 0; index < details.size(); index++) {
             GroupSpeedRepository.RankingDetail detail = details.get(index);
-            boolean last = index == details.size() - 1;
             TextView product = new TextView(this);
-            product.setText("   " + (last ? "└─ " : "├─ ")
-                    + formatProductName(detail.getProduct()));
-            product.setTextColor(getColor(detail.isExpired() ? R.color.text_secondary : R.color.text_primary));
+            setTreeLine(
+                    product,
+                    "├─ ",
+                    formatProductName(detail.getProduct()),
+                    getColor(detail.isExpired() ? R.color.text_secondary : R.color.text_primary)
+            );
             product.setTextSize(13);
             LinearLayout.LayoutParams productParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            productParams.topMargin = dp(6);
-            tree.addView(product, productParams);
+            productParams.topMargin = index == 0 ? dp(2) : dp(8);
+            detailsContainer.addView(product, productParams);
 
             TextView points = new TextView(this);
-            points.setText("      " + (last ? "   " : "│  ") + "└─ " + (detail.isExpired()
-                    ? getString(R.string.telegram_group_promotion_expired)
-                    : getString(R.string.telegram_group_ranking_detail_item,
-                    detail.getPosition(), detail.getPoints())));
-            points.setTextColor(getColor(detail.isExpired() ? R.color.text_secondary : R.color.action));
+            String day = OfferDateFormatter.formatGroupLabel(this, detail.getObservedAt());
+            String time = OfferDateFormatter.formatTime(detail.getObservedAt());
+            String detailText = detail.isExpired()
+                    ? getString(R.string.telegram_group_promotion_expired) + " · " + day + " " + time
+                    : getString(R.string.telegram_group_ranking_tree_item,
+                    detail.getPosition(), day, time, detail.getPoints());
+            setTreeLine(
+                    points,
+                    "   └─ ",
+                    detailText,
+                    getColor(detail.isExpired() ? R.color.text_secondary : R.color.action)
+            );
             points.setTextSize(12);
-            tree.addView(points);
+            points.setSingleLine(true);
+            detailsContainer.addView(points);
         }
-        if (awards != null && awards.getTopThree() > 0) {
+        if (hasHistory) {
             TextView history = new TextView(this);
-            history.setText("└─ " + getString(R.string.telegram_group_history_title));
-            history.setTextColor(getColor(R.color.text_secondary));
+            setTreeLine(
+                    history,
+                    "└─ ",
+                    getString(R.string.telegram_group_history_title),
+                    getColor(R.color.text_secondary)
+            );
             history.setTextSize(13);
             LinearLayout.LayoutParams historyParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             historyParams.topMargin = dp(8);
-            tree.addView(history, historyParams);
+            detailsContainer.addView(history, historyParams);
 
             TextView awardsText = new TextView(this);
-            awardsText.setText("   └─ " + getString(R.string.telegram_group_history_awards,
-                    awards.getChampionships(), awards.getTopThree()));
-            awardsText.setTextColor(getColor(R.color.action));
+            setTreeLine(
+                    awardsText,
+                    "   └─ ",
+                    getString(R.string.telegram_group_history_awards,
+                            awards.getChampionships(), awards.getTopThree()),
+                    getColor(R.color.action)
+            );
             awardsText.setTextSize(12);
-            tree.addView(awardsText);
+            detailsContainer.addView(awardsText);
         }
-        return tree;
+        return detailsContainer;
+    }
+
+    private void setTreeLine(TextView view, String connector, String text, int textColor) {
+        SpannableString line = new SpannableString(connector + text);
+        line.setSpan(
+                new ForegroundColorSpan(getColor(R.color.text_secondary)),
+                0,
+                connector.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        line.setSpan(
+                new ForegroundColorSpan(textColor),
+                connector.length(),
+                line.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        view.setText(line);
     }
 
     private void showGroupRankingDetails(TelegramGroup group,
@@ -990,7 +1023,10 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
 
                 TextView branch = new TextView(this);
                 branch.setText("↳ " + getString(R.string.telegram_group_ranking_detail_item,
-                        detail.getPosition(), detail.getPoints()));
+                        detail.getPosition(),
+                        OfferDateFormatter.formatGroupLabel(this, detail.getObservedAt()),
+                        OfferDateFormatter.formatTime(detail.getObservedAt()),
+                        detail.getPoints()));
                 branch.setTextColor(getColor(R.color.text_secondary));
                 branch.setTextSize(13);
                 LinearLayout.LayoutParams branchParams = new LinearLayout.LayoutParams(

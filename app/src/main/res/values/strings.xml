@@ -315,7 +315,8 @@
     <string name="telegram_group_summary">%1$s · %2$s</string>
     <string name="telegram_group_ranking_detail_title">Desempenho da semana</string>
     <string name="telegram_group_ranking_detail_total">%1$d pontos acumulados</string>
-    <string name="telegram_group_ranking_detail_item">%1$dº a publicar · %2$d pontos</string>
+    <string name="telegram_group_ranking_detail_item">%1$dº a publicar · %2$s %3$s · %4$d pontos</string>
+    <string name="telegram_group_ranking_tree_item">%1$dº a publicar · %2$s %3$s · %4$d pts</string>
     <string name="telegram_group_ranking_detail_empty">Ainda não há promoções comparáveis nesta semana.</string>
     <string name="telegram_group_promotion_expired">Promoção encerrada</string>
     <string name="telegram_group_promotion_resumed">Promoção reativada</string>
