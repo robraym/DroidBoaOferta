@@ -49,8 +49,9 @@ final class GroupQualityRepository {
     }
 
     synchronized void recordApprovedOffer(long chatId, long messageId, long observedAt) {
-        record(KEY_APPROVED, new Event(chatId + ":" + messageId, chatId, observedAt));
-        CloudSyncStore.markLocalChanged(appContext);
+        if (record(KEY_APPROVED, new Event(chatId + ":" + messageId, chatId, observedAt))) {
+            CloudSyncStore.markRankingChanged(appContext);
+        }
     }
 
     synchronized void seedApprovedOffers(List<ObservedOffer> offers, List<TelegramGroup> groups,
@@ -100,13 +101,15 @@ final class GroupQualityRepository {
         return result;
     }
 
-    private void record(String key, Event event) {
+    private boolean record(String key, Event event) {
         long now = System.currentTimeMillis();
         if (!preferences.contains(KEY_STARTED_AT)) {
             preferences.edit().putLong(KEY_STARTED_AT, now).apply();
         }
         List<Event> events = read(key);
-        events.removeIf(item -> item.id.equals(event.id));
+        for (Event item : events) {
+            if (item.id.equals(event.id)) return false;
+        }
         events.add(event);
         long oldest = now - WINDOW_MS;
         events.removeIf(item -> item.observedAt < oldest);
@@ -114,6 +117,7 @@ final class GroupQualityRepository {
             events = new ArrayList<>(events.subList(events.size() - MAX_EVENTS, events.size()));
         }
         save(key, events);
+        return true;
     }
 
     private List<Event> read(String key) {

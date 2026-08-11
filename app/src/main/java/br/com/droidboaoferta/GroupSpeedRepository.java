@@ -58,9 +58,12 @@ final class GroupSpeedRepository {
     private void record(long chatId, String title, String interest, long interestId, double price,
                         long observedAt, String link) {
         List<Event> events = readEvents();
-        String eventId = chatId + ":" + interestId + ":" + observedAt + ":" + link;
-        events.removeIf(event -> event.id.equals(eventId));
-        events.add(new Event(eventId, chatId, title, signature(interest, price, link), observedAt));
+        String product = signature(interest, price, link);
+        String eventId = chatId + ":" + product + ":" + observedAt;
+        for (Event event : events) {
+            if (event.id.equals(eventId)) return;
+        }
+        events.add(new Event(eventId, chatId, title, product, observedAt));
         long oldest = System.currentTimeMillis() - WINDOW_MS;
         events.removeIf(event -> event.observedAt < oldest);
         events.sort(Comparator.comparingLong((Event event) -> event.observedAt).reversed());
@@ -68,7 +71,7 @@ final class GroupSpeedRepository {
             events = new ArrayList<>(events.subList(0, MAX_EVENTS));
         }
         saveEvents(events);
-        CloudSyncStore.markLocalChanged(appContext);
+        CloudSyncStore.markRankingChanged(appContext);
     }
 
     synchronized List<Ranking> getRanking(List<TelegramGroup> groups, Set<String> selectedIds) {

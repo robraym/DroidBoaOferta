@@ -77,8 +77,9 @@ final class TelegramClientManager {
     }
 
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
-    private static final long CLOUD_BACKUP_DEBOUNCE_MS = 500L;
-    private static final long CLOUD_BACKUP_MIN_INTERVAL_MS = 5_000L;
+    // A burst of offers is kept local and coalesced into one small backup.
+    private static final long CLOUD_BACKUP_DEBOUNCE_MS = 15_000L;
+    private static final long CLOUD_BACKUP_MIN_INTERVAL_MS = 60_000L;
     private static final long CLOUD_BACKUP_PART_DELAY_MS = 1_200L;
     private static final long CLOUD_BACKUP_PART_TIMEOUT_MS = 30_000L;
     private static final long CLOUD_PULL_DEBOUNCE_MS = 1500L;
@@ -373,7 +374,8 @@ final class TelegramClientManager {
             requestSelfChat();
             return;
         }
-        scheduleCloudBackup();
+        // Always merge the newest shared state before a device is allowed to publish.
+        scheduleCloudPull();
     }
 
     void refreshCloudBackupSoon() {
@@ -1759,9 +1761,14 @@ final class TelegramClientManager {
                 sendCloudBackup();
             }
         }, Math.max(
-                CLOUD_BACKUP_DEBOUNCE_MS,
+                CLOUD_BACKUP_DEBOUNCE_MS + deviceBackupJitterMs(),
                 Math.max(retryDelay, minimumIntervalDelay)
         ));
+    }
+
+    private long deviceBackupJitterMs() {
+        String fingerprint = Build.FINGERPRINT == null ? "" : Build.FINGERPRINT;
+        return Math.floorMod(fingerprint.hashCode(), 20_000);
     }
 
     private void sendAuthenticationValue(String type, String key, String value) {
