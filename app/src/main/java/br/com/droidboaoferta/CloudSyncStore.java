@@ -12,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -27,6 +28,7 @@ final class CloudSyncStore {
     private static final String SYNC_PREFS = "cloud_sync_preferences";
     private static final String LAST_LOCAL_CHANGE = "last_local_change";
     private static final String PENDING_PUSH = "pending_push";
+    private static final String PENDING_STARTED_AT = "pending_started_at";
     private static final String BACKUP_MESSAGE_ID = "backup_message_id";
     private static final String LAST_BACKUP_AT = "last_confirmed_backup_at";
     private static final String LAST_BACKED_UP_CHANGE = "last_backed_up_change";
@@ -56,6 +58,21 @@ final class CloudSyncStore {
     private static final String THEME_MODE = "theme_mode";
     private static final String ACCENT_COLOR = "accent_color";
     private static final String ALERT_SOUND = "alert_sound";
+    private static final String GROUP_SPEED_PREFS = "group_speed_preferences";
+    private static final String GROUP_QUALITY_PREFS = "group_quality_preferences";
+    private static final String GROUP_WEEKLY_PREFS = "group_weekly_history";
+    private static final String GROUP_EXPIRY_PREFS = "group_promotion_expiry";
+    private static final String KEY_RANKING_SPEED_EVENTS = "ranking_speed_events";
+    private static final String KEY_RANKING_QUALITY_MESSAGES = "ranking_quality_messages";
+    private static final String KEY_RANKING_QUALITY_APPROVED = "ranking_quality_approved";
+    private static final String KEY_RANKING_QUALITY_STARTED_AT = "ranking_quality_started_at";
+    private static final String KEY_RANKING_QUALITY_HISTORY_REQUESTED = "ranking_quality_history_requested";
+    private static final String KEY_RANKING_WEEKS = "ranking_weeks";
+    private static final String KEY_RANKING_WEEK_STARTED_AT = "ranking_week_started_at";
+    private static final String KEY_RANKING_EXPIRY_RULES = "ranking_expiry_rules";
+    private static final String KEY_RANKING_SYNC_MIGRATED = "ranking_sync_migrated";
+    private static final String KEY_RANKING_SYNC_FORMAT = "ranking_sync_format";
+    private static final int RANKING_SYNC_FORMAT = 2;
 
     private CloudSyncStore() {
     }
@@ -65,6 +82,7 @@ final class CloudSyncStore {
             return;
         }
         SharedPreferences preferences = syncPrefs(context);
+        boolean wasPending = preferences.getBoolean(PENDING_PUSH, false);
         long changedAt = Math.max(
                 System.currentTimeMillis(),
                 preferences.getLong(LAST_LOCAL_CHANGE, 0L) + 1L
@@ -72,6 +90,8 @@ final class CloudSyncStore {
         preferences.edit()
                 .putLong(LAST_LOCAL_CHANGE, changedAt)
                 .putBoolean(PENDING_PUSH, true)
+                .putLong(PENDING_STARTED_AT, wasPending
+                        ? preferences.getLong(PENDING_STARTED_AT, changedAt) : changedAt)
                 .apply();
         TelegramClientManager.getInstance().syncCloudBackupSoon();
     }
@@ -80,10 +100,34 @@ final class CloudSyncStore {
         if (context == null) {
             return;
         }
-        syncPrefs(context).edit()
-                .putLong(LAST_LOCAL_CHANGE, System.currentTimeMillis())
+        SharedPreferences preferences = syncPrefs(context);
+        long now = System.currentTimeMillis();
+        boolean wasPending = preferences.getBoolean(PENDING_PUSH, false);
+        preferences.edit()
+                .putLong(LAST_LOCAL_CHANGE, now)
                 .putBoolean(PENDING_PUSH, true)
+                .putLong(PENDING_STARTED_AT, wasPending
+                        ? preferences.getLong(PENDING_STARTED_AT, now) : now)
                 .apply();
+    }
+
+    static void ensureRankingHistorySync(Context context) {
+        if (context == null) return;
+        Context appContext = context.getApplicationContext();
+        SharedPreferences sync = syncPrefs(appContext);
+        if (sync.getBoolean(KEY_RANKING_SYNC_MIGRATED, false)
+                && sync.getInt(KEY_RANKING_SYNC_FORMAT, 0) >= RANKING_SYNC_FORMAT) return;
+        SharedPreferences speed = appContext.getSharedPreferences(GROUP_SPEED_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences quality = appContext.getSharedPreferences(GROUP_QUALITY_PREFS, Context.MODE_PRIVATE);
+        if (speed.getString("promotion_events", "[]").length() <= 2
+                && quality.getString("approved", "[]").length() <= 2) {
+            sync.edit().putBoolean(KEY_RANKING_SYNC_MIGRATED, true)
+                    .putInt(KEY_RANKING_SYNC_FORMAT, RANKING_SYNC_FORMAT).apply();
+            return;
+        }
+        sync.edit().putBoolean(KEY_RANKING_SYNC_MIGRATED, true)
+                .putInt(KEY_RANKING_SYNC_FORMAT, RANKING_SYNC_FORMAT).apply();
+        markLocalChanged(appContext);
     }
 
     static void rememberInterestChanged(Context context, long interestId, long changedAt) {
@@ -230,6 +274,8 @@ final class CloudSyncStore {
         boolean newerChangePending = getLastLocalChange(context) > backedUpChange;
         syncPrefs(context).edit()
                 .putBoolean(PENDING_PUSH, newerChangePending)
+                .putLong(PENDING_STARTED_AT, newerChangePending
+                        ? syncPrefs(context).getLong(PENDING_STARTED_AT, now) : 0L)
                 .putBoolean(COMPACT_BACKUP_MIGRATED, true)
                 .putLong(LAST_BACKUP_AT, now)
                 .putLong(LAST_BACKED_UP_CHANGE, backedUpChange)
@@ -248,6 +294,12 @@ final class CloudSyncStore {
 
     static long getLastBackupAt(Context context) {
         return syncPrefs(context).getLong(LAST_BACKUP_AT, 0L);
+    }
+
+    static long getPendingStartedAt(Context context) {
+        SharedPreferences preferences = syncPrefs(context);
+        long startedAt = preferences.getLong(PENDING_STARTED_AT, 0L);
+        return startedAt > 0L ? startedAt : preferences.getLong(LAST_LOCAL_CHANGE, 0L);
     }
 
     static long getLastRemoteBackupAt(Context context) {
@@ -291,6 +343,10 @@ final class CloudSyncStore {
         SharedPreferences telegram = appContext.getSharedPreferences(TELEGRAM_PREFS, Context.MODE_PRIVATE);
         SharedPreferences offers = appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE);
         SharedPreferences app = appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences speed = appContext.getSharedPreferences(GROUP_SPEED_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences quality = appContext.getSharedPreferences(GROUP_QUALITY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences weekly = appContext.getSharedPreferences(GROUP_WEEKLY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences expiry = appContext.getSharedPreferences(GROUP_EXPIRY_PREFS, Context.MODE_PRIVATE);
 
         JSONObject backup = new JSONObject();
         JSONObject data = new JSONObject();
@@ -330,8 +386,15 @@ final class CloudSyncStore {
             String backupAlertSound = AlertSoundController.getBackupSound(appContext);
             data.put(ALERT_SOUND, backupAlertSound);
             data.put(KEY_ALERT_SOUND_UPDATED_AT, ensureAlertSoundUpdatedAt(appContext, updatedAt));
+            data.put(KEY_RANKING_SPEED_EVENTS, speed.getString("promotion_events", "[]"));
+            data.put(KEY_RANKING_QUALITY_APPROVED, quality.getString("approved", "[]"));
+            data.put(KEY_RANKING_QUALITY_STARTED_AT, quality.getLong("started_at", 0L));
+            data.put(KEY_RANKING_QUALITY_HISTORY_REQUESTED, quality.getBoolean("history_requested", false));
+            data.put(KEY_RANKING_WEEKS, weekly.getString("weeks", "[]"));
+            data.put(KEY_RANKING_WEEK_STARTED_AT, weekly.getLong("week_started_at", 0L));
+            data.put(KEY_RANKING_EXPIRY_RULES, expiry.getString("rules", "{}"));
 
-            backup.put("version", 2);
+            backup.put("version", 3);
             backup.put("complete", true);
             backup.put("updated_at", updatedAt);
             backup.put("data", data);
@@ -574,6 +637,8 @@ final class CloudSyncStore {
             AlertSoundController.applyImportedSound(appContext, remoteAlertSound);
         }
 
+        importRankingHistory(appContext, data, remoteUpdatedAt, localUpdatedAt);
+
         boolean shouldPushMergedBackup = hasPendingPush(appContext) || localUpdatedAt > remoteUpdatedAt;
         syncPrefs(appContext).edit()
                 .putLong(LAST_LOCAL_CHANGE, Math.max(localUpdatedAt, remoteUpdatedAt))
@@ -588,6 +653,8 @@ final class CloudSyncStore {
                 .putLong(KEY_RECENT_UPDATED_AT, Math.max(localRecentUpdatedAt, remoteRecentUpdatedAt))
                 .putLong(KEY_ARCHIVED_UPDATED_AT, Math.max(localArchivedUpdatedAt, remoteArchivedUpdatedAt))
                 .putLong(KEY_TRASH_UPDATED_AT, Math.max(localTrashUpdatedAt, remoteTrashUpdatedAt))
+                .putBoolean(KEY_RANKING_SYNC_MIGRATED, true)
+                .putInt(KEY_RANKING_SYNC_FORMAT, RANKING_SYNC_FORMAT)
                 .putLong(KEY_MONITOR_UPDATED_AT, Math.max(localMonitorUpdatedAt, remoteMonitorUpdatedAt))
                 .apply();
         return true;
@@ -954,6 +1021,82 @@ final class CloudSyncStore {
             preferences.edit().putLong(key, updatedAt).apply();
         }
         return updatedAt;
+    }
+
+    private static void importRankingHistory(Context context, JSONObject data, long remoteUpdatedAt,
+                                             long localUpdatedAt) {
+        if (!data.has(KEY_RANKING_SPEED_EVENTS)) return;
+        SharedPreferences speed = context.getSharedPreferences(GROUP_SPEED_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences quality = context.getSharedPreferences(GROUP_QUALITY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences weekly = context.getSharedPreferences(GROUP_WEEKLY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences expiry = context.getSharedPreferences(GROUP_EXPIRY_PREFS, Context.MODE_PRIVATE);
+
+        speed.edit().putString("promotion_events", mergeEvents(
+                speed.getString("promotion_events", "[]"),
+                data.optString(KEY_RANKING_SPEED_EVENTS, "[]"), 800)).apply();
+        quality.edit()
+                .putString("approved", mergeEvents(quality.getString("approved", "[]"),
+                        data.optString(KEY_RANKING_QUALITY_APPROVED, "[]"), 3000))
+                .putLong("started_at", earliestNonZero(quality.getLong("started_at", 0L),
+                        data.optLong(KEY_RANKING_QUALITY_STARTED_AT, 0L)))
+                .putBoolean("history_requested", quality.getBoolean("history_requested", false)
+                        || data.optBoolean(KEY_RANKING_QUALITY_HISTORY_REQUESTED, false))
+                .apply();
+        weekly.edit()
+                .putString("weeks", mergeWeeks(weekly.getString("weeks", "[]"),
+                        data.optString(KEY_RANKING_WEEKS, "[]")))
+                .putLong("week_started_at", earliestNonZero(weekly.getLong("week_started_at", 0L),
+                        data.optLong(KEY_RANKING_WEEK_STARTED_AT, 0L)))
+                .apply();
+        if (remoteUpdatedAt >= localUpdatedAt) {
+            expiry.edit().putString("rules", data.optString(KEY_RANKING_EXPIRY_RULES, "{}")).apply();
+        }
+    }
+
+    private static String mergeEvents(String localText, String remoteText, int max) {
+        Map<String, JSONObject> events = new HashMap<>();
+        for (JSONArray source : new JSONArray[]{readArray(localText), readArray(remoteText)}) {
+            for (int index = 0; index < source.length(); index++) {
+                JSONObject event = source.optJSONObject(index);
+                if (event == null) continue;
+                String id = event.optString("id", "");
+                if (!id.isEmpty()) events.put(id, event);
+            }
+        }
+        List<JSONObject> ordered = new ArrayList<>(events.values());
+        ordered.sort(Comparator.comparingLong(item -> item.optLong("observed_at", 0L)));
+        JSONArray result = new JSONArray();
+        int start = Math.max(0, ordered.size() - max);
+        for (int index = start; index < ordered.size(); index++) result.put(ordered.get(index));
+        return result.toString();
+    }
+
+    private static String mergeWeeks(String localText, String remoteText) {
+        Map<Long, JSONObject> weeks = new HashMap<>();
+        for (JSONArray source : new JSONArray[]{readArray(localText), readArray(remoteText)}) {
+            for (int index = 0; index < source.length(); index++) {
+                JSONObject week = source.optJSONObject(index);
+                if (week == null) continue;
+                long startedAt = week.optLong("started_at", 0L);
+                JSONObject previous = weeks.get(startedAt);
+                int size = week.optJSONArray("standings") == null ? 0 : week.optJSONArray("standings").length();
+                int previousSize = previous == null || previous.optJSONArray("standings") == null ? 0
+                        : previous.optJSONArray("standings").length();
+                if (previous == null || size > previousSize) weeks.put(startedAt, week);
+            }
+        }
+        List<JSONObject> ordered = new ArrayList<>(weeks.values());
+        ordered.sort(Comparator.comparingLong(item -> item.optLong("started_at", 0L)));
+        JSONArray result = new JSONArray();
+        int start = Math.max(0, ordered.size() - 24);
+        for (int index = start; index < ordered.size(); index++) result.put(ordered.get(index));
+        return result.toString();
+    }
+
+    private static long earliestNonZero(long first, long second) {
+        if (first <= 0L) return second;
+        if (second <= 0L) return first;
+        return Math.min(first, second);
     }
 
     private static boolean hasUsefulData(Context context) {

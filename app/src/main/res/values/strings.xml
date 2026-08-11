@@ -191,6 +191,7 @@
     <string name="profile_sync_title">Sincronização</string>
     <string name="profile_sync_waiting">Ativa com sua conta Telegram.</string>
     <string name="profile_sync_pending">Sincronizando alterações...</string>
+    <string name="profile_sync_pending_format">Sincronizando · %1$s</string>
     <string name="profile_sync_last_format">Feita em %1$s</string>
     <string name="navigation_animation_title">Animação entre telas</string>
     <string name="navigation_animation_dialog_title">Animação entre telas</string>

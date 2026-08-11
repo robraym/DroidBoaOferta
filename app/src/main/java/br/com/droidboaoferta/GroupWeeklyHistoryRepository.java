@@ -19,9 +19,11 @@ final class GroupWeeklyHistoryRepository {
     private static final int MAX_WEEKS = 24;
 
     private final SharedPreferences preferences;
+    private final Context appContext;
 
     GroupWeeklyHistoryRepository(Context context) {
-        preferences = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        appContext = context.getApplicationContext();
+        preferences = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     synchronized void captureCompletedWeekIfDue(List<GroupSpeedRepository.Ranking> ranking) {
@@ -60,6 +62,7 @@ final class GroupWeeklyHistoryRepository {
         }
         preferences.edit().putString(KEY_WEEKS, weeks.toString())
                 .putLong(KEY_WEEK_STARTED_AT, now).apply();
+        CloudSyncStore.markLocalChanged(appContext);
     }
 
     synchronized Map<Long, Awards> getAwards() {

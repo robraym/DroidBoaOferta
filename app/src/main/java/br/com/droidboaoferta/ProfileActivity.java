@@ -70,6 +70,13 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
             }
         }
     };
+    private final Runnable syncDurationRefresh = new Runnable() {
+        @Override
+        public void run() {
+            refreshSyncSummary();
+            syncRefreshHandler.postDelayed(this, 1_000L);
+        }
+    };
 
     private TelegramClientManager clientManager;
     private TextView avatarText;
@@ -193,6 +200,8 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         );
         syncRefreshHandler.removeCallbacks(activeSyncRefresh);
         syncRefreshHandler.postDelayed(activeSyncRefresh, ACTIVE_SYNC_REFRESH_MS);
+        syncRefreshHandler.removeCallbacks(syncDurationRefresh);
+        syncRefreshHandler.post(syncDurationRefresh);
         refreshProfile();
     }
 
@@ -205,6 +214,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     @Override
     protected void onStop() {
         syncRefreshHandler.removeCallbacks(activeSyncRefresh);
+        syncRefreshHandler.removeCallbacks(syncDurationRefresh);
         unregisterReceiver(statusReceiver);
         clientManager.clearListener(this);
         releaseAlertSoundPreview();
@@ -1728,7 +1738,12 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
             return;
         }
         if (CloudSyncStore.hasPendingPush(this)) {
-            syncSummary.setText(R.string.profile_sync_pending);
+            long startedAt = CloudSyncStore.getPendingStartedAt(this);
+            long elapsedSeconds = startedAt <= 0L ? 0L
+                    : Math.max(0L, (System.currentTimeMillis() - startedAt) / 1_000L);
+            syncSummary.setText(getString(R.string.profile_sync_pending_format,
+                    String.format(Locale.getDefault(), "%02d:%02d", elapsedSeconds / 60L,
+                            elapsedSeconds % 60L)));
             return;
         }
         long lastSyncAt = Math.max(

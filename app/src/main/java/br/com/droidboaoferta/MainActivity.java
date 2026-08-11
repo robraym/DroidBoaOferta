@@ -592,6 +592,7 @@ public class MainActivity extends AlertouActivity {
                     .setPositiveButton(R.string.telegram_group_promotion_resume_action, (dialog, which) -> {
                         boolean resumed = expiry.resumeForOffer(OfferTextParser.normalize(product),
                                 offer.getObservedAt(), System.currentTimeMillis());
+                        CloudSyncStore.markLocalChanged(this);
                         refreshDashboard();
                         if (resumed) {
                             Toast.makeText(this, R.string.telegram_group_promotion_resumed,
@@ -620,6 +621,7 @@ public class MainActivity extends AlertouActivity {
                     long cutoff = timeOnSameDay(offer.getObservedAt(), time.getText().toString());
                     if (cutoff > 0L) {
                         expiry.markExpired(OfferTextParser.normalize(product), roundStartedAt, cutoff);
+                        CloudSyncStore.markLocalChanged(this);
                         refreshDashboard();
                     }
                 })

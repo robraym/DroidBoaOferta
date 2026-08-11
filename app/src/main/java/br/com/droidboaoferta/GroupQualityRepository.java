@@ -23,9 +23,11 @@ final class GroupQualityRepository {
     private static final int MAX_EVENTS = 3000;
 
     private final SharedPreferences preferences;
+    private final Context appContext;
 
     GroupQualityRepository(Context context) {
-        preferences = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        appContext = context.getApplicationContext();
+        preferences = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     synchronized void recordMessage(long chatId, long messageId, long observedAt) {
@@ -48,6 +50,7 @@ final class GroupQualityRepository {
 
     synchronized void recordApprovedOffer(long chatId, long messageId, long observedAt) {
         record(KEY_APPROVED, new Event(chatId + ":" + messageId, chatId, observedAt));
+        CloudSyncStore.markLocalChanged(appContext);
     }
 
     synchronized void seedApprovedOffers(List<ObservedOffer> offers, List<TelegramGroup> groups,

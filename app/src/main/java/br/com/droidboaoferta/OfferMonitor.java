@@ -38,6 +38,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         TelegramClientManager clientManager = TelegramClientManager.getInstance();
         clientManager.setMessageListener(this);
         clientManager.start(appContext);
+        CloudSyncStore.ensureRankingHistorySync(appContext);
         GroupQualityRepository qualityRepository = new GroupQualityRepository(appContext);
         if (qualityRepository.prepareYesterdayHistory()) {
             clientManager.refreshQualityHistorySince(System.currentTimeMillis()

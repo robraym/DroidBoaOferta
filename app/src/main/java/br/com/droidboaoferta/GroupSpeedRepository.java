@@ -25,10 +25,12 @@ final class GroupSpeedRepository {
 
     private final SharedPreferences preferences;
     private final GroupPromotionExpiryRepository expiryRepository;
+    private final Context appContext;
 
     GroupSpeedRepository(Context context) {
-        preferences = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        expiryRepository = new GroupPromotionExpiryRepository(context);
+        appContext = context.getApplicationContext();
+        preferences = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        expiryRepository = new GroupPromotionExpiryRepository(appContext);
     }
 
     synchronized void record(long chatId, String title, Interest interest, double price,
@@ -66,6 +68,7 @@ final class GroupSpeedRepository {
             events = new ArrayList<>(events.subList(0, MAX_EVENTS));
         }
         saveEvents(events);
+        CloudSyncStore.markLocalChanged(appContext);
     }
 
     synchronized List<Ranking> getRanking(List<TelegramGroup> groups, Set<String> selectedIds) {

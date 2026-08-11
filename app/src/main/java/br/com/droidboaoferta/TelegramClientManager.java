@@ -79,7 +79,7 @@ final class TelegramClientManager {
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
     private static final long CLOUD_BACKUP_DEBOUNCE_MS = 500L;
     private static final long CLOUD_BACKUP_MIN_INTERVAL_MS = 5_000L;
-    private static final long CLOUD_BACKUP_PART_DELAY_MS = 350L;
+    private static final long CLOUD_BACKUP_PART_DELAY_MS = 1_200L;
     private static final long CLOUD_BACKUP_PART_TIMEOUT_MS = 30_000L;
     private static final long CLOUD_PULL_DEBOUNCE_MS = 1500L;
     private static final long CLOUD_PULL_TIMEOUT_MS = 45_000L;
