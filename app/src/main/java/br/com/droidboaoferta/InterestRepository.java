@@ -38,6 +38,7 @@ final class InterestRepository {
         } catch (Exception ignored) {
             return Collections.emptyList();
         }
+        interests.sort((first, second) -> Long.compare(second.getId(), first.getId()));
         return interests;
     }
 
@@ -45,7 +46,7 @@ final class InterestRepository {
         List<Interest> interests = new ArrayList<>(getAll());
         long now = System.currentTimeMillis();
         long id = now;
-        interests.add(new Interest(id, term.trim(), maximumPrice));
+        interests.add(0, new Interest(id, term.trim(), maximumPrice));
         CloudSyncStore.rememberInterestChanged(context, id, now);
         save(interests);
         return id;

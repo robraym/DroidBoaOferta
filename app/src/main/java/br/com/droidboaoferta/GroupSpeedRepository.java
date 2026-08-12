@@ -71,7 +71,6 @@ final class GroupSpeedRepository {
             events = new ArrayList<>(events.subList(0, MAX_EVENTS));
         }
         saveEvents(events);
-        CloudSyncStore.markRankingChanged(appContext);
     }
 
     synchronized List<Ranking> getRanking(List<TelegramGroup> groups, Set<String> selectedIds) {

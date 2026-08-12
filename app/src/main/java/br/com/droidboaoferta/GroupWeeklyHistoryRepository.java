@@ -62,7 +62,6 @@ final class GroupWeeklyHistoryRepository {
         }
         preferences.edit().putString(KEY_WEEKS, weeks.toString())
                 .putLong(KEY_WEEK_STARTED_AT, now).apply();
-        CloudSyncStore.markLocalChanged(appContext);
     }
 
     synchronized Map<Long, Awards> getAwards() {

@@ -1,19 +1,16 @@
 package br.com.droidboaoferta;
 
-import android.Manifest;
 import android.app.Dialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -45,12 +42,8 @@ import java.util.List;
 import java.util.Locale;
 
 public class ProfileActivity extends AlertouActivity implements TelegramClientManager.Listener {
-    private static final String TELEGRAM_PREFS = "telegram_preferences";
-    private static final String SELECTED_GROUPS = "selected_groups";
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
-    private static final int REQUEST_NOTIFICATIONS = 1201;
-    private static final long ACTIVE_SYNC_REFRESH_MS = 15_000L;
 
     private final BroadcastReceiver statusReceiver = new BroadcastReceiver() {
         @Override
@@ -61,15 +54,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         }
     };
     private final Handler syncRefreshHandler = new Handler(Looper.getMainLooper());
-    private final Runnable activeSyncRefresh = new Runnable() {
-        @Override
-        public void run() {
-            if (clientManager != null) {
-                clientManager.refreshCloudBackupSoon();
-                syncRefreshHandler.postDelayed(this, ACTIVE_SYNC_REFRESH_MS);
-            }
-        }
-    };
     private final Runnable syncDurationRefresh = new Runnable() {
         @Override
         public void run() {
@@ -84,16 +68,12 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     private TextView profileSummary;
     private TextView profileStatus;
     private TextView syncSummary;
-    private TextView monitorStatusTitle;
-    private TextView monitorStatusSummary;
     private TextView themeSummary;
     private TextView accentColorSummary;
     private TextView alertSoundSummary;
     private TextView navigationAnimationSummary;
     private TextView errorTitle;
     private TextView errorSummary;
-    private ImageButton monitorToggle;
-    private InterestRepository interestRepository;
     private LinearLayout accountCard;
     private LinearLayout syncRow;
     private View accountChevron;
@@ -109,21 +89,17 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         setContentView(R.layout.activity_profile);
 
         clientManager = TelegramClientManager.getInstance();
-        interestRepository = new InterestRepository(this);
         avatarText = findViewById(R.id.text_profile_avatar);
         profileName = findViewById(R.id.text_profile_name);
         profileSummary = findViewById(R.id.text_profile_summary);
         profileStatus = findViewById(R.id.text_profile_status);
         syncSummary = findViewById(R.id.text_sync_summary);
-        monitorStatusTitle = findViewById(R.id.text_monitor_status_title);
-        monitorStatusSummary = findViewById(R.id.text_monitor_status_summary);
         themeSummary = findViewById(R.id.text_theme_summary);
         accentColorSummary = findViewById(R.id.text_accent_color_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
         navigationAnimationSummary = findViewById(R.id.text_navigation_animation_summary);
         errorTitle = findViewById(R.id.text_error_title);
         errorSummary = findViewById(R.id.text_error_summary);
-        monitorToggle = findViewById(R.id.button_monitor_toggle);
         accountCard = findViewById(R.id.card_telegram_account);
         syncRow = findViewById(R.id.row_sync);
         accountChevron = findViewById(R.id.image_account_chevron);
@@ -178,7 +154,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         findViewById(R.id.row_navigation_animation).setOnClickListener(
                 view -> showNavigationAnimationDialog()
         );
-        monitorToggle.setOnClickListener(view -> toggleMonitor());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
     }
@@ -188,7 +163,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         super.onStart();
         clientManager.setListener(this);
         clientManager.start(this);
-        clientManager.refreshCloudBackupSoon();
         IntentFilter statusFilter = new IntentFilter(MonitorStatusStore.ACTION_STATUS_CHANGED);
         statusFilter.addAction(AppErrorStore.ACTION_ERRORS_CHANGED);
         statusFilter.addAction(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED);
@@ -198,8 +172,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 statusFilter,
                 ContextCompat.RECEIVER_NOT_EXPORTED
         );
-        syncRefreshHandler.removeCallbacks(activeSyncRefresh);
-        syncRefreshHandler.postDelayed(activeSyncRefresh, ACTIVE_SYNC_REFRESH_MS);
         syncRefreshHandler.removeCallbacks(syncDurationRefresh);
         syncRefreshHandler.post(syncDurationRefresh);
         refreshProfile();
@@ -213,7 +185,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
 
     @Override
     protected void onStop() {
-        syncRefreshHandler.removeCallbacks(activeSyncRefresh);
         syncRefreshHandler.removeCallbacks(syncDurationRefresh);
         unregisterReceiver(statusReceiver);
         clientManager.clearListener(this);
@@ -274,9 +245,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     }
 
     private void refreshSettingsControls() {
-        int groupCount = getSelectedGroupCount();
-        List<Interest> interests = interestRepository.getAll();
-        boolean monitorEnabled = isMonitorEnabled();
         themeSummary.setText(ThemeController.getSummaryResource(ThemeController.getSavedMode(this)));
         accentColorSummary.setText(AccentColorController.getSummaryResource(
                 this,
@@ -286,99 +254,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         navigationAnimationSummary.setText(NavigationAnimationController.getSummaryResource(
                 NavigationAnimationController.getSavedMode(this)
         ));
-
-        if (groupCount == 0) {
-            monitorStatusTitle.setText(R.string.dashboard_status_choose_groups);
-            monitorStatusSummary.setText(R.string.dashboard_status_choose_groups_summary);
-            monitorToggle.setVisibility(View.GONE);
-            stopService(new Intent(this, OfferMonitorService.class));
-        } else if (interests.isEmpty()) {
-            monitorStatusTitle.setText(R.string.dashboard_status_add_interest);
-            monitorStatusSummary.setText(R.string.dashboard_status_add_interest_summary);
-            monitorToggle.setVisibility(View.GONE);
-            stopService(new Intent(this, OfferMonitorService.class));
-        } else if (monitorEnabled) {
-            requestNotificationPermissionIfNeeded();
-            monitorStatusTitle.setText(R.string.dashboard_status_active);
-            String groupCountText = getResources().getQuantityString(
-                    R.plurals.dashboard_groups_count,
-                    groupCount,
-                    groupCount
-            );
-            String interestCountText = getResources().getQuantityString(
-                    R.plurals.dashboard_interests_count,
-                    interests.size(),
-                    interests.size()
-            );
-            ContextCompat.startForegroundService(this, new Intent(this, OfferMonitorService.class));
-            monitorStatusSummary.setText(buildActiveMonitorSummary(groupCountText, interestCountText));
-            monitorToggle.setImageResource(R.drawable.ic_pause);
-            monitorToggle.setContentDescription(getString(R.string.action_pause));
-            monitorToggle.setVisibility(View.VISIBLE);
-        } else {
-            monitorStatusTitle.setText(R.string.dashboard_status_paused);
-            monitorStatusSummary.setText(R.string.dashboard_status_paused_summary);
-            monitorToggle.setImageResource(R.drawable.ic_play);
-            monitorToggle.setContentDescription(getString(R.string.action_activate));
-            monitorToggle.setVisibility(View.VISIBLE);
-            stopService(new Intent(this, OfferMonitorService.class));
-        }
-    }
-
-    private String buildActiveMonitorSummary(String groupCountText, String interestCountText) {
-        MonitorStatusStore.Snapshot snapshot = MonitorStatusStore.read(this);
-        String configuration = getString(
-                R.string.dashboard_status_active_summary,
-                groupCountText,
-                interestCountText
-        );
-        return configuration + "\n" + getTelegramConnectionText(snapshot);
-    }
-
-    private String getTelegramConnectionText(MonitorStatusStore.Snapshot snapshot) {
-        TelegramClientManager.State state;
-        try {
-            state = TelegramClientManager.State.valueOf(snapshot.telegramState);
-        } catch (IllegalArgumentException exception) {
-            state = TelegramClientManager.State.STARTING;
-        }
-        if (state == TelegramClientManager.State.READY) {
-            long connectedAt = snapshot.telegramConnectedAt == 0L
-                    ? System.currentTimeMillis()
-                    : snapshot.telegramConnectedAt;
-            return getString(R.string.dashboard_telegram_connected_for, formatRelativeTime(connectedAt));
-        }
-        return getTelegramStateText(state);
-    }
-
-    private String formatRelativeTime(long timestamp) {
-        long elapsedMillis = Math.max(0L, System.currentTimeMillis() - timestamp);
-        long minutes = elapsedMillis / 60000L;
-        if (minutes < 1) {
-            return getString(R.string.time_now);
-        }
-        if (minutes < 60) {
-            return getResources().getQuantityString(R.plurals.time_minutes_ago, (int) minutes, (int) minutes);
-        }
-        long hours = minutes / 60L;
-        if (hours < 24) {
-            return getResources().getQuantityString(R.plurals.time_hours_ago, (int) hours, (int) hours);
-        }
-        long days = hours / 24L;
-        int safeDays = (int) Math.min(days, Integer.MAX_VALUE);
-        return getResources().getQuantityString(R.plurals.time_days_ago, safeDays, safeDays);
-    }
-
-    private void toggleMonitor() {
-        boolean enabled = !isMonitorEnabled();
-        long changedAt = System.currentTimeMillis();
-        getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
-                .edit()
-                .putBoolean(MONITOR_ENABLED, enabled)
-                .apply();
-        CloudSyncStore.rememberMonitorChanged(this, changedAt);
-        CloudSyncStore.markLocalChanged(this);
-        refreshSettingsControls();
     }
 
     private void showThemeDialog() {
@@ -1543,28 +1418,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("audio/*");
         alertSoundPickerLauncher.launch(intent);
-    }
-
-    private boolean isMonitorEnabled() {
-        return getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
-                .getBoolean(MONITOR_ENABLED, true);
-    }
-
-    private int getSelectedGroupCount() {
-        return getSharedPreferences(TELEGRAM_PREFS, MODE_PRIVATE)
-                .getStringSet(SELECTED_GROUPS, Collections.emptySet())
-                .size();
-    }
-
-    private void requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            return;
-        }
-        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                == PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
     }
 
     private String getAvatarLetter(String text) {

@@ -50,7 +50,6 @@ final class OfferRepository {
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(offers)));
         long changedAt = System.currentTimeMillis();
         CloudSyncStore.rememberRecentChanged(context, changedAt);
-        CloudSyncStore.markLocalChanged(context);
     }
 
     synchronized void clearProcessedForInterest(long interestId) {
@@ -67,7 +66,6 @@ final class OfferRepository {
             saveOffers(KEY_OFFERS, recent);
             long changedAt = System.currentTimeMillis();
             CloudSyncStore.rememberRecentChanged(context, changedAt);
-            CloudSyncStore.markLocalChanged(context);
         }
     }
 
@@ -96,7 +94,6 @@ final class OfferRepository {
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(reconciled)));
         long changedAt = System.currentTimeMillis();
         CloudSyncStore.rememberRecentChanged(context, changedAt);
-        CloudSyncStore.markLocalChanged(context);
     }
 
     synchronized void archive(String id) {
@@ -122,7 +119,6 @@ final class OfferRepository {
             long changedAt = System.currentTimeMillis();
             CloudSyncStore.rememberRecentChanged(context, changedAt);
             CloudSyncStore.rememberTrashChanged(context, changedAt);
-            CloudSyncStore.markLocalChanged(context);
         }
     }
 
@@ -141,7 +137,6 @@ final class OfferRepository {
         long changedAt = System.currentTimeMillis();
         CloudSyncStore.rememberRecentChanged(context, changedAt);
         CloudSyncStore.rememberTrashChanged(context, changedAt);
-        CloudSyncStore.markLocalChanged(context);
         return true;
     }
 
@@ -159,7 +154,6 @@ final class OfferRepository {
             long changedAt = System.currentTimeMillis();
             CloudSyncStore.rememberRecentChanged(context, changedAt);
             CloudSyncStore.rememberTrashChanged(context, changedAt);
-            CloudSyncStore.markLocalChanged(context);
         }
     }
 
@@ -178,7 +172,6 @@ final class OfferRepository {
         long changedAt = System.currentTimeMillis();
         CloudSyncStore.rememberRecentChanged(context, changedAt);
         CloudSyncStore.rememberTrashChanged(context, changedAt);
-        CloudSyncStore.markLocalChanged(context);
     }
 
     synchronized void deleteArchived(String id) {
@@ -191,14 +184,12 @@ final class OfferRepository {
     synchronized void deleteTrashed(String id) {
         if (removeOffer(id, KEY_TRASHED_OFFERS)) {
             CloudSyncStore.rememberTrashChanged(context, System.currentTimeMillis());
-            CloudSyncStore.markLocalChanged(context);
         }
     }
 
     synchronized void clearTrashed() {
         saveOffers(KEY_TRASHED_OFFERS, new ArrayList<>());
         CloudSyncStore.rememberTrashChanged(context, System.currentTimeMillis());
-        CloudSyncStore.markLocalChanged(context);
     }
 
     List<ObservedOffer> getRecent() {

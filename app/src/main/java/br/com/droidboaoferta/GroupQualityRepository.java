@@ -49,9 +49,7 @@ final class GroupQualityRepository {
     }
 
     synchronized void recordApprovedOffer(long chatId, long messageId, long observedAt) {
-        if (record(KEY_APPROVED, new Event(chatId + ":" + messageId, chatId, observedAt))) {
-            CloudSyncStore.markRankingChanged(appContext);
-        }
+        record(KEY_APPROVED, new Event(chatId + ":" + messageId, chatId, observedAt));
     }
 
     synchronized void seedApprovedOffers(List<ObservedOffer> offers, List<TelegramGroup> groups,

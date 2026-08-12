@@ -78,8 +78,8 @@ final class TelegramClientManager {
 
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
     // A burst of offers is kept local and coalesced into one small backup.
-    private static final long CLOUD_BACKUP_DEBOUNCE_MS = 15_000L;
-    private static final long CLOUD_BACKUP_MIN_INTERVAL_MS = 60_000L;
+    private static final long CLOUD_BACKUP_DEBOUNCE_MS = 2_000L;
+    private static final long CLOUD_BACKUP_MIN_INTERVAL_MS = 5_000L;
     private static final long CLOUD_BACKUP_PART_DELAY_MS = 1_200L;
     private static final long CLOUD_BACKUP_PART_TIMEOUT_MS = 30_000L;
     private static final long CLOUD_PULL_DEBOUNCE_MS = 1500L;
@@ -143,6 +143,7 @@ final class TelegramClientManager {
     private volatile int cloudBackupRetryAttempt;
     private volatile boolean pendingCloudBackupFailed;
     private volatile boolean cloudBackupChunkAwaitingResult;
+    private volatile boolean pendingCloudBackupIsRankingDelta;
     private boolean started;
     private volatile boolean receiverRunning;
     private volatile int clientId;
@@ -383,10 +384,14 @@ final class TelegramClientManager {
         if (appContext == null || state != State.READY) {
             return;
         }
+        if (!CloudSyncStore.shouldRefreshRemote(appContext)) {
+            return;
+        }
         if (selfChatId == 0L) {
             requestSelfChat();
             return;
         }
+        CloudSyncStore.rememberRemoteRefreshRequested(appContext);
         scheduleCloudPull();
     }
 
@@ -973,7 +978,7 @@ final class TelegramClientManager {
                 changeState(State.WAITING_PASSWORD);
                 break;
             case "authorizationStateReady":
-                initialCloudRestorePending = true;
+                initialCloudRestorePending = CloudSyncStore.shouldRestoreConfigurationOnConnect(appContext);
                 changeState(State.READY);
                 scheduleRuntimeStabilityReset(runtimeGeneration);
                 loadAccount();
@@ -1332,7 +1337,8 @@ final class TelegramClientManager {
         }
         boolean forcedRestore = forceCloudRestore;
         forceCloudRestore = false;
-        boolean restored = forcedRestore
+        boolean automaticConfigurationRestore = initialCloudRestorePending;
+        boolean restored = forcedRestore || automaticConfigurationRestore
                 ? CloudSyncStore.importBackup(appContext, remoteBackup, true)
                 : CloudSyncStore.importIfNewer(appContext, remoteBackup);
         if (remoteBackup != null) {
@@ -1353,6 +1359,9 @@ final class TelegramClientManager {
         }
         boolean firstRestoreFinished = initialCloudRestorePending;
         initialCloudRestorePending = false;
+        if (firstRestoreFinished) {
+            CloudSyncStore.rememberInitialRestoreFinished(appContext);
+        }
         if (pendingManualBackup) {
             pendingManualBackup = false;
             sendCloudBackup();
@@ -1381,7 +1390,8 @@ final class TelegramClientManager {
         }
         JSONObject content = message.optJSONObject("content");
         JSONObject text = content == null ? null : content.optJSONObject("text");
-        if (text == null || !text.optString("text", "").contains(CloudSyncStore.MARKER)) {
+        String messageText = text == null ? "" : text.optString("text", "");
+        if (text == null || !messageText.contains(CloudSyncStore.MARKER)) {
             return;
         }
         Log.d(TAG, "incoming cloud sync message id=" + message.optLong("id", 0L));
@@ -1496,18 +1506,24 @@ final class TelegramClientManager {
         backupPreparationRunning = true;
         long generation = ++cloudBackupGeneration;
         long backedUpChange = CloudSyncStore.getLastLocalChangeTimestamp(appContext);
+        boolean rankingDelta = CloudSyncStore.isPendingRankingOnly(appContext)
+                && CloudSyncStore.hasPendingRankingDelta(appContext)
+                && !CloudSyncStore.shouldSendRankingCheckpoint(appContext);
         cloudBackupExecutor.execute(() -> {
-            List<String> chunks = CloudSyncStore.exportBackupTextChunks(appContext);
+            List<String> chunks = rankingDelta
+                    ? Collections.singletonList(CloudSyncStore.exportRankingDeltaText(appContext))
+                    : CloudSyncStore.exportBackupTextChunks(appContext);
             cloudSyncHandler.post(() -> sendPreparedCloudBackup(
                     chunks,
                     backedUpChange,
-                    generation
+                    generation,
+                    rankingDelta
             ));
         });
     }
 
     private synchronized void sendPreparedCloudBackup(List<String> chunks, long backedUpChange,
-                                                      long generation) {
+                                                      long generation, boolean rankingDelta) {
         if (generation != cloudBackupGeneration) {
             return;
         }
@@ -1516,6 +1532,7 @@ final class TelegramClientManager {
             return;
         }
         pendingCloudBackupUpdatedAt = backedUpChange;
+        pendingCloudBackupIsRankingDelta = rankingDelta;
         pendingCloudMessageIds.clear();
         confirmedCloudMessageIds.clear();
         pendingCloudChunks.clear();
@@ -1641,11 +1658,11 @@ final class TelegramClientManager {
             cloudBackupRetryAttempt = 0;
             lastCloudBackupCompletedElapsed = SystemClock.elapsedRealtime();
             cloudBackupGeneration++;
-            boolean fullySynced = CloudSyncStore.markPushed(
-                    appContext,
-                    pendingCloudBackupUpdatedAt
-            );
+            boolean fullySynced = pendingCloudBackupIsRankingDelta
+                    ? CloudSyncStore.markRankingDeltaPushed(appContext, pendingCloudBackupUpdatedAt)
+                    : CloudSyncStore.markFullSnapshotPushed(appContext, pendingCloudBackupUpdatedAt);
             pendingCloudBackupUpdatedAt = 0L;
+            pendingCloudBackupIsRankingDelta = false;
             requestBackupPrune();
             appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                     .setPackage(appContext.getPackageName()));
@@ -1768,7 +1785,7 @@ final class TelegramClientManager {
 
     private long deviceBackupJitterMs() {
         String fingerprint = Build.FINGERPRINT == null ? "" : Build.FINGERPRINT;
-        return Math.floorMod(fingerprint.hashCode(), 20_000);
+        return Math.floorMod(fingerprint.hashCode(), 3_000);
     }
 
     private void sendAuthenticationValue(String type, String key, String value) {
