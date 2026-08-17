@@ -12,7 +12,9 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.net.Uri;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -44,10 +46,10 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AlertouActivity {
-    private static final String TELEGRAM_PREFS = "telegram_preferences";
-    private static final String SELECTED_GROUPS = "selected_groups";
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
+    private static final String STARTUP_PREFS = "startup_preferences";
+    private static final String BATTERY_NOTICE_SHOWN = "battery_notice_shown";
     private static final int REQUEST_NOTIFICATIONS = 1201;
 
     private final BroadcastReceiver offerReceiver = new BroadcastReceiver() {
@@ -101,6 +103,7 @@ public class MainActivity extends AlertouActivity {
                 renderOffers(displayedOffers);
             }
         });
+        findViewById(android.R.id.content).post(this::showBatteryNoticeIfNeeded);
     }
 
     @Override
@@ -141,11 +144,87 @@ public class MainActivity extends AlertouActivity {
 
         renderOffers(offerRepository.getRecent());
 
-        if (groupCount == 0 || interests.isEmpty() || !monitorEnabled) {
-            stopService(new Intent(this, OfferMonitorService.class));
-        } else {
+        if (groupCount > 0 && !interests.isEmpty() && monitorEnabled) {
             requestNotificationPermissionIfNeeded();
-            ContextCompat.startForegroundService(this, new Intent(this, OfferMonitorService.class));
+        }
+        MonitorServiceController.update(this);
+    }
+
+    private void showBatteryNoticeIfNeeded() {
+        SharedPreferences preferences = getSharedPreferences(STARTUP_PREFS, MODE_PRIVATE);
+        if (preferences.getBoolean(BATTERY_NOTICE_SHOWN, false)) {
+            return;
+        }
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        if (powerManager != null && powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
+            preferences.edit().putBoolean(BATTERY_NOTICE_SHOWN, true).apply();
+            return;
+        }
+        preferences.edit().putBoolean(BATTERY_NOTICE_SHOWN, true).apply();
+
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.battery_notice_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(R.string.battery_notice_message);
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(8), 0, dp(16));
+        content.addView(message);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView later = createDialogAction(R.string.action_not_now);
+        later.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(later);
+        TextView allow = createDialogAction(R.string.battery_notice_allow);
+        allow.setOnClickListener(view -> {
+            dialog.dismiss();
+            openBatteryOptimizationRequest();
+        });
+        actions.addView(allow);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private void openBatteryOptimizationRequest() {
+        Intent intent = new Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:" + getPackageName())
+        );
+        try {
+            startActivity(intent);
+        } catch (RuntimeException exception) {
+            startActivity(new Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName())
+            ));
         }
     }
 
@@ -855,14 +934,11 @@ public class MainActivity extends AlertouActivity {
     }
 
     private boolean isMonitorEnabled() {
-        return getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
-                .getBoolean(MONITOR_ENABLED, true);
+        return MonitorServiceController.isEnabled(this);
     }
 
     private int getSelectedGroupCount() {
-        return getSharedPreferences(TELEGRAM_PREFS, MODE_PRIVATE)
-                .getStringSet(SELECTED_GROUPS, Collections.emptySet())
-                .size();
+        return MonitorServiceController.selectedGroupCount(this);
     }
 
     private void requestNotificationPermissionIfNeeded() {
