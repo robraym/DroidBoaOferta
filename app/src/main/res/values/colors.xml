@@ -19,6 +19,7 @@
     <color name="action_yellow_pressed">#946200</color>
     <color name="action_yellow_soft">#FFF2CC</color>
     <color name="action_yellow_soft_pressed">#FFE7A3</color>
+    <color name="award_gold">#F2B705</color>
     <color name="action_purple">#7651D6</color>
     <color name="action_purple_pressed">#603EBC</color>
     <color name="action_purple_soft">#EEE8FF</color>

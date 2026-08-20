@@ -16,6 +16,7 @@ import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.text.SpannableString;
+import android.text.Spannable;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -769,8 +770,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             checkBox.setChecked(selectedGroupIds.contains(groupId));
 
             TextView label = new TextView(this);
-            label.setText(groupAwards != null && groupAwards.getChampionships() > 0
-                    ? "★ " + group.getTitle() : group.getTitle());
+            label.setText(group.getTitle());
             label.setTextColor(getColor(R.color.text_primary));
             label.setTextSize(14);
             label.setSingleLine(true);
@@ -792,6 +792,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 updateGroupsCountSummary();
                 groupsContainer.post(() -> renderGroups(availableGroups, showingCachedGroups));
             });
+            boolean hasAward = groupAwards != null && groupAwards.getChampionships() > 0;
             LinearLayout.LayoutParams checkBoxParams = new LinearLayout.LayoutParams(dp(32), dp(32));
             checkBoxParams.topMargin = dp(3);
             row.addView(checkBox, checkBoxParams);
@@ -802,9 +803,28 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             );
             labelParams.leftMargin = dp(6);
             labelParams.rightMargin = dp(6);
+            labelParams.topMargin = dp(3);
             LinearLayout labels = new LinearLayout(this);
             labels.setOrientation(LinearLayout.VERTICAL);
-            labels.addView(label);
+            LinearLayout titleRow = new LinearLayout(this);
+            titleRow.setOrientation(LinearLayout.HORIZONTAL);
+            titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            titleRow.addView(label, new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            if (hasAward) {
+                TextView awardCount = new TextView(this);
+                awardCount.setText("★ " + groupAwards.getChampionships());
+                awardCount.setTextColor(getColor(R.color.award_gold));
+                awardCount.setTextSize(11);
+                awardCount.setTypeface(null, android.graphics.Typeface.BOLD);
+                awardCount.setBackgroundResource(R.drawable.bg_award_badge);
+                LinearLayout.LayoutParams awardParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+                awardParams.leftMargin = dp(6);
+                titleRow.addView(awardCount, awardParams);
+            }
+            labels.addView(titleRow);
             TextView score = new TextView(this);
             score.setText(buildGroupSummary(groupRanking, groupQuality, ranking, group.getId()));
             score.setTextColor(getColor(groupQuality != null && groupQuality.hasLowQuality()
@@ -976,6 +996,15 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                             awards.getChampionships(), awards.getTopThree()),
                     getColor(R.color.action)
             );
+            CharSequence awardLine = awardsText.getText();
+            if (awardLine instanceof Spannable) {
+                ((Spannable) awardLine).setSpan(
+                        new ForegroundColorSpan(getColor(R.color.award_gold)),
+                        "   └─ ".length(),
+                        "   └─ ".length() + 1,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                );
+            }
             awardsText.setTextSize(12);
             detailsContainer.addView(awardsText);
         }
