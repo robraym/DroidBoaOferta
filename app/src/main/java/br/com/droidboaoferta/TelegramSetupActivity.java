@@ -98,6 +98,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private TextView groupsCountText;
     private TextView groupsEvaluationText;
     private int groupEvaluationDay;
+    private long groupEvaluationWeekStartedAt;
     private FrameLayout groupsSearchBar;
     private View groupsSearchIcon;
     private EditText groupsSearchInput;
@@ -686,18 +687,29 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 persistCachedGroups(displayGroups);
             }
         }
-        List<GroupSpeedRepository.Ranking> ranking = loadGroupRanking(displayGroups);
+        loadGroupRanking(displayGroups);
         GroupWeeklyHistoryRepository weeklyHistory = new GroupWeeklyHistoryRepository(this);
-        weeklyHistory.captureCompletedWeekIfDue(ranking);
+        GroupSpeedRepository speedRepository = new GroupSpeedRepository(this);
+        long weekStartedAt = weeklyHistory.getCurrentWeekStartedAt();
+        long now = System.currentTimeMillis();
+        if (now - weekStartedAt >= 7L * 24L * 60L * 60L * 1000L) {
+            weeklyHistory.captureCompletedWeekIfDue(speedRepository.getRanking(displayGroups,
+                    selectedGroupIds, weekStartedAt, weekStartedAt + 7L * 24L * 60L * 60L * 1000L));
+            weekStartedAt = weeklyHistory.getCurrentWeekStartedAt();
+        }
+        groupEvaluationWeekStartedAt = weekStartedAt;
+        List<GroupSpeedRepository.Ranking> ranking = speedRepository.getRanking(displayGroups,
+                selectedGroupIds, weekStartedAt, now);
         Map<Long, GroupWeeklyHistoryRepository.Awards> awardsByGroupId = weeklyHistory.getAwards();
         Map<Long, GroupSpeedRepository.Ranking> rankingByGroupId = new HashMap<>();
         for (GroupSpeedRepository.Ranking item : ranking) {
             rankingByGroupId.put(item.getChatId(), item);
         }
         Map<Long, GroupQualityRepository.Stats> qualityByGroupId =
-                new GroupQualityRepository(this).getStats(displayGroups, selectedGroupIds);
-        Map<Long, Integer> approvedCounts = new GroupSpeedRepository(this)
-                .getApprovedOfferCounts(displayGroups, selectedGroupIds);
+                new GroupQualityRepository(this).getStats(displayGroups, selectedGroupIds,
+                weekStartedAt, now);
+        Map<Long, Integer> approvedCounts = speedRepository.getApprovedOfferCounts(displayGroups,
+                selectedGroupIds, weekStartedAt, now);
         for (Map.Entry<Long, Integer> count : approvedCounts.entrySet()) {
             GroupQualityRepository.Stats stats = qualityByGroupId.get(count.getKey());
             if (stats != null) {
@@ -903,7 +915,8 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private LinearLayout createExpandedGroupDetails(TelegramGroup group,
                                                     GroupWeeklyHistoryRepository.Awards awards) {
         List<GroupSpeedRepository.RankingDetail> details = new GroupSpeedRepository(this)
-                .getDetails(availableGroups, selectedGroupIds, group.getId());
+                .getDetails(availableGroups, selectedGroupIds, group.getId(),
+                        groupEvaluationWeekStartedAt, System.currentTimeMillis());
         LinearLayout detailsContainer = new LinearLayout(this);
         detailsContainer.setOrientation(LinearLayout.VERTICAL);
         detailsContainer.setPadding(0, dp(6), 0, dp(4));
@@ -989,7 +1002,8 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private void showGroupRankingDetails(TelegramGroup group,
                                          GroupSpeedRepository.Ranking ranking) {
         List<GroupSpeedRepository.RankingDetail> details = new GroupSpeedRepository(this)
-                .getDetails(availableGroups, selectedGroupIds, group.getId());
+                .getDetails(availableGroups, selectedGroupIds, group.getId(),
+                        groupEvaluationWeekStartedAt, System.currentTimeMillis());
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(20), dp(6), dp(20), dp(8));
@@ -1069,8 +1083,10 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
 
         GroupSpeedRepository speedRepository = new GroupSpeedRepository(this);
         speedRepository.seedFromOffers(observedOffers, availableGroups, selectedGroupIds);
-        List<GroupSpeedRepository.Ranking> ranking =
-                speedRepository.getRanking(availableGroups, selectedGroupIds);
+        long weekStartedAt = groupEvaluationWeekStartedAt > 0L ? groupEvaluationWeekStartedAt
+                : new GroupWeeklyHistoryRepository(this).getCurrentWeekStartedAt();
+        List<GroupSpeedRepository.Ranking> ranking = speedRepository.getRanking(availableGroups,
+                selectedGroupIds, weekStartedAt, System.currentTimeMillis());
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -1624,6 +1640,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 .apply();
         selectedGroupIds = selected;
         CloudSyncStore.rememberSelectedGroupsChanged(this, previous, selected);
+        MonitorServiceController.update(this);
     }
 
     private void loadSelectedGroupsFromPreferences() {

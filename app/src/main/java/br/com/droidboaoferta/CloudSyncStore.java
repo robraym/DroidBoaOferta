@@ -25,6 +25,7 @@ import java.util.zip.GZIPOutputStream;
 
 final class CloudSyncStore {
     static final String MARKER = "#BoaOfertaSyncV1";
+    static final String GROUPS_DELTA_MARKER = "#BoaOfertaGroupsV1";
     static final String RANKING_DELTA_MARKER = "#BoaOfertaRankingV1";
 
     private static final String SYNC_PREFS = "cloud_sync_preferences";
@@ -73,6 +74,7 @@ final class CloudSyncStore {
     private static final String GROUP_EXPIRY_PREFS = "group_promotion_expiry";
     private static final String KEY_RANKING_SPEED_EVENTS = "ranking_speed_events";
     private static final String KEY_RANKING_QUALITY_APPROVED = "ranking_quality_approved";
+    private static final String KEY_RANKING_QUALITY_MESSAGES = "ranking_quality_messages";
     private static final String KEY_RANKING_QUALITY_STARTED_AT = "ranking_quality_started_at";
     private static final String KEY_RANKING_QUALITY_HISTORY_REQUESTED = "ranking_quality_history_requested";
     private static final String KEY_RANKING_WEEKS = "ranking_weeks";
@@ -82,6 +84,8 @@ final class CloudSyncStore {
     private static final String KEY_RANKING_SYNC_FORMAT = "ranking_sync_format";
     private static final String KEY_RANKING_LEADER = "ranking_sync_leader";
     private static final String KEY_RANKING_LEADER_UNTIL = "ranking_sync_leader_until";
+    private static final String KEY_RANKING_OWNER = "ranking_sync_owner";
+    private static final String KEY_RANKING_AUTHORITATIVE = "ranking_authoritative";
     private static final long RANKING_LEADER_LEASE_MS = 10L * 60L * 1000L;
     // Remote checks are a safety net only. Live Telegram updates already wake connected devices.
     private static final long REMOTE_REFRESH_INTERVAL_MS = 15L * 60L * 1000L;
@@ -105,12 +109,10 @@ final class CloudSyncStore {
         );
         preferences.edit()
                 .putLong(LAST_LOCAL_CHANGE, changedAt)
-                .putBoolean(PENDING_PUSH, true)
+                .putBoolean(PENDING_PUSH, false)
                 .putBoolean(PENDING_RANKING_ONLY, false)
-                .putLong(PENDING_STARTED_AT, wasPending
-                        ? preferences.getLong(PENDING_STARTED_AT, changedAt) : changedAt)
+                .putLong(PENDING_STARTED_AT, 0L)
                 .apply();
-        TelegramClientManager.getInstance().syncCloudBackupSoon();
     }
 
     static void markManualBackupRequested(Context context) {
@@ -163,7 +165,7 @@ final class CloudSyncStore {
         syncPrefs(context).edit().putBoolean(INITIAL_RESTORE_COMPLETED, true).apply();
     }
 
-    /** Only one live device publishes offer-ranking batches for the shared Telegram account. */
+    /** Ranking changes stay local; configuration sync must remain lightweight. */
     static void markRankingChanged(Context context) {
         if (context == null) return;
         SharedPreferences preferences = syncPrefs(context);
@@ -187,6 +189,7 @@ final class CloudSyncStore {
                 .apply();
         TelegramClientManager.getInstance().syncCloudBackupSoon();
     }
+
 
     static void markRankingSpeedChanged(Context context, long chatId, String signature,
                                         long observedAt) {
@@ -334,6 +337,14 @@ final class CloudSyncStore {
         if (context == null) return;
         Context appContext = context.getApplicationContext();
         SharedPreferences sync = syncPrefs(appContext);
+        if (sync.contains(KEY_RANKING_OWNER)) {
+            sync.edit()
+                    .remove(KEY_RANKING_OWNER)
+                    .putBoolean(PENDING_PUSH, false)
+                    .putBoolean(PENDING_RANKING_ONLY, false)
+                    .putString(PENDING_RANKING_DELTA, "{}")
+                    .apply();
+        }
         if (sync.getBoolean(KEY_RANKING_SYNC_MIGRATED, false)
                 && sync.getInt(KEY_RANKING_SYNC_FORMAT, 0) >= RANKING_SYNC_FORMAT) return;
         sync.edit().putBoolean(KEY_RANKING_SYNC_MIGRATED, true)
@@ -455,7 +466,59 @@ final class CloudSyncStore {
                 .putString(KEY_GROUP_SELECTED_AT, selectedAt.toString())
                 .putString(KEY_REMOVED_GROUPS, removed.toString())
                 .apply();
-        markLocalChanged(context);
+    }
+
+    static String exportSelectedGroupsDelta(Context context) {
+        SharedPreferences preferences = syncPrefs(context);
+        JSONObject data = new JSONObject();
+        try {
+            data.put("selected_at", preferences.getString(KEY_GROUP_SELECTED_AT, "{}"));
+            data.put("removed", preferences.getString(KEY_REMOVED_GROUPS, "{}"));
+        } catch (Exception ignored) {
+        }
+        return GROUPS_DELTA_MARKER + "\n" + data;
+    }
+
+    static boolean importSelectedGroupsDelta(Context context, String text) {
+        if (context == null || text == null || !text.contains(GROUPS_DELTA_MARKER)) return false;
+        int start = text.indexOf('{', text.indexOf(GROUPS_DELTA_MARKER));
+        if (start < 0) return false;
+        try {
+            JSONObject delta = new JSONObject(text.substring(start));
+            Context appContext = context.getApplicationContext();
+            SharedPreferences sync = syncPrefs(appContext);
+            JSONObject localSelected = readObject(sync.getString(KEY_GROUP_SELECTED_AT, "{}"));
+            JSONObject localRemoved = readObject(sync.getString(KEY_REMOVED_GROUPS, "{}"));
+            JSONObject remoteSelected = readObject(delta.optString("selected_at", "{}"));
+            JSONObject remoteRemoved = readObject(delta.optString("removed", "{}"));
+            JSONObject selected = mergeMaxObjects(localSelected, remoteSelected);
+            JSONObject removed = mergeMaxObjects(localRemoved, remoteRemoved);
+            Set<String> groups = new HashSet<>();
+            Set<String> ids = new HashSet<>();
+            for (Iterator<String> it = selected.keys(); it.hasNext();) ids.add(it.next());
+            for (Iterator<String> it = removed.keys(); it.hasNext();) ids.add(it.next());
+            for (String id : ids) if (selected.optLong(id, 0L) > removed.optLong(id, 0L)) groups.add(id);
+            appContext.getSharedPreferences(TELEGRAM_PREFS, Context.MODE_PRIVATE).edit()
+                    .putStringSet(SELECTED_GROUPS, groups).apply();
+            sync.edit().putString(KEY_GROUP_SELECTED_AT, selected.toString())
+                    .putString(KEY_REMOVED_GROUPS, removed.toString()).apply();
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    static boolean importSelectedGroupsDeltas(Context context, JSONArray messages) {
+        boolean imported = false;
+        if (messages == null) return false;
+        for (int index = 0; index < messages.length(); index++) {
+            JSONObject message = messages.optJSONObject(index);
+            JSONObject content = message == null ? null : message.optJSONObject("content");
+            JSONObject value = content == null ? null : content.optJSONObject("text");
+            if (value != null) imported |= importSelectedGroupsDelta(context,
+                    value.optString("text", ""));
+        }
+        return imported;
     }
 
     static boolean hasPendingPush(Context context) {
@@ -529,6 +592,17 @@ final class CloudSyncStore {
                 .apply();
     }
 
+    static void clearBackupMetadata(Context context) {
+        syncPrefs(context).edit()
+                .remove(BACKUP_MESSAGE_ID)
+                .remove(LAST_BACKUP_AT)
+                .remove(LAST_BACKED_UP_CHANGE)
+                .remove(LAST_REMOTE_BACKUP_AT)
+                .putBoolean(PENDING_PUSH, false)
+                .putLong(PENDING_STARTED_AT, 0L)
+                .apply();
+    }
+
     static void rememberRemoteBackup(Context context, JSONObject backup) {
         if (backup == null) {
             return;
@@ -589,6 +663,19 @@ final class CloudSyncStore {
             String backupAlertSound = AlertSoundController.getBackupSound(appContext);
             data.put(ALERT_SOUND, backupAlertSound);
             data.put(KEY_ALERT_SOUND_UPDATED_AT, ensureAlertSoundUpdatedAt(appContext, updatedAt));
+            data.put(KEY_RANKING_SPEED_EVENTS, speed.getString("promotion_events", "[]"));
+            data.put(KEY_RANKING_QUALITY_MESSAGES, quality.getString("messages", "[]"));
+            data.put(KEY_RANKING_QUALITY_APPROVED, quality.getString("approved", "[]"));
+            data.put(KEY_RANKING_QUALITY_STARTED_AT, quality.getLong("started_at", 0L));
+            data.put(KEY_RANKING_QUALITY_HISTORY_REQUESTED,
+                    quality.getBoolean("history_requested", false));
+            data.put(KEY_RANKING_WEEKS, weekly.getString("weeks", "[]"));
+            data.put(KEY_RANKING_WEEK_STARTED_AT, weekly.getLong("week_started_at", 0L));
+            data.put(KEY_RANKING_EXPIRY_RULES, expiry.getString("rules", "{}"));
+            data.put(KEY_RANKING_AUTHORITATIVE, true);
+            data.put(KEY_RANKING_OWNER, getDeviceSyncId(sync));
+            data.put(KEY_RANKING_LEADER, sync.getString(KEY_RANKING_LEADER, ""));
+            data.put(KEY_RANKING_LEADER_UNTIL, sync.getLong(KEY_RANKING_LEADER_UNTIL, 0L));
 
             backup.put("version", 3);
             backup.put("complete", true);
@@ -748,6 +835,7 @@ final class CloudSyncStore {
         if (data == null) {
             return false;
         }
+        importRankingHistory(appContext, data, remoteUpdatedAt, localUpdatedAt);
 
         SharedPreferences.Editor telegram = appContext
                 .getSharedPreferences(TELEGRAM_PREFS, Context.MODE_PRIVATE)
@@ -1222,11 +1310,42 @@ final class CloudSyncStore {
         SharedPreferences quality = context.getSharedPreferences(GROUP_QUALITY_PREFS, Context.MODE_PRIVATE);
         SharedPreferences weekly = context.getSharedPreferences(GROUP_WEEKLY_PREFS, Context.MODE_PRIVATE);
         SharedPreferences expiry = context.getSharedPreferences(GROUP_EXPIRY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences sync = syncPrefs(context);
+        String remoteOwner = data.optString(KEY_RANKING_OWNER, "");
+        boolean authoritative = data.optBoolean(KEY_RANKING_AUTHORITATIVE, false)
+                && !remoteOwner.isEmpty();
+
+        if (authoritative) {
+            speed.edit().putString("promotion_events",
+                    data.optString(KEY_RANKING_SPEED_EVENTS, "[]")).apply();
+            quality.edit()
+                    .putString("messages", data.optString(KEY_RANKING_QUALITY_MESSAGES, "[]"))
+                    .putString("approved", data.optString(KEY_RANKING_QUALITY_APPROVED, "[]"))
+                    .putLong("started_at", data.optLong(KEY_RANKING_QUALITY_STARTED_AT, 0L))
+                    .putBoolean("history_requested",
+                            data.optBoolean(KEY_RANKING_QUALITY_HISTORY_REQUESTED, false))
+                    .apply();
+            weekly.edit()
+                    .putString("weeks", data.optString(KEY_RANKING_WEEKS, "[]"))
+                    .putLong("week_started_at", data.optLong(KEY_RANKING_WEEK_STARTED_AT, 0L))
+                    .apply();
+            expiry.edit().putString("rules", data.optString(KEY_RANKING_EXPIRY_RULES, "{}"))
+                    .apply();
+            sync.edit()
+                    .putString(KEY_RANKING_OWNER, remoteOwner)
+                    .putString(KEY_RANKING_LEADER, data.optString(KEY_RANKING_LEADER, remoteOwner))
+                    .putLong(KEY_RANKING_LEADER_UNTIL,
+                            data.optLong(KEY_RANKING_LEADER_UNTIL, 0L))
+                    .apply();
+            return;
+        }
 
         speed.edit().putString("promotion_events", mergeSpeedEvents(
                 speed.getString("promotion_events", "[]"),
                 data.optString(KEY_RANKING_SPEED_EVENTS, "[]"))).apply();
         quality.edit()
+                .putString("messages", mergeEvents(quality.getString("messages", "[]"),
+                        data.optString(KEY_RANKING_QUALITY_MESSAGES, "[]"), 3000))
                 .putString("approved", mergeEvents(quality.getString("approved", "[]"),
                         data.optString(KEY_RANKING_QUALITY_APPROVED, "[]"), 3000))
                 .putLong("started_at", earliestNonZero(quality.getLong("started_at", 0L),
@@ -1245,7 +1364,6 @@ final class CloudSyncStore {
         }
         String remoteLeader = data.optString(KEY_RANKING_LEADER, "");
         long remoteLeaderUntil = data.optLong(KEY_RANKING_LEADER_UNTIL, 0L);
-        SharedPreferences sync = syncPrefs(context);
         String localDeviceId = getDeviceSyncId(sync);
         if (!remoteLeader.isEmpty() && remoteLeaderUntil > System.currentTimeMillis()) {
             SharedPreferences.Editor editor = sync.edit()

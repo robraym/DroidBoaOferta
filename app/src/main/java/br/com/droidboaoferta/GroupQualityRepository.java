@@ -71,7 +71,12 @@ final class GroupQualityRepository {
 
     synchronized Map<Long, Stats> getStats(List<TelegramGroup> groups, Set<String> selectedIds) {
         long now = System.currentTimeMillis();
-        long oldest = now - WINDOW_MS;
+        return getStats(groups, selectedIds, now - WINDOW_MS, now);
+    }
+
+    synchronized Map<Long, Stats> getStats(List<TelegramGroup> groups, Set<String> selectedIds,
+                                            long windowStartedAt, long windowEndedAt) {
+        long now = Math.min(System.currentTimeMillis(), windowEndedAt);
         Map<Long, Stats> result = new HashMap<>();
         for (TelegramGroup group : groups) {
             if (selectedIds.contains(Long.toString(group.getId()))) {
@@ -80,19 +85,20 @@ final class GroupQualityRepository {
         }
         for (Event event : read(KEY_MESSAGES)) {
             Stats stats = result.get(event.chatId);
-            if (stats != null && event.observedAt >= oldest) {
+            if (stats != null && event.observedAt >= windowStartedAt
+                    && event.observedAt < windowEndedAt) {
                 stats.messages++;
             }
         }
         for (Event event : read(KEY_APPROVED)) {
             Stats stats = result.get(event.chatId);
-            if (stats != null && event.observedAt >= oldest) {
+            if (stats != null && event.observedAt >= windowStartedAt
+                    && event.observedAt < windowEndedAt) {
                 stats.approvedOffers++;
             }
         }
-        long startedAt = preferences.getLong(KEY_STARTED_AT, now);
         int daysObserved = (int) Math.max(1L, Math.min(7L,
-                1L + (now - startedAt) / (24L * 60L * 60L * 1000L)));
+                1L + Math.max(0L, now - windowStartedAt) / (24L * 60L * 60L * 1000L)));
         for (Stats stats : result.values()) {
             stats.daysObserved = daysObserved;
         }

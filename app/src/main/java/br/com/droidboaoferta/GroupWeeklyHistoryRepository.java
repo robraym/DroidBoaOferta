@@ -28,12 +28,8 @@ final class GroupWeeklyHistoryRepository {
 
     synchronized void captureCompletedWeekIfDue(List<GroupSpeedRepository.Ranking> ranking) {
         long now = System.currentTimeMillis();
-        long startedAt = preferences.getLong(KEY_WEEK_STARTED_AT, now);
-        if (!preferences.contains(KEY_WEEK_STARTED_AT)) {
-            preferences.edit().putLong(KEY_WEEK_STARTED_AT, now).apply();
-            return;
-        }
-        if (now - startedAt < WEEK_MS || ranking.isEmpty()) {
+        long startedAt = getCurrentWeekStartedAt();
+        if (now - startedAt < WEEK_MS) {
             return;
         }
         JSONArray weeks = readWeeks();
@@ -61,7 +57,20 @@ final class GroupWeeklyHistoryRepository {
             weeks = trimmed;
         }
         preferences.edit().putString(KEY_WEEKS, weeks.toString())
-                .putLong(KEY_WEEK_STARTED_AT, now).apply();
+                .putLong(KEY_WEEK_STARTED_AT, now - startedAt >= WEEK_MS * 2L
+                        ? now : startedAt + WEEK_MS).apply();
+    }
+
+    synchronized long getCurrentWeekStartedAt() {
+        if (preferences.contains(KEY_WEEK_STARTED_AT)) {
+            return preferences.getLong(KEY_WEEK_STARTED_AT, System.currentTimeMillis());
+        }
+        long now = System.currentTimeMillis();
+        long qualityStartedAt = appContext.getSharedPreferences("group_quality_preferences",
+                Context.MODE_PRIVATE).getLong("started_at", now);
+        long startedAt = Math.max(now - WEEK_MS, Math.min(qualityStartedAt, now));
+        preferences.edit().putLong(KEY_WEEK_STARTED_AT, startedAt).apply();
+        return startedAt;
     }
 
     synchronized Map<Long, Awards> getAwards() {

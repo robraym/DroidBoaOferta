@@ -74,6 +74,12 @@ final class GroupSpeedRepository {
     }
 
     synchronized List<Ranking> getRanking(List<TelegramGroup> groups, Set<String> selectedIds) {
+        long now = System.currentTimeMillis();
+        return getRanking(groups, selectedIds, now - WINDOW_MS, now);
+    }
+
+    synchronized List<Ranking> getRanking(List<TelegramGroup> groups, Set<String> selectedIds,
+                                          long windowStartedAt, long windowEndedAt) {
         Map<Long, Ranking> ranking = new HashMap<>();
         for (TelegramGroup group : groups) {
             if (selectedIds.contains(Long.toString(group.getId()))) {
@@ -81,9 +87,9 @@ final class GroupSpeedRepository {
             }
         }
         Map<String, List<Event>> races = new HashMap<>();
-        long oldest = System.currentTimeMillis() - WINDOW_MS;
         for (Event event : readEvents()) {
-            if (event.observedAt >= oldest && ranking.containsKey(event.chatId)) {
+            if (event.observedAt >= windowStartedAt && event.observedAt < windowEndedAt
+                    && ranking.containsKey(event.chatId)) {
                 races.computeIfAbsent(event.signature, ignored -> new ArrayList<>()).add(event);
             }
         }
@@ -131,6 +137,13 @@ final class GroupSpeedRepository {
 
     synchronized List<RankingDetail> getDetails(List<TelegramGroup> groups, Set<String> selectedIds,
                                                  long targetChatId) {
+        long now = System.currentTimeMillis();
+        return getDetails(groups, selectedIds, targetChatId, now - WINDOW_MS, now);
+    }
+
+    synchronized List<RankingDetail> getDetails(List<TelegramGroup> groups, Set<String> selectedIds,
+                                                 long targetChatId, long windowStartedAt,
+                                                 long windowEndedAt) {
         Set<Long> selectedChatIds = new HashSet<>();
         for (TelegramGroup group : groups) {
             if (selectedIds.contains(Long.toString(group.getId()))) {
@@ -138,9 +151,9 @@ final class GroupSpeedRepository {
             }
         }
         Map<String, List<Event>> races = new HashMap<>();
-        long oldest = System.currentTimeMillis() - WINDOW_MS;
         for (Event event : readEvents()) {
-            if (event.observedAt >= oldest && selectedChatIds.contains(event.chatId)) {
+            if (event.observedAt >= windowStartedAt && event.observedAt < windowEndedAt
+                    && selectedChatIds.contains(event.chatId)) {
                 races.computeIfAbsent(event.signature, ignored -> new ArrayList<>()).add(event);
             }
         }
@@ -167,13 +180,20 @@ final class GroupSpeedRepository {
 
     synchronized Map<Long, Integer> getApprovedOfferCounts(List<TelegramGroup> groups,
                                                             Set<String> selectedIds) {
+        long now = System.currentTimeMillis();
+        return getApprovedOfferCounts(groups, selectedIds, now - WINDOW_MS, now);
+    }
+
+    synchronized Map<Long, Integer> getApprovedOfferCounts(List<TelegramGroup> groups,
+                                                            Set<String> selectedIds,
+                                                            long windowStartedAt,
+                                                            long windowEndedAt) {
         Set<Long> selectedChatIds = new HashSet<>();
         for (TelegramGroup group : groups) {
             if (selectedIds.contains(Long.toString(group.getId()))) {
                 selectedChatIds.add(group.getId());
             }
         }
-        long oldest = System.currentTimeMillis() - WINDOW_MS;
         Map<Long, Set<String>> uniqueOffers = new HashMap<>();
         Map<String, Long> raceStarts = new HashMap<>();
         for (Event event : readEvents()) {
@@ -181,7 +201,8 @@ final class GroupSpeedRepository {
             if (first == null || event.observedAt < first) raceStarts.put(event.signature, event.observedAt);
         }
         for (Event event : readEvents()) {
-            if (event.observedAt >= oldest && selectedChatIds.contains(event.chatId)) {
+            if (event.observedAt >= windowStartedAt && event.observedAt < windowEndedAt
+                    && selectedChatIds.contains(event.chatId)) {
                 long roundStartedAt = raceStarts.containsKey(event.signature)
                         ? raceStarts.get(event.signature) : event.observedAt;
                 if (!expiryRepository.isExpiredAt(event.signature, roundStartedAt, event.observedAt)) {

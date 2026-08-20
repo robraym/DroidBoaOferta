@@ -23,6 +23,7 @@ public class OfferMonitorService extends Service {
         createChannel();
         startForeground(NOTIFICATION_ID, createNotification());
         OfferMonitor.getInstance().start(this);
+        TelegramClientManager.getInstance().requestMissedMessageRecovery();
     }
 
     @Override

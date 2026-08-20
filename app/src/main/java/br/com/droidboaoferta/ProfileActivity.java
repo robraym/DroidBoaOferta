@@ -32,6 +32,7 @@ import android.widget.TextView;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
 import java.text.SimpleDateFormat;
@@ -68,6 +69,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     private TextView profileSummary;
     private TextView profileStatus;
     private TextView syncSummary;
+    private TextView backupSummary;
     private TextView themeSummary;
     private TextView accentColorSummary;
     private TextView alertSoundSummary;
@@ -94,6 +96,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         profileSummary = findViewById(R.id.text_profile_summary);
         profileStatus = findViewById(R.id.text_profile_status);
         syncSummary = findViewById(R.id.text_sync_summary);
+        backupSummary = findViewById(R.id.text_backup_summary);
         themeSummary = findViewById(R.id.text_theme_summary);
         accentColorSummary = findViewById(R.id.text_accent_color_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
@@ -154,6 +157,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         findViewById(R.id.row_navigation_animation).setOnClickListener(
                 view -> showNavigationAnimationDialog()
         );
+        findViewById(R.id.row_backup).setOnClickListener(view -> clientManager.backupCloudNow());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
     }
@@ -1594,7 +1598,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
             long startedAt = CloudSyncStore.getPendingStartedAt(this);
             long elapsedSeconds = startedAt <= 0L ? 0L
                     : Math.max(0L, (System.currentTimeMillis() - startedAt) / 1_000L);
-            syncSummary.setText(getString(R.string.profile_sync_pending_format,
+            backupSummary.setText(getString(R.string.profile_manual_backup_pending_format,
                     String.format(Locale.getDefault(), "%02d:%02d", elapsedSeconds / 60L,
                             elapsedSeconds % 60L)));
             return;
@@ -1603,6 +1607,9 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 CloudSyncStore.getLastBackupAt(this),
                 CloudSyncStore.getLastRemoteBackupAt(this)
         );
+        backupSummary.setText(lastSyncAt > 0L
+                ? getString(R.string.profile_sync_last_format, formatSyncTime(lastSyncAt))
+                : getString(R.string.profile_manual_backup_summary));
         syncSummary.setText(lastSyncAt > 0L
                 ? getString(R.string.profile_sync_last_format, formatSyncTime(lastSyncAt))
                 : getString(R.string.profile_sync_waiting));
