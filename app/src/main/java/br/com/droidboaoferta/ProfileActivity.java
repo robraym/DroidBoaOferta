@@ -1504,13 +1504,8 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         ));
         details.addView(createTelegramDetailDivider());
         details.addView(createTelegramDetailRow(
-                R.string.profile_telegram_details_version,
-                BuildConfig.VERSION_NAME
-        ));
-        details.addView(createTelegramDetailDivider());
-        details.addView(createTelegramDetailRow(
-                R.string.profile_telegram_details_build,
-                String.valueOf(BuildConfig.VERSION_CODE)
+                R.string.profile_telegram_details_compiled_at,
+                BuildConfig.BUILD_TIMESTAMP
         ));
         content.addView(details);
 
@@ -1603,12 +1598,13 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                             elapsedSeconds % 60L)));
             return;
         }
-        long lastSyncAt = Math.max(
+        long lastBackupAt = Math.max(
                 CloudSyncStore.getLastBackupAt(this),
                 CloudSyncStore.getLastRemoteBackupAt(this)
         );
-        backupSummary.setText(lastSyncAt > 0L
-                ? getString(R.string.profile_sync_last_format, formatSyncTime(lastSyncAt))
+        long lastSyncAt = Math.max(lastBackupAt, CloudSyncStore.getLastConfigurationSyncAt(this));
+        backupSummary.setText(lastBackupAt > 0L
+                ? getString(R.string.profile_sync_last_format, formatSyncTime(lastBackupAt))
                 : getString(R.string.profile_manual_backup_summary));
         syncSummary.setText(lastSyncAt > 0L
                 ? getString(R.string.profile_sync_last_format, formatSyncTime(lastSyncAt))
@@ -1616,7 +1612,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     }
 
     private String formatSyncTime(long timestamp) {
-        return new SimpleDateFormat("dd/MM/yyyy HH:mm", new Locale("pt", "BR"))
+        return new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("pt", "BR"))
                 .format(new Date(timestamp));
     }
 

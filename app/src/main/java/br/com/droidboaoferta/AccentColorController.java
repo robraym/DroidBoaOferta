@@ -36,7 +36,7 @@ final class AccentColorController {
         }
         long changedAt = System.currentTimeMillis();
         prefs(context).edit().putString(ACCENT_COLOR, normalizedMode).apply();
-        CloudSyncStore.rememberThemeChanged(context, changedAt);
+        CloudSyncStore.syncAccentColorChanged(context, changedAt);
         CloudSyncStore.markLocalChanged(context);
     }
 

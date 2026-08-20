@@ -107,6 +107,7 @@ final class TelegramClientManager {
     private final Set<Long> backupPruneKeepMessageIds = new HashSet<>();
     private final List<Long> recoveryChatIds = new ArrayList<>();
     private final List<String> pendingCloudChunks = new ArrayList<>();
+    private final List<String> pendingConfigurationDeltas = new ArrayList<>();
     private final Handler cloudSyncHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService cloudBackupExecutor = Executors.newSingleThreadExecutor();
     private volatile Listener listener;
@@ -409,6 +410,26 @@ final class TelegramClientManager {
                     .put("input_message_content", createCloudBackupInputMessage(
                             CloudSyncStore.exportSelectedGroupsDelta(appContext)))
                     .put("@extra", "groups_delta_send"));
+            CloudSyncStore.rememberConfigurationSynced(appContext);
+        } catch (JSONException ignored) {
+        }
+    }
+
+    synchronized void sendConfigurationDelta(String deltaText) {
+        if (appContext == null || deltaText == null || deltaText.trim().isEmpty()
+                || state != State.READY) return;
+        if (selfChatId == 0L) {
+            pendingConfigurationDeltas.add(deltaText);
+            requestSelfChat();
+            return;
+        }
+        try {
+            send(new JSONObject()
+                    .put("@type", "sendMessage")
+                    .put("chat_id", selfChatId)
+                    .put("input_message_content", createCloudBackupInputMessage(deltaText))
+                    .put("@extra", "config_delta_send"));
+            CloudSyncStore.rememberConfigurationSynced(appContext);
         } catch (JSONException ignored) {
         }
     }
@@ -1435,6 +1456,11 @@ final class TelegramClientManager {
             pendingGroupsDelta = false;
             sendSelectedGroupsDelta();
         }
+        if (!pendingConfigurationDeltas.isEmpty()) {
+            List<String> deltas = new ArrayList<>(pendingConfigurationDeltas);
+            pendingConfigurationDeltas.clear();
+            for (String delta : deltas) sendConfigurationDelta(delta);
+        }
         requestCloudBackup();
         if (initialCloudRestorePending) {
             return;
@@ -1557,8 +1583,16 @@ final class TelegramClientManager {
         String messageText = text == null ? "" : text.optString("text", "");
         if (messageText.contains(CloudSyncStore.GROUPS_DELTA_MARKER)) {
             if (CloudSyncStore.importSelectedGroupsDelta(appContext, messageText)) {
+                CloudSyncStore.rememberConfigurationSynced(appContext);
                 loadGroups();
                 MonitorServiceController.update(appContext);
+                appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
+                        .setPackage(appContext.getPackageName()));
+            }
+            return;
+        }
+        if (messageText.contains(CloudSyncStore.CONFIG_DELTA_MARKER)) {
+            if (CloudSyncStore.importConfigurationDelta(appContext, messageText)) {
                 appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                         .setPackage(appContext.getPackageName()));
             }

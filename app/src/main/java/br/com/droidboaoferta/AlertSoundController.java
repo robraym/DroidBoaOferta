@@ -146,7 +146,7 @@ final class AlertSoundController {
                 .putString(ALERT_SOUND, normalized)
                 .putString(CLOUD_ALERT_SOUND, normalized)
                 .apply();
-        CloudSyncStore.rememberAlertSoundChanged(context, changedAt);
+        CloudSyncStore.syncAlertSoundChanged(context, changedAt);
         CloudSyncStore.markLocalChanged(context);
         configureNotificationChannel(context);
     }

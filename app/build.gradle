@@ -11,6 +11,7 @@ def telegramApiId = localProperties.getProperty('telegram.api_id', '0')
 def telegramApiHash = localProperties.getProperty('telegram.api_hash', '')
         .replace('\\', '\\\\')
         .replace('"', '\\"')
+def buildTimestamp = new Date().format('dd/MM/yyyy HH:mm:ss', TimeZone.getTimeZone('America/Sao_Paulo'))
 
 android {
     namespace 'br.com.droidboaoferta'
@@ -25,6 +26,7 @@ android {
 
         buildConfigField 'int', 'TELEGRAM_API_ID', telegramApiId
         buildConfigField 'String', 'TELEGRAM_API_HASH', '"' + telegramApiHash + '"'
+        buildConfigField 'String', 'BUILD_TIMESTAMP', '"' + buildTimestamp + '"'
     }
 
     buildFeatures {

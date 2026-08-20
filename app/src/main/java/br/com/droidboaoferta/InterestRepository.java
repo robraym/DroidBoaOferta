@@ -84,6 +84,7 @@ final class InterestRepository {
             }
             preferences.edit().putString(KEY_INTERESTS, array.toString()).apply();
             CloudSyncStore.markLocalChanged(context);
+            CloudSyncStore.syncInterestsChanged(context);
         } catch (Exception ignored) {
             // Os valores são primitivos e não devem falhar ao serem serializados.
         }

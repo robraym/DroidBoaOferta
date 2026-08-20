@@ -26,6 +26,7 @@ import java.util.zip.GZIPOutputStream;
 final class CloudSyncStore {
     static final String MARKER = "#BoaOfertaSyncV1";
     static final String GROUPS_DELTA_MARKER = "#BoaOfertaGroupsV1";
+    static final String CONFIG_DELTA_MARKER = "#BoaOfertaConfigV1";
     static final String RANKING_DELTA_MARKER = "#BoaOfertaRankingV1";
 
     private static final String SYNC_PREFS = "cloud_sync_preferences";
@@ -39,6 +40,7 @@ final class CloudSyncStore {
     private static final String LAST_BACKUP_AT = "last_confirmed_backup_at";
     private static final String LAST_BACKED_UP_CHANGE = "last_backed_up_change";
     private static final String LAST_REMOTE_BACKUP_AT = "last_confirmed_remote_backup_at";
+    private static final String LAST_CONFIGURATION_SYNC_AT = "last_configuration_sync_at";
     private static final String LAST_REMOTE_REFRESH_REQUEST_AT = "last_remote_refresh_request_at";
     private static final String INITIAL_RESTORE_COMPLETED = "initial_restore_completed";
     private static final String LAST_RANKING_CHECKPOINT_AT = "last_ranking_checkpoint_at";
@@ -396,6 +398,18 @@ final class CloudSyncStore {
                 .apply();
     }
 
+    static void syncThemeModeChanged(Context context, long changedAt) {
+        rememberThemeChanged(context, changedAt);
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                exportConfigurationDelta(context, "theme", changedAt));
+    }
+
+    static void syncAccentColorChanged(Context context, long changedAt) {
+        rememberThemeChanged(context, changedAt);
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                exportConfigurationDelta(context, "accent", changedAt));
+    }
+
     static void rememberAlertSoundChanged(Context context, long changedAt) {
         if (context == null) {
             return;
@@ -403,6 +417,12 @@ final class CloudSyncStore {
         syncPrefs(context).edit()
                 .putLong(KEY_ALERT_SOUND_UPDATED_AT, changedAt)
                 .apply();
+    }
+
+    static void syncAlertSoundChanged(Context context, long changedAt) {
+        rememberAlertSoundChanged(context, changedAt);
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                exportConfigurationDelta(context, "sound", changedAt));
     }
 
     static void rememberTrashChanged(Context context, long changedAt) {
@@ -420,10 +440,103 @@ final class CloudSyncStore {
 
     static void rememberArchivedChanged(Context context, long changedAt) {
         rememberCollectionChanged(context, KEY_ARCHIVED_UPDATED_AT, changedAt);
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                exportConfigurationDelta(context, "saved", changedAt));
     }
 
     static void rememberMonitorChanged(Context context, long changedAt) {
         rememberCollectionChanged(context, KEY_MONITOR_UPDATED_AT, changedAt);
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                exportConfigurationDelta(context, "monitor", changedAt));
+    }
+
+    static void syncInterestsChanged(Context context) {
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                exportConfigurationDelta(context, "interests", System.currentTimeMillis()));
+    }
+
+    static void syncPromotionExpiryChanged(Context context) {
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                exportConfigurationDelta(context, "expiry", System.currentTimeMillis()));
+    }
+
+    private static String exportConfigurationDelta(Context context, String type, long changedAt) {
+        Context appContext = context.getApplicationContext();
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("type", type).put("updated_at", changedAt);
+            if ("theme".equals(type)) {
+                payload.put(THEME_MODE, appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE)
+                        .getString(THEME_MODE, ThemeController.MODE_DARK));
+            } else if ("accent".equals(type)) {
+                payload.put(ACCENT_COLOR, AccentColorController.getSavedMode(appContext));
+            } else if ("sound".equals(type)) {
+                payload.put(ALERT_SOUND, AlertSoundController.getBackupSound(appContext));
+            } else if ("monitor".equals(type)) {
+                payload.put(MONITOR_ENABLED, appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE)
+                        .getBoolean(MONITOR_ENABLED, true));
+            } else if ("interests".equals(type)) {
+                payload.put(KEY_INTERESTS, appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE)
+                        .getString(KEY_INTERESTS, "[]"));
+            } else if ("saved".equals(type)) {
+                payload.put(KEY_ARCHIVED_OFFERS, appContext.getSharedPreferences(
+                        OFFER_PREFS, Context.MODE_PRIVATE).getString(KEY_ARCHIVED_OFFERS, "[]"));
+            } else if ("expiry".equals(type)) {
+                payload.put(KEY_RANKING_EXPIRY_RULES, appContext.getSharedPreferences(
+                        GROUP_EXPIRY_PREFS, Context.MODE_PRIVATE).getString("rules", "{}"));
+            }
+        } catch (Exception ignored) {
+        }
+        return CONFIG_DELTA_MARKER + "\n" + payload;
+    }
+
+    static boolean importConfigurationDelta(Context context, String text) {
+        if (context == null || text == null || !text.contains(CONFIG_DELTA_MARKER)) return false;
+        int start = text.indexOf('{', text.indexOf(CONFIG_DELTA_MARKER));
+        if (start < 0) return false;
+        try {
+            Context appContext = context.getApplicationContext();
+            JSONObject payload = new JSONObject(text.substring(start));
+            String type = payload.optString("type", "");
+            long changedAt = payload.optLong("updated_at", 0L);
+            if ("theme".equals(type)) {
+                appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE).edit()
+                        .putString(THEME_MODE, payload.optString(THEME_MODE, ThemeController.MODE_DARK)).apply();
+                ThemeController.applySavedTheme(appContext);
+            } else if ("accent".equals(type)) {
+                appContext.getSharedPreferences(APP_PREFS, Context.MODE_PRIVATE).edit()
+                        .putString(ACCENT_COLOR, AccentColorController.normalize(
+                                payload.optString(ACCENT_COLOR, AccentColorController.MODE_BLUE))).apply();
+            } else if ("sound".equals(type)) {
+                String sound = payload.optString(ALERT_SOUND, "");
+                if (!AlertSoundController.isBuiltInSound(sound)) return false;
+                AlertSoundController.applyImportedSound(appContext, sound);
+            } else if ("monitor".equals(type)) {
+                appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE).edit()
+                        .putBoolean(MONITOR_ENABLED, payload.optBoolean(MONITOR_ENABLED, true)).apply();
+                MonitorServiceController.update(appContext);
+            } else if ("interests".equals(type)) {
+                appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE).edit()
+                        .putString(KEY_INTERESTS, payload.optString(KEY_INTERESTS, "[]")).apply();
+            } else if ("saved".equals(type)) {
+                appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE).edit()
+                        .putString(KEY_ARCHIVED_OFFERS,
+                                payload.optString(KEY_ARCHIVED_OFFERS, "[]")).apply();
+                syncPrefs(appContext).edit().putLong(KEY_ARCHIVED_UPDATED_AT, changedAt).apply();
+            } else if ("expiry".equals(type)) {
+                appContext.getSharedPreferences(GROUP_EXPIRY_PREFS, Context.MODE_PRIVATE).edit()
+                        .putString("rules", payload.optString(KEY_RANKING_EXPIRY_RULES, "{}"))
+                        .apply();
+            } else {
+                return false;
+            }
+            if (changedAt > 0L) {
+                syncPrefs(appContext).edit().putLong(LAST_CONFIGURATION_SYNC_AT, changedAt).apply();
+            }
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static void rememberCollectionChanged(Context context, String key, long changedAt) {
@@ -466,6 +579,7 @@ final class CloudSyncStore {
                 .putString(KEY_GROUP_SELECTED_AT, selectedAt.toString())
                 .putString(KEY_REMOVED_GROUPS, removed.toString())
                 .apply();
+        TelegramClientManager.getInstance().sendSelectedGroupsDelta();
     }
 
     static String exportSelectedGroupsDelta(Context context) {
@@ -577,6 +691,18 @@ final class CloudSyncStore {
 
     static long getLastRemoteBackupAt(Context context) {
         return syncPrefs(context).getLong(LAST_REMOTE_BACKUP_AT, 0L);
+    }
+
+    static void rememberConfigurationSynced(Context context) {
+        if (context != null) {
+            syncPrefs(context).edit()
+                    .putLong(LAST_CONFIGURATION_SYNC_AT, System.currentTimeMillis())
+                    .apply();
+        }
+    }
+
+    static long getLastConfigurationSyncAt(Context context) {
+        return syncPrefs(context).getLong(LAST_CONFIGURATION_SYNC_AT, 0L);
     }
 
     static long getBackupMessageId(Context context) {
