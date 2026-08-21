@@ -50,6 +50,20 @@ final class FloatingSearchController {
 
         searchBar.setOnClickListener(view -> expand());
         searchBar.setOnTouchListener(this::handleTouch);
+        searchIcon.setClickable(true);
+        searchIcon.setFocusable(true);
+        searchIcon.setContentDescription("Abrir pesquisa");
+        searchIcon.setOnTouchListener((view, event) -> {
+            if (!expanded) {
+                return handleTouch(searchBar, event);
+            }
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                view.performClick();
+                collapse(true);
+            }
+            return true;
+        });
+        searchIcon.setOnClickListener(view -> { });
         searchInput.setOnFocusChangeListener((view, hasFocus) -> {
             if (!hasFocus && expanded) {
                 collapse(true);
@@ -115,9 +129,7 @@ final class FloatingSearchController {
             inputMethodManager.hideSoftInputFromWindow(searchInput.getWindowToken(), 0);
         }
         searchInput.clearFocus();
-        if (searchInput.length() > 0) {
-            searchInput.setText("");
-        }
+        searchIcon.setContentDescription("Abrir pesquisa");
         searchInput.animate().cancel();
         if (!animate) {
             if (animator != null) {
@@ -167,6 +179,7 @@ final class FloatingSearchController {
                 0
         );
         expanded = true;
+        searchIcon.setContentDescription("Recolher pesquisa");
         searchInput.setVisibility(View.VISIBLE);
         searchInput.setAlpha(0f);
         animateBounds(targetWidth, targetLeft, collapsedY, 190L);
