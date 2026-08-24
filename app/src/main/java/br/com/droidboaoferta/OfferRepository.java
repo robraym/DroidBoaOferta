@@ -88,7 +88,8 @@ final class OfferRepository {
                     offer.getPrice(),
                     matchingInterest.getMaximumPrice(),
                     offer.getObservedAt(),
-                    offer.getLink()
+                    offer.getLink(),
+                    offer.getTelegramPostLink()
             ));
         }
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(reconciled)));
@@ -262,7 +263,8 @@ final class OfferRepository {
                         .put("price", item.getPrice())
                         .put("maximum_price", item.getMaximumPrice())
                         .put("observed_at", item.getObservedAt())
-                        .put("link", item.getLink()));
+                        .put("link", item.getLink())
+                        .put("telegram_post_link", item.getTelegramPostLink()));
             }
             preferences.edit().putString(key, array.toString()).apply();
         } catch (Exception ignored) {
@@ -283,7 +285,8 @@ final class OfferRepository {
                         item.getDouble("price"),
                         item.getDouble("maximum_price"),
                         item.getLong("observed_at"),
-                        item.optString("link")
+                        item.optString("link"),
+                        item.optString("telegram_post_link", "")
                 ));
             }
         } catch (Exception ignored) {

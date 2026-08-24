@@ -9,6 +9,7 @@ final class ObservedOffer {
     private final double maximumPrice;
     private final long observedAt;
     private final String link;
+    private final String telegramPostLink;
 
     ObservedOffer(String interest, String source, double price, double maximumPrice, long observedAt,
                   String link) {
@@ -28,6 +29,17 @@ final class ObservedOffer {
 
     ObservedOffer(String id, long interestId, String interest, String source, double price, double maximumPrice,
                   long observedAt, String link) {
+        this(id, interestId, interest, source, price, maximumPrice, observedAt, link, "");
+    }
+
+    ObservedOffer(long interestId, String interest, String source, double price, double maximumPrice,
+                  long observedAt, String link, String telegramPostLink) {
+        this(createId(interestId, interest, source, price, maximumPrice, observedAt, link),
+                interestId, interest, source, price, maximumPrice, observedAt, link, telegramPostLink);
+    }
+
+    ObservedOffer(String id, long interestId, String interest, String source, double price, double maximumPrice,
+                  long observedAt, String link, String telegramPostLink) {
         this.interestId = interestId;
         this.interest = interest;
         this.source = source;
@@ -35,6 +47,7 @@ final class ObservedOffer {
         this.maximumPrice = maximumPrice;
         this.observedAt = observedAt;
         this.link = link;
+        this.telegramPostLink = telegramPostLink == null ? "" : telegramPostLink;
         this.id = id == null || id.trim().isEmpty()
                 ? createId(interestId, interest, source, price, maximumPrice, observedAt, link)
                 : id;
@@ -70,6 +83,10 @@ final class ObservedOffer {
 
     String getLink() {
         return link;
+    }
+
+    String getTelegramPostLink() {
+        return telegramPostLink;
     }
 
     private static String createId(long interestId, String interest, String source, double price,

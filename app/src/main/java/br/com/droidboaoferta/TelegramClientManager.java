@@ -76,6 +76,10 @@ final class TelegramClientManager {
         void onCompleted(double lowestPrice, int statusMessageResource);
     }
 
+    interface MessageLinkCallback {
+        void onResolved(String link);
+    }
+
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
     // A burst of offers is kept local and coalesced into one small backup.
     private static final long CLOUD_BACKUP_DEBOUNCE_MS = 2_000L;
@@ -101,6 +105,7 @@ final class TelegramClientManager {
     private final Map<String, QualityHistorySearch> qualityHistorySearches = new HashMap<>();
     private final Map<Long, LowestPriceBatch> lowestPriceBatches = new HashMap<>();
     private final Map<String, CachedLowestPriceResult> cachedLowestPriceResults = new HashMap<>();
+    private final Map<String, MessageLinkCallback> pendingMessageLinkCallbacks = new HashMap<>();
     private final Set<Long> groupChatIds = new HashSet<>();
     private final Set<Long> pendingCloudMessageIds = new HashSet<>();
     private final Set<Long> confirmedCloudMessageIds = new HashSet<>();
@@ -122,6 +127,7 @@ final class TelegramClientManager {
     private volatile long nextCodeAvailableAtElapsed;
     private volatile long selfUserId;
     private volatile long selfChatId;
+    private long nextMessageLinkRequestId;
     private volatile boolean cloudSyncRequested;
     private volatile boolean cloudHistoryFallbackRequested;
     private volatile boolean forceCloudRestore;
@@ -337,6 +343,31 @@ final class TelegramClientManager {
             } catch (Exception exception) {
                 completeLowestPricePart(batch);
             }
+        }
+    }
+
+    synchronized void resolveMessageLink(long chatId, long messageId, MessageLinkCallback callback) {
+        if (callback == null) {
+            return;
+        }
+        if (state != State.READY || chatId == 0L || messageId <= 0L) {
+            callback.onResolved("");
+            return;
+        }
+        String extra = "message_link:" + (++nextMessageLinkRequestId);
+        pendingMessageLinkCallbacks.put(extra, callback);
+        try {
+            send(new JSONObject()
+                    .put("@type", "getMessageLink")
+                    .put("chat_id", chatId)
+                    .put("message_id", messageId)
+                    .put("media_timestamp", 0)
+                    .put("for_album", false)
+                    .put("in_message_thread", false)
+                    .put("@extra", extra));
+        } catch (JSONException exception) {
+            pendingMessageLinkCallbacks.remove(extra);
+            callback.onResolved("");
         }
     }
 
@@ -709,6 +740,11 @@ final class TelegramClientManager {
             handleSelfChat(result);
         } else if ("message".equals(type) && result.optString("@extra").startsWith("cloud_sync_")) {
             handleCloudSyncSentMessage(result);
+        } else if ("messageLink".equals(type) && extra.startsWith("message_link:")) {
+            MessageLinkCallback callback = pendingMessageLinkCallbacks.remove(extra);
+            if (callback != null) {
+                callback.onResolved(result.optString("link", ""));
+            }
         } else if ("chats".equals(type) && result.optString("@extra").startsWith("load_groups_")) {
             publishGroups(result.getJSONArray("chat_ids"));
         } else if ("foundChatMessages".equals(type)
@@ -743,6 +779,13 @@ final class TelegramClientManager {
         } else if ("user".equals(type) && "account_me".equals(result.optString("@extra"))) {
             publishAccount(result);
         } else if ("error".equals(type)) {
+            if (result.optString("@extra").startsWith("message_link:")) {
+                MessageLinkCallback callback = pendingMessageLinkCallbacks.remove(result.optString("@extra"));
+                if (callback != null) {
+                    callback.onResolved("");
+                }
+                return;
+            }
             if (result.optString("@extra").startsWith("lowest_price:")) {
                 handleLowestPriceError(result.optString("@extra"));
                 return;

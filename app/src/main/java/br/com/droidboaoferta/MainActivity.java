@@ -645,8 +645,9 @@ public class MainActivity extends AlertouActivity {
                     } else if (!swiping[0]
                             && Math.abs(deltaX) < dp(10)
                             && Math.abs(deltaY) < dp(10)
-                            && !offer.getLink().isEmpty()) {
-                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getLink())));
+                            && !offer.getTelegramPostLink().isEmpty()) {
+                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                Uri.parse(offer.getTelegramPostLink())));
                     }
                     return true;
                 case MotionEvent.ACTION_CANCEL:

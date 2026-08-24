@@ -170,31 +170,35 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         if (!offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
             return;
         }
-        ObservedOffer offer = new ObservedOffer(
-                interest.getId(),
-                interest.getTerm(),
-                sourceTitle,
-                price,
-                interest.getMaximumPrice(),
-                messageDate > 0L ? messageDate : System.currentTimeMillis(),
-                offerLink
-        );
-        offerRepository.add(offer);
-        new GroupSpeedRepository(appContext).record(
-                chatId, sourceTitle, interest, price, offer.getObservedAt(), offerLink
-        );
-        MonitorStatusStore.markApprovedOffer(appContext);
-        if (notifyUser) {
-            showOfferNotification(offer, chatId, messageId);
-        }
-        appContext.sendBroadcast(new Intent(ACTION_OFFER_FOUND).setPackage(appContext.getPackageName()));
+        TelegramClientManager.getInstance().resolveMessageLink(chatId, messageId, telegramPostLink -> {
+            ObservedOffer offer = new ObservedOffer(
+                    interest.getId(),
+                    interest.getTerm(),
+                    sourceTitle,
+                    price,
+                    interest.getMaximumPrice(),
+                    messageDate > 0L ? messageDate : System.currentTimeMillis(),
+                    offerLink,
+                    telegramPostLink
+            );
+            offerRepository.add(offer);
+            new GroupSpeedRepository(appContext).record(
+                    chatId, sourceTitle, interest, price, offer.getObservedAt(), offerLink
+            );
+            MonitorStatusStore.markApprovedOffer(appContext);
+            if (notifyUser) {
+                showOfferNotification(offer, chatId, messageId);
+            }
+            appContext.sendBroadcast(new Intent(ACTION_OFFER_FOUND)
+                    .setPackage(appContext.getPackageName()));
+        });
     }
 
     private void showOfferNotification(ObservedOffer offer, long chatId, long messageId) {
-        Intent openApp = offer.getLink().isEmpty()
+        Intent openApp = offer.getTelegramPostLink().isEmpty()
                 ? new Intent(appContext, MainActivity.class)
                         .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                : new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getLink()));
+                : new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getTelegramPostLink()));
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 appContext,
                 (int) (messageId ^ chatId),

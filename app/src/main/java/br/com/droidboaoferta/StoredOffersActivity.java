@@ -446,9 +446,9 @@ abstract class StoredOffersActivity extends AlertouActivity {
             row.addView(delete, deleteParams);
         }
 
-        if (!offer.getLink().isEmpty()) {
+        if (!offer.getTelegramPostLink().isEmpty()) {
             row.setOnClickListener(view -> startActivity(
-                    new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getLink()))
+                    new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getTelegramPostLink()))
             ));
         }
         return row;
