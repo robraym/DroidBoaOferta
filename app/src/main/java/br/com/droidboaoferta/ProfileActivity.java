@@ -158,6 +158,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 view -> showNavigationAnimationDialog()
         );
         findViewById(R.id.row_backup).setOnClickListener(view -> clientManager.backupCloudNow());
+        findViewById(R.id.row_ranking_rules).setOnClickListener(view -> showRankingRulesDialog());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
     }
@@ -1632,6 +1633,14 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         showInformationDialog(R.string.profile_terms_title, R.string.profile_terms_message);
     }
 
+    private void showRankingRulesDialog() {
+        showInformationDialog(
+                R.string.profile_ranking_rules_title,
+                R.string.profile_ranking_rules_message,
+                true
+        );
+    }
+
     private void refreshErrorSummary() {
         if (errorTitle == null || errorSummary == null) {
             return;
@@ -1722,6 +1731,10 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     }
 
     private void showInformationDialog(int titleResource, int messageResource) {
+        showInformationDialog(titleResource, messageResource, false);
+    }
+
+    private void showInformationDialog(int titleResource, int messageResource, boolean scrollable) {
         Dialog dialog = new Dialog(this);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -1739,7 +1752,23 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         message.setTextColor(getColor(R.color.text_secondary));
         message.setTextSize(15);
         message.setPadding(0, dp(8), 0, dp(16));
-        content.addView(message);
+        if (scrollable) {
+            ScrollView messageScroll = new ScrollView(this);
+            messageScroll.setVerticalScrollBarEnabled(true);
+            messageScroll.setScrollbarFadingEnabled(false);
+            messageScroll.addView(message, new ScrollView.LayoutParams(
+                    ScrollView.LayoutParams.MATCH_PARENT,
+                    ScrollView.LayoutParams.WRAP_CONTENT
+            ));
+            int availableHeight = getResources().getDisplayMetrics().heightPixels - dp(170);
+            int scrollHeight = Math.max(dp(120), availableHeight);
+            content.addView(messageScroll, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    scrollHeight
+            ));
+        } else {
+            content.addView(message);
+        }
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END);

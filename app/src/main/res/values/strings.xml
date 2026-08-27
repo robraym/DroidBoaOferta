@@ -191,6 +191,9 @@
     <string name="accent_color_magenta">Magenta</string>
     <string name="profile_terms_title">Termos e privacidade</string>
     <string name="profile_terms_message">O Alertou processa no aparelho apenas os grupos e canais escolhidos por você. As mensagens do Telegram não são enviadas para serviços externos de IA.</string>
+    <string name="profile_ranking_rules_title">Como funciona o ranking</string>
+    <string name="profile_ranking_rules_summary">Pontuação, desempate e histórico semanal</string>
+    <string name="profile_ranking_rules_message">O ranking compara quem publica primeiro o mesmo produto durante cada ciclo de 7 dias.\n\nPontuação por ordem de publicação:\n1º: 10 pontos\n2º: 8 pontos\n3º: 6 pontos\n4º: 5 pontos\n5º: 4 pontos\n6º: 3 pontos\n7º ao 10º: 2 pontos\nA partir do 11º: 1 ponto\n\nPublicações do mesmo produto feitas em até 12 horas participam da mesma disputa. Cada grupo pontua uma vez, usando sua primeira publicação. Promoções marcadas como encerradas não pontuam.\n\nDesempate: mais primeiros lugares e, depois, nome do grupo.\n\nNa lista de grupos, a qualidade semanal vem antes dos pontos. Após 7 dias, 3 ou mais promoções aprovadas indica Bom; nenhuma indica Fraco; 1 ou 2 indica pouca evidência.\n\nAo concluir a semana, o Alertou registra o campeão e o Top 3. A estrela mostra quantas vezes o grupo foi campeão.</string>
     <string name="profile_sync_title">Sincronização</string>
     <string name="profile_sync_waiting">Ativa com sua conta Telegram.</string>
     <string name="profile_sync_pending">Sincronizando alterações...</string>
