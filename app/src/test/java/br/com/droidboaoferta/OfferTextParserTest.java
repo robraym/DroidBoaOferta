@@ -155,6 +155,34 @@ public class OfferTextParserTest {
     }
 
     @Test
+    public void keepsPricesInsideTheirLinkedOfferBlocks() {
+        String text = "Produto anterior em promoção\n"
+                + "R$ 186\n"
+                + "LINK https://loja.example/anterior\n\n"
+                + "Produto procurado com recursos avançados\n"
+                + "De R$ 899 por DESTAQUE R$ 469\n"
+                + "LINK https://loja.example/procurado";
+
+        assertEquals(
+                469.00,
+                OfferTextParser.extractPriceForInterest(text, "Produto procurado"),
+                0.001
+        );
+    }
+
+    @Test
+    public void neverBorrowsPriceAcrossLinkedOfferBlocks() {
+        String text = "Produto anterior por R$ 186\n"
+                + "LINK https://loja.example/anterior\n\n"
+                + "Produto procurado sem preço informado";
+
+        assertTrue(Double.isNaN(OfferTextParser.extractPriceForInterest(
+                text,
+                "Produto procurado"
+        )));
+    }
+
+    @Test
     public void rejectsModelMentionedOnlyInEditorialHeadlineBeforeAnotherProduct() {
         String text = "Câmera melhor que iPhone 17 Pro Max e S26 Ultra segundo DXOmark\n\n"
                 + "➡️ Smartphone HUAWEI Pura 80 Pro 12GB+512GB\n"

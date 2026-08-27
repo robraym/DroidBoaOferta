@@ -91,10 +91,8 @@ final class OfferTextParser {
         if (interestOffset < 0) {
             return extractPrice(text);
         }
-        List<PriceCandidate> candidates = collectPriceCandidates(text);
-        PriceCandidate best = null;
-        long bestScore = Long.MAX_VALUE;
-        for (PriceCandidate candidate : candidates) {
+        List<PriceCandidate> candidates = new ArrayList<>();
+        for (PriceCandidate candidate : collectPriceCandidates(text)) {
             if (startsDifferentProductBeforePrice(
                     text,
                     interest,
@@ -103,6 +101,14 @@ final class OfferTextParser {
             )) {
                 continue;
             }
+            if (crossesPurchaseLink(text, interestOffset, candidate.offset)) {
+                continue;
+            }
+            candidates.add(candidate);
+        }
+        PriceCandidate best = null;
+        long bestScore = Long.MAX_VALUE;
+        for (PriceCandidate candidate : candidates) {
             long score = Math.abs((long) candidate.offset - interestOffset)
                     + candidate.priority * 8L;
             if (candidate.offset >= interestOffset) {
@@ -114,6 +120,18 @@ final class OfferTextParser {
             }
         }
         return best == null ? Double.NaN : best.price;
+    }
+
+    private static boolean crossesPurchaseLink(String text, int firstOffset, int secondOffset) {
+        int start = Math.min(firstOffset, secondOffset);
+        int end = Math.max(firstOffset, secondOffset);
+        Matcher linkMatcher = LINK.matcher(text);
+        while (linkMatcher.find()) {
+            if (linkMatcher.start() > start && linkMatcher.end() < end) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean startsDifferentProductBeforePrice(String text, String interest,
@@ -313,7 +331,18 @@ final class OfferTextParser {
         return meaning == PriceContextClassifier.Meaning.DISCOUNT
                 || meaning == PriceContextClassifier.Meaning.CASHBACK
                 || meaning == PriceContextClassifier.Meaning.FREIGHT
-                || meaning == PriceContextClassifier.Meaning.CREDIT;
+                || meaning == PriceContextClassifier.Meaning.CREDIT
+                || isReplacedByFollowingPrice(text, priceEnd);
+    }
+
+    private static boolean isReplacedByFollowingPrice(String text, int priceEnd) {
+        String after = normalize(text.substring(
+                Math.min(priceEnd, text.length()),
+                Math.min(text.length(), priceEnd + 48)
+        ));
+        return after.matches(
+                "^(?:por|agora)(?:\\s+[a-z0-9]+){0,3}\\s+r\\s+[0-9].*"
+        );
     }
 
     private static boolean looksLikeAccessoryOffer(String message, String interest) {
