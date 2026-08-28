@@ -360,6 +360,14 @@ public class AlertsActivity extends AlertouActivity {
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END);
         actions.setPadding(0, dp(18), 0, 0);
+        if (editing) {
+            TextView revalidate = createDialogAction(R.string.action_revalidate_history);
+            revalidate.setOnClickListener(view -> {
+                dialog.dismiss();
+                revalidateInterestHistory(interestToEdit);
+            });
+            actions.addView(revalidate);
+        }
         TextView cancel = createDialogAction(R.string.action_cancel);
         cancel.setOnClickListener(view -> dialog.dismiss());
         actions.addView(cancel);
@@ -405,6 +413,19 @@ public class AlertsActivity extends AlertouActivity {
             shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
+    }
+
+    private void revalidateInterestHistory(Interest interest) {
+        Dialog updatingDialog = showUpdatingDialog();
+        alertUpdateExecutor.execute(() -> {
+            OfferMonitor.getInstance().revalidateInterestHistory(this, interest);
+            runOnUiThread(() -> {
+                if (updatingDialog.isShowing()) {
+                    updatingDialog.dismiss();
+                }
+                renderInterests();
+            });
+        });
     }
 
     private void updateInterestInBackground(Interest interestToEdit, String term,

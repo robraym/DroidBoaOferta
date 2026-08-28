@@ -204,6 +204,7 @@
     <string name="profile_manual_backup_message">Guarde suas configurações e o histórico de desempenho dos grupos nesta conta.</string>
     <string name="profile_manual_backup_action">Fazer backup</string>
     <string name="profile_manual_restore_action">Restaurar backup</string>
+    <string name="action_revalidate_history">Revalidar histórico</string>
     <string name="profile_manual_backup_clear_action">Excluir backup</string>
     <string name="profile_manual_backup_clear_title">Excluir backup?</string>
     <string name="profile_manual_backup_clear_message">Isso remove do Telegram somente os backups do Alertou. Seus dados deste aparelho continuam aqui.</string>

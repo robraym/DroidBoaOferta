@@ -5,8 +5,6 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Handler;
-import android.os.Looper;
 
 import androidx.core.app.NotificationCompat;
 
@@ -17,8 +15,6 @@ import java.util.Set;
 
 final class OfferMonitor implements TelegramClientManager.MessageListener {
     static final String ACTION_OFFER_FOUND = "br.com.droidboaoferta.OFFER_FOUND";
-    private static final String PARSER_CORRECTION_PREFS = "parser_correction_preferences";
-    private static final String KEY_A57_RECHECK_DONE = "a57_recheck_done";
     private static final OfferMonitor INSTANCE = new OfferMonitor();
 
     static OfferMonitor getInstance() {
@@ -28,7 +24,6 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
     private Context appContext;
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
-    private boolean a57RecheckScheduled;
 
     private OfferMonitor() {
     }
@@ -43,7 +38,6 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         TelegramClientManager clientManager = TelegramClientManager.getInstance();
         clientManager.setMessageListener(this);
         clientManager.start(appContext);
-        scheduleGalaxyA57Recheck(clientManager);
         CloudSyncStore.ensureRankingHistorySync(appContext);
         GroupQualityRepository qualityRepository = new GroupQualityRepository(appContext);
         if (qualityRepository.prepareYesterdayHistory()) {
@@ -51,33 +45,6 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                     - (System.currentTimeMillis() % (24L * 60L * 60L * 1000L))
                     - 24L * 60L * 60L * 1000L);
         }
-    }
-
-    private void scheduleGalaxyA57Recheck(TelegramClientManager clientManager) {
-        if (a57RecheckScheduled || appContext.getSharedPreferences(PARSER_CORRECTION_PREFS,
-                Context.MODE_PRIVATE).getBoolean(KEY_A57_RECHECK_DONE, false)) {
-            return;
-        }
-        a57RecheckScheduled = true;
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            a57RecheckScheduled = false;
-            if (clientManager.getState() != TelegramClientManager.State.READY) {
-                scheduleGalaxyA57Recheck(clientManager);
-                return;
-            }
-            for (Interest interest : interestRepository.getAll()) {
-                if (!"galaxy a57".equals(OfferTextParser.normalize(interest.getTerm()))) {
-                    continue;
-                }
-                new GroupSpeedRepository(appContext).clearForInterest(interest.getTerm());
-                offerRepository.clearProcessedForInterest(interest.getId());
-                offerRepository.clearRecentForInterest(interest.getId());
-                appContext.getSharedPreferences(PARSER_CORRECTION_PREFS, Context.MODE_PRIVATE).edit()
-                        .putBoolean(KEY_A57_RECHECK_DONE, true).apply();
-                clientManager.refreshInterestHistory(interest.getId(), interest.getTerm());
-                break;
-            }
-        }, 2_000L);
     }
 
     synchronized void refreshInterestHistory(Context context, long interestId, String term,
@@ -92,6 +59,18 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         if (!usedValidatedSearch) {
             clientManager.refreshInterestHistory(interestId, term);
         }
+    }
+
+    synchronized void revalidateInterestHistory(Context context, Interest interest) {
+        if (interest == null) {
+            return;
+        }
+        start(context);
+        new GroupSpeedRepository(appContext).clearForInterest(interest.getTerm());
+        offerRepository.clearProcessedForInterest(interest.getId());
+        offerRepository.clearRecentForInterest(interest.getId());
+        TelegramClientManager.getInstance().refreshInterestHistory(
+                interest.getId(), interest.getTerm());
     }
 
     @Override
