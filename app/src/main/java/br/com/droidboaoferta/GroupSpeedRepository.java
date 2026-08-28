@@ -15,10 +15,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** Keeps a local, explainable ranking of groups that published the same offer first. */
+/** Keeps the explainable ranking events that are merged across connected devices. */
 final class GroupSpeedRepository {
     private static final String PREFS = "group_speed_preferences";
     private static final String KEY_EVENTS = "promotion_events";
+    private static final String KEY_STARTED_AT = "started_at";
     private static final long WINDOW_MS = 7L * 24L * 60L * 60L * 1000L;
     private static final long RACE_WINDOW_MS = 12L * 60L * 60L * 1000L;
     private static final int MAX_EVENTS = 800;
@@ -55,8 +56,32 @@ final class GroupSpeedRepository {
         }
     }
 
+    synchronized void clearForInterest(String interest) {
+        String signature = signature(interest, 0.0d, "");
+        List<Event> events = readEvents();
+        List<Event> removed = new ArrayList<>();
+        for (Event event : events) {
+            if (signature.equals(event.signature)) {
+                removed.add(event);
+            }
+        }
+        if (removed.isEmpty()) {
+            return;
+        }
+        events.removeAll(removed);
+        saveEvents(events);
+        for (Event event : removed) {
+            CloudSyncStore.markRankingSpeedRemoved(appContext, event.chatId, event.signature,
+                    event.observedAt);
+        }
+    }
+
     private void record(long chatId, String title, String interest, long interestId, double price,
                         long observedAt, String link) {
+        long startedAt = preferences.getLong(KEY_STARTED_AT, 0L);
+        if (startedAt > 0L && observedAt < startedAt) {
+            return;
+        }
         List<Event> events = readEvents();
         String product = signature(interest, price, link);
         String eventId = chatId + ":" + product + ":" + observedAt;
@@ -71,6 +96,7 @@ final class GroupSpeedRepository {
             events = new ArrayList<>(events.subList(0, MAX_EVENTS));
         }
         saveEvents(events);
+        CloudSyncStore.markRankingSpeedChanged(appContext, chatId, product, observedAt);
     }
 
     synchronized List<Ranking> getRanking(List<TelegramGroup> groups, Set<String> selectedIds) {

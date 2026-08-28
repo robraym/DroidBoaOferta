@@ -81,6 +81,33 @@ public class CloudSyncStoreTest {
         assertEquals(60_000L, CloudSyncRetryPolicy.delayForAttempt(20));
     }
 
+    @Test
+    public void weeklyMergePreservesEveryEarnedStar() throws Exception {
+        String local = new JSONArray().put(week(100L,
+                standing(10L, 1, 10), standing(20L, 2, 8))).toString();
+        String remote = new JSONArray().put(week(100L,
+                standing(20L, 1, 10), standing(10L, 2, 8))).toString();
+
+        JSONArray merged = new JSONArray(CloudSyncStore.mergeWeeks(local, remote));
+        JSONArray standings = merged.getJSONObject(0).getJSONArray("standings");
+
+        assertEquals(2, standings.length());
+        assertEquals(1, findStanding(standings, 10L).getInt("position"));
+        assertEquals(1, findStanding(standings, 20L).getInt("position"));
+    }
+
+    @Test
+    public void weeklyMergeKeepsBestPositionAndHighestPoints() throws Exception {
+        String local = new JSONArray().put(week(100L, standing(10L, 3, 6))).toString();
+        String remote = new JSONArray().put(week(100L, standing(10L, 2, 8))).toString();
+
+        JSONArray merged = new JSONArray(CloudSyncStore.mergeWeeks(local, remote));
+        JSONObject standing = merged.getJSONObject(0).getJSONArray("standings").getJSONObject(0);
+
+        assertEquals(2, standing.getInt("position"));
+        assertEquals(8, standing.getInt("points"));
+    }
+
     private JSONObject backup(long updatedAt, boolean complete, String interests,
                               int selectedGroups) throws Exception {
         JSONArray groups = new JSONArray();
@@ -97,6 +124,25 @@ public class CloudSyncStoreTest {
                         .put("recent_offers", "[]")
                         .put("archived_offers", "[]")
                         .put("trashed_offers", "[]"));
+    }
+
+    private JSONObject week(long startedAt, JSONObject... standings) throws Exception {
+        JSONArray values = new JSONArray();
+        for (JSONObject standing : standings) values.put(standing);
+        return new JSONObject().put("started_at", startedAt).put("standings", values);
+    }
+
+    private JSONObject standing(long chatId, int position, int points) throws Exception {
+        return new JSONObject().put("chat_id", chatId)
+                .put("position", position).put("points", points);
+    }
+
+    private JSONObject findStanding(JSONArray standings, long chatId) throws Exception {
+        for (int index = 0; index < standings.length(); index++) {
+            JSONObject item = standings.getJSONObject(index);
+            if (item.getLong("chat_id") == chatId) return item;
+        }
+        throw new AssertionError("Standing not found for " + chatId);
     }
 
     private JSONObject message(long id, String backup) throws Exception {

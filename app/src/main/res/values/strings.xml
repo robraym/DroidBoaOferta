@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Alertou</string>
     <string name="app_slogan">Só avisa quando vale a pena.</string>
-    <string name="telegram_setup_screen_title">Telegram</string>
+    <string name="telegram_setup_screen_title">Fontes</string>
     <string name="telegram_choose_groups_short">Escolha os grupos de promoções.</string>
     <string name="telegram_groups_card_title">Grupos de promoções</string>
     <string name="telegram_groups_count_empty">0 selecionados de 0 grupos</string>
@@ -268,7 +268,7 @@
     <string name="trash_card_title">Itens na lixeira</string>
     <string name="trash_empty">Nenhuma oferta na lixeira.</string>
     <string name="bottom_nav_home">Alertou</string>
-    <string name="bottom_nav_sources">Telegram</string>
+    <string name="bottom_nav_sources">Fontes</string>
     <string name="bottom_nav_alerts">Alertas</string>
     <string name="bottom_nav_archived">Salvas</string>
     <string name="bottom_nav_trash">Lixeira</string>

@@ -126,8 +126,15 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private boolean formattingPhoneNumber;
     private final Handler smsHandler = new Handler(Looper.getMainLooper());
     private boolean smsReceiverRegistered;
+    private boolean cloudSyncReceiverRegistered;
     private boolean smsConsentListening;
     private final Runnable smsCountdownRunnable = this::renderSmsOption;
+    private final BroadcastReceiver cloudSyncReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            renderGroups(availableGroups, showingCachedGroups);
+        }
+    };
     private final BroadcastReceiver smsVerificationReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -293,6 +300,15 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     protected void onStart() {
         super.onStart();
         registerSmsReceiver();
+        if (!cloudSyncReceiverRegistered) {
+            ContextCompat.registerReceiver(
+                    this,
+                    cloudSyncReceiver,
+                    new IntentFilter(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED),
+                    ContextCompat.RECEIVER_NOT_EXPORTED
+            );
+            cloudSyncReceiverRegistered = true;
+        }
         clientManager.setListener(this);
         clientManager.start(this);
         clientManager.refreshGroups();
@@ -309,6 +325,10 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     protected void onStop() {
         smsHandler.removeCallbacks(smsCountdownRunnable);
         unregisterSmsReceiver();
+        if (cloudSyncReceiverRegistered) {
+            unregisterReceiver(cloudSyncReceiver);
+            cloudSyncReceiverRegistered = false;
+        }
         clientManager.clearListener(this);
         collapseGroupsSearch(false);
         super.onStop();
@@ -720,12 +740,12 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         updateGroupsEvaluationSummary(qualityByGroupId);
         displayGroups = new ArrayList<>(displayGroups);
         displayGroups.sort((first, second) -> {
-            GroupQualityRepository.Stats firstQuality = qualityByGroupId.get(first.getId());
-            GroupQualityRepository.Stats secondQuality = qualityByGroupId.get(second.getId());
-            int firstQualityOrder = firstQuality == null ? 0 : firstQuality.getQualityOrder();
-            int secondQualityOrder = secondQuality == null ? 0 : secondQuality.getQualityOrder();
-            if (firstQualityOrder != secondQualityOrder) {
-                return Integer.compare(secondQualityOrder, firstQualityOrder);
+            GroupWeeklyHistoryRepository.Awards firstAwards = awardsByGroupId.get(first.getId());
+            GroupWeeklyHistoryRepository.Awards secondAwards = awardsByGroupId.get(second.getId());
+            int firstStars = firstAwards == null ? 0 : firstAwards.getChampionships();
+            int secondStars = secondAwards == null ? 0 : secondAwards.getChampionships();
+            if (firstStars != secondStars) {
+                return Integer.compare(secondStars, firstStars);
             }
             GroupSpeedRepository.Ranking firstRanking = rankingByGroupId.get(first.getId());
             GroupSpeedRepository.Ranking secondRanking = rankingByGroupId.get(second.getId());
@@ -868,14 +888,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         if (groups == null || groups.isEmpty() || selectedGroupIds == null || selectedGroupIds.isEmpty()) {
             return Collections.emptyList();
         }
-        OfferRepository offers = new OfferRepository(this);
-        List<ObservedOffer> observedOffers = new ArrayList<>();
-        observedOffers.addAll(offers.getRecent());
-        observedOffers.addAll(offers.getArchived());
-        observedOffers.addAll(offers.getTrashed());
-        new GroupQualityRepository(this).seedApprovedOffers(observedOffers, groups, selectedGroupIds);
         GroupSpeedRepository speedRepository = new GroupSpeedRepository(this);
-        speedRepository.seedFromOffers(observedOffers, groups, selectedGroupIds);
         return speedRepository.getRanking(groups, selectedGroupIds);
     }
 
@@ -1104,14 +1117,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             return;
         }
 
-        OfferRepository offers = new OfferRepository(this);
-        List<ObservedOffer> observedOffers = new ArrayList<>();
-        observedOffers.addAll(offers.getRecent());
-        observedOffers.addAll(offers.getArchived());
-        observedOffers.addAll(offers.getTrashed());
-
         GroupSpeedRepository speedRepository = new GroupSpeedRepository(this);
-        speedRepository.seedFromOffers(observedOffers, availableGroups, selectedGroupIds);
         long weekStartedAt = groupEvaluationWeekStartedAt > 0L ? groupEvaluationWeekStartedAt
                 : new GroupWeeklyHistoryRepository(this).getCurrentWeekStartedAt();
         List<GroupSpeedRepository.Ranking> ranking = speedRepository.getRanking(availableGroups,

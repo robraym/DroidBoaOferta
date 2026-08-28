@@ -1552,9 +1552,14 @@ final class TelegramClientManager {
             return;
         }
         boolean groupsChanged = CloudSyncStore.importSelectedGroupsDeltas(appContext, messages);
+        boolean rankingChanged = CloudSyncStore.importRankingDeltas(appContext, messages);
         if (groupsChanged) {
             MonitorServiceController.update(appContext);
             loadGroups();
+            appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
+                    .setPackage(appContext.getPackageName()));
+        }
+        if (rankingChanged) {
             appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                     .setPackage(appContext.getPackageName()));
         }
@@ -1636,6 +1641,13 @@ final class TelegramClientManager {
         }
         if (messageText.contains(CloudSyncStore.CONFIG_DELTA_MARKER)) {
             if (CloudSyncStore.importConfigurationDelta(appContext, messageText)) {
+                appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
+                        .setPackage(appContext.getPackageName()));
+            }
+            return;
+        }
+        if (messageText.contains(CloudSyncStore.RANKING_DELTA_MARKER)) {
+            if (CloudSyncStore.importRankingDeltaText(appContext, messageText)) {
                 appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                         .setPackage(appContext.getPackageName()));
             }
@@ -1908,12 +1920,15 @@ final class TelegramClientManager {
             cloudBackupRetryAttempt = 0;
             lastCloudBackupCompletedElapsed = SystemClock.elapsedRealtime();
             cloudBackupGeneration++;
-            boolean fullySynced = pendingCloudBackupIsRankingDelta
+            boolean wasRankingDelta = pendingCloudBackupIsRankingDelta;
+            boolean fullySynced = wasRankingDelta
                     ? CloudSyncStore.markRankingDeltaPushed(appContext, pendingCloudBackupUpdatedAt)
                     : CloudSyncStore.markFullSnapshotPushed(appContext, pendingCloudBackupUpdatedAt);
             pendingCloudBackupUpdatedAt = 0L;
             pendingCloudBackupIsRankingDelta = false;
-            requestBackupPrune();
+            if (!wasRankingDelta) {
+                requestBackupPrune();
+            }
             appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                     .setPackage(appContext.getPackageName()));
             if (!fullySynced) {

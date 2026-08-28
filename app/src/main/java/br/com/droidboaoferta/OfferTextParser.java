@@ -93,6 +93,9 @@ final class OfferTextParser {
         }
         List<PriceCandidate> candidates = new ArrayList<>();
         for (PriceCandidate candidate : collectPriceCandidates(text)) {
+            if (isExplicitlyAnotherItemPrice(text, interest, interestOffset, candidate.offset)) {
+                continue;
+            }
             if (startsDifferentProductBeforePrice(
                     text,
                     interest,
@@ -120,6 +123,21 @@ final class OfferTextParser {
             }
         }
         return best == null ? Double.NaN : best.price;
+    }
+
+    private static boolean isExplicitlyAnotherItemPrice(String text, String interest,
+                                                         int interestOffset, int priceOffset) {
+        if (priceOffset <= interestOffset || interest == null) {
+            return false;
+        }
+        int lineStart = text.lastIndexOf('\n', Math.max(0, priceOffset - 1)) + 1;
+        int contextStart = Math.max(lineStart, priceOffset - 100);
+        String context = normalize(text.substring(contextStart, priceOffset));
+        if (!context.matches(".*\\b(sozinho|sozinha|avulso|avulsa|separadamente)\\b.*")) {
+            return false;
+        }
+        String normalizedInterest = normalize(interest);
+        return !normalizedInterest.isEmpty() && !context.contains(normalizedInterest);
     }
 
     private static boolean crossesPurchaseLink(String text, int firstOffset, int secondOffset) {

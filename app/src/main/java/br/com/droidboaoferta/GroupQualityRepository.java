@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Local weekly evidence of how often a group produces an approved offer. */
+/** Weekly evidence of how often a group produces an approved offer. */
 final class GroupQualityRepository {
     private static final String PREFS = "group_quality_preferences";
     private static final String KEY_MESSAGES = "messages";
@@ -49,7 +49,10 @@ final class GroupQualityRepository {
     }
 
     synchronized void recordApprovedOffer(long chatId, long messageId, long observedAt) {
-        record(KEY_APPROVED, new Event(chatId + ":" + messageId, chatId, observedAt));
+        String id = chatId + ":" + messageId;
+        if (record(KEY_APPROVED, new Event(id, chatId, observedAt))) {
+            CloudSyncStore.markRankingApprovedChanged(appContext, chatId, id, observedAt);
+        }
     }
 
     synchronized void seedApprovedOffers(List<ObservedOffer> offers, List<TelegramGroup> groups,

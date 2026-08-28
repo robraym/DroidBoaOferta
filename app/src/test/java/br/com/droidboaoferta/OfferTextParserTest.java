@@ -155,6 +155,19 @@ public class OfferTextParserTest {
     }
 
     @Test
+    public void ignoresThePriceOfAnotherItemInBundlePromotion() {
+        String text = "Galaxy A57 5G (128GB) - Cinza + Galaxy Watch8 BT 44mm - Grafite\n\n"
+                + "O Watch8 sozinho custa R$1200\n\n"
+                + "R$2.216,28";
+
+        assertEquals(
+                2216.28,
+                OfferTextParser.extractPriceForInterest(text, "Galaxy A57"),
+                0.001
+        );
+    }
+
+    @Test
     public void keepsPricesInsideTheirLinkedOfferBlocks() {
         String text = "Produto anterior em promoção\n"
                 + "R$ 186\n"

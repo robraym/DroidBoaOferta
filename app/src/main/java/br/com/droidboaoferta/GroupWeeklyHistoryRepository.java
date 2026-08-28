@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Stores completed weekly group rankings locally, without changing the live ranking. */
+/** Stores completed weekly rankings and preserves the stars already earned. */
 final class GroupWeeklyHistoryRepository {
     private static final String PREFS = "group_weekly_history";
     private static final String KEY_WEEKS = "weeks";
@@ -59,6 +59,7 @@ final class GroupWeeklyHistoryRepository {
         preferences.edit().putString(KEY_WEEKS, weeks.toString())
                 .putLong(KEY_WEEK_STARTED_AT, now - startedAt >= WEEK_MS * 2L
                         ? now : startedAt + WEEK_MS).apply();
+        CloudSyncStore.markRankingWeeksChanged(appContext, weeks.toString());
     }
 
     synchronized long getCurrentWeekStartedAt() {
