@@ -44,6 +44,10 @@ final class CloudSyncStore {
     private static final String LAST_RANKING_CHECKPOINT_AT = "last_ranking_checkpoint_at";
     private static final String RANKING_DELTAS_SINCE_CHECKPOINT = "ranking_deltas_since_checkpoint";
     private static final String COMPACT_BACKUP_MIGRATED = "compact_backup_migrated";
+    private static final String CONFIG_DELTA_HISTORY_MIGRATED =
+            "config_delta_history_migrated";
+    private static final String COUPON_SYNC_GUARANTEE_MIGRATED =
+            "coupon_sync_guarantee_migrated";
 
     private static final String TELEGRAM_PREFS = "telegram_preferences";
     private static final String SELECTED_GROUPS = "selected_groups";
@@ -108,10 +112,40 @@ final class CloudSyncStore {
         );
         preferences.edit()
                 .putLong(LAST_LOCAL_CHANGE, changedAt)
-                .putBoolean(PENDING_PUSH, false)
+                .putBoolean(PENDING_PUSH, true)
                 .putBoolean(PENDING_RANKING_ONLY, false)
-                .putLong(PENDING_STARTED_AT, 0L)
+                .putLong(PENDING_STARTED_AT, wasPending
+                        ? preferences.getLong(PENDING_STARTED_AT, changedAt)
+                        : changedAt)
                 .apply();
+        TelegramClientManager.getInstance().syncCloudBackupSoon();
+    }
+
+    static void ensureCouponSyncGuarantee(Context context) {
+        if (context == null) {
+            return;
+        }
+        Context appContext = context.getApplicationContext();
+        SharedPreferences sync = syncPrefs(appContext);
+        if (sync.getBoolean(COUPON_SYNC_GUARANTEE_MIGRATED, false)) {
+            return;
+        }
+        boolean hasCoupon = false;
+        JSONArray interests = readArray(appContext
+                .getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_INTERESTS, "[]"));
+        for (int index = 0; index < interests.length(); index++) {
+            JSONObject interest = interests.optJSONObject(index);
+            if (interest != null
+                    && Interest.TYPE_COUPON.equals(interest.optString("type", ""))) {
+                hasCoupon = true;
+                break;
+            }
+        }
+        sync.edit().putBoolean(COUPON_SYNC_GUARANTEE_MIGRATED, true).apply();
+        if (hasCoupon) {
+            markLocalChanged(appContext);
+        }
     }
 
     static void markManualBackupRequested(Context context) {
@@ -133,6 +167,7 @@ final class CloudSyncStore {
     static boolean shouldRefreshRemote(Context context) {
         if (context == null) return false;
         SharedPreferences preferences = syncPrefs(context);
+        if (!preferences.getBoolean(CONFIG_DELTA_HISTORY_MIGRATED, false)) return true;
         if (hasPendingPush(context)) return true;
         return System.currentTimeMillis()
                 - preferences.getLong(LAST_REMOTE_REFRESH_REQUEST_AT, 0L)
@@ -600,6 +635,56 @@ final class CloudSyncStore {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    static boolean importConfigurationDeltas(Context context, JSONArray messages,
+                                              long newerThan) {
+        if (context == null || messages == null) {
+            return false;
+        }
+        syncPrefs(context).edit()
+                .putBoolean(CONFIG_DELTA_HISTORY_MIGRATED, true)
+                .apply();
+        long cutoff = Math.max(newerThan, getLastConfigurationSyncAt(context));
+        Map<String, String> newestTextByType = new HashMap<>();
+        Map<String, Long> newestTimeByType = new HashMap<>();
+        for (int index = 0; index < messages.length(); index++) {
+            JSONObject message = messages.optJSONObject(index);
+            JSONObject content = message == null ? null : message.optJSONObject("content");
+            JSONObject value = content == null ? null : content.optJSONObject("text");
+            String text = value == null ? "" : value.optString("text", "");
+            int marker = text.indexOf(CONFIG_DELTA_MARKER);
+            int jsonStart = marker < 0 ? -1 : text.indexOf('{', marker);
+            if (jsonStart < 0) {
+                continue;
+            }
+            try {
+                JSONObject payload = new JSONObject(text.substring(jsonStart));
+                String type = payload.optString("type", "");
+                long updatedAt = payload.optLong("updated_at", 0L);
+                if (type.isEmpty() || updatedAt <= cutoff
+                        || updatedAt < newestTimeByType.getOrDefault(type, 0L)) {
+                    continue;
+                }
+                newestTimeByType.put(type, updatedAt);
+                newestTextByType.put(type, text);
+            } catch (Exception ignored) {
+            }
+        }
+        boolean imported = false;
+        long newestImportedAt = cutoff;
+        for (String text : newestTextByType.values()) {
+            imported |= importConfigurationDelta(context, text);
+        }
+        for (long updatedAt : newestTimeByType.values()) {
+            newestImportedAt = Math.max(newestImportedAt, updatedAt);
+        }
+        if (imported) {
+            syncPrefs(context).edit()
+                    .putLong(LAST_CONFIGURATION_SYNC_AT, newestImportedAt)
+                    .apply();
+        }
+        return imported;
     }
 
     private static void rememberCollectionChanged(Context context, String key, long changedAt) {

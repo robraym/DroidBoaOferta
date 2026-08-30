@@ -22,12 +22,12 @@ public class OfferMonitorService extends Service {
         MonitorStatusStore.setServiceRunning(this, true);
         createChannel();
         startForeground(NOTIFICATION_ID, createNotification());
-        OfferMonitor.getInstance().start(this);
-        TelegramClientManager.getInstance().requestMissedMessageRecovery();
+        updateMonitors();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        updateMonitors();
         return START_STICKY;
     }
 
@@ -39,8 +39,30 @@ public class OfferMonitorService extends Service {
 
     @Override
     public void onDestroy() {
+        CouponPageMonitor.getInstance().stop();
         MonitorStatusStore.setServiceRunning(this, false);
         super.onDestroy();
+    }
+
+    private void updateMonitors() {
+        boolean hasPriceAlert = false;
+        boolean hasCouponAlert = false;
+        for (Interest interest : new InterestRepository(this).getAll()) {
+            if (interest.isCoupon()) {
+                hasCouponAlert = true;
+            } else {
+                hasPriceAlert = true;
+            }
+        }
+        if (hasPriceAlert && MonitorServiceController.selectedGroupCount(this) > 0) {
+            OfferMonitor.getInstance().start(this);
+            TelegramClientManager.getInstance().requestMissedMessageRecovery();
+        }
+        if (hasCouponAlert) {
+            CouponPageMonitor.getInstance().start(this);
+        } else {
+            CouponPageMonitor.getInstance().stop();
+        }
     }
 
     private Notification createNotification() {

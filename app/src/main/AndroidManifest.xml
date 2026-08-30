@@ -54,7 +54,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Monitora localmente ofertas em grupos do Telegram escolhidos pelo usuário" />
+                android:value="Monitora localmente ofertas escolhidas pelo usuário no Telegram e cupons em páginas oficiais" />
         </service>
 
         <receiver

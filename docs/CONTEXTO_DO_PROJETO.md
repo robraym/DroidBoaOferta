@@ -68,6 +68,14 @@ Links da Amazon facilitam a identificação exata pelo ASIN. O histórico pode c
 
 Não usar scraping da Amazon. Se o aplicativo futuramente usar links de associado, revisar antes as regras comerciais vigentes sobre rastreamento e alertas de preços.
 
+## Páginas oficiais de cupons
+
+- O cadastro de cupons é separado do alerta de preço e começa pela página oficial de cupons da Motorola.
+- O usuário informa a página e um valor mínimo; o app busca o maior cupom público disponível e avisa quando ele atinge o limite ou quando surge um cupom melhor.
+- Consultar somente endereços oficiais previamente compatíveis, sem aceitar URLs arbitrárias, e não guardar o HTML recebido.
+- Cupons encontrados em páginas oficiais aparecem no histórico, mas não participam do ranking dos grupos do Telegram.
+- A consulta é uma fonte complementar e configurável, não substitui o Telegram como fonte principal.
+
 ## Privacidade e segurança
 
 - Processar somente grupos e canais escolhidos explicitamente.

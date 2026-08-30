@@ -3,6 +3,8 @@ package br.com.droidboaoferta;
 import android.Manifest;
 import android.app.Dialog;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -141,7 +143,16 @@ public class MainActivity extends AlertouActivity {
 
         renderOffers(offerRepository.getRecent());
 
-        if (groupCount > 0 && !interests.isEmpty() && monitorEnabled) {
+        boolean hasCouponAlert = false;
+        boolean hasPriceAlert = false;
+        for (Interest interest : interests) {
+            if (interest.isCoupon()) {
+                hasCouponAlert = true;
+            } else {
+                hasPriceAlert = true;
+            }
+        }
+        if (monitorEnabled && (hasCouponAlert || (hasPriceAlert && groupCount > 0))) {
             requestNotificationPermissionIfNeeded();
         }
         MonitorServiceController.update(this);
@@ -642,6 +653,11 @@ public class MainActivity extends AlertouActivity {
                     } else if (!swiping[0]
                             && Math.abs(deltaX) < dp(10)
                             && Math.abs(deltaY) < dp(10)
+                            && openCouponOffer(offer)) {
+                        // O cupom foi copiado e a página oficial foi aberta.
+                    } else if (!swiping[0]
+                            && Math.abs(deltaX) < dp(10)
+                            && Math.abs(deltaY) < dp(10)
                             && !offer.getTelegramPostLink().isEmpty()) {
                         startActivity(new Intent(Intent.ACTION_VIEW,
                                 Uri.parse(offer.getTelegramPostLink())));
@@ -655,6 +671,48 @@ public class MainActivity extends AlertouActivity {
                     return true;
             }
         });
+    }
+
+    private boolean openCouponOffer(ObservedOffer offer) {
+        String couponCode = extractCouponCode(offer.getSource());
+        if (couponCode.isEmpty()) {
+            return false;
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText(
+                    getString(R.string.coupon_clipboard_label), couponCode));
+        }
+        Toast.makeText(
+                this,
+                getString(R.string.coupon_copied, couponCode),
+                Toast.LENGTH_SHORT
+        ).show();
+        try {
+            startActivity(new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse(offer.getLink())
+            ));
+        } catch (RuntimeException exception) {
+            AppErrorStore.recordSerious(
+                    this,
+                    "Cupom",
+                    getString(R.string.coupon_store_open_failed)
+            );
+        }
+        return true;
+    }
+
+    private String extractCouponCode(String source) {
+        if (source == null) {
+            return "";
+        }
+        String marker = "• cupom ";
+        int markerIndex = source.toLowerCase(Locale.ROOT).indexOf(marker);
+        if (markerIndex < 0) {
+            return "";
+        }
+        return source.substring(markerIndex + marker.length()).trim();
     }
 
     private void showPromotionValidityDialog(ObservedOffer offer, boolean expired) {

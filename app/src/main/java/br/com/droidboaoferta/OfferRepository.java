@@ -45,7 +45,8 @@ final class OfferRepository {
 
     synchronized void add(ObservedOffer offer) {
         List<ObservedOffer> offers = new ArrayList<>(getRecent());
-        offers.removeIf(item -> isSameObservedOffer(item, offer));
+        offers.removeIf(item -> item.getId().equals(offer.getId())
+                || isSameObservedOffer(item, offer));
         offers.add(0, offer);
         saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(offers)));
         long changedAt = System.currentTimeMillis();
@@ -76,14 +77,17 @@ final class OfferRepository {
         for (ObservedOffer offer : recent) {
             Interest matchingInterest = findMatchingInterest(offer, interests);
             if (matchingInterest == null
-                    || offer.getPrice() > matchingInterest.getMaximumPrice()
+                    || (!matchingInterest.isCoupon()
+                    && offer.getPrice() > matchingInterest.getMaximumPrice())
+                    || (matchingInterest.isCoupon()
+                    && offer.getPrice() < matchingInterest.getMaximumPrice())
                     || !OfferEligibility.canDisplay(offer, now)) {
                 continue;
             }
             reconciled.add(new ObservedOffer(
                     offer.getId(),
                     matchingInterest.getId(),
-                    matchingInterest.getTerm(),
+                    matchingInterest.isCoupon() ? offer.getInterest() : matchingInterest.getTerm(),
                     offer.getSource(),
                     offer.getPrice(),
                     matchingInterest.getMaximumPrice(),

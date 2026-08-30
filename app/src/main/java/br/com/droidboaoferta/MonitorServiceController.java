@@ -37,9 +37,19 @@ final class MonitorServiceController {
     }
 
     static boolean shouldRun(Context context) {
-        return isEnabled(context)
-                && selectedGroupCount(context) > 0
-                && !new InterestRepository(context).getAll().isEmpty();
+        if (!isEnabled(context)) {
+            return false;
+        }
+        boolean hasPriceAlert = false;
+        boolean hasCouponAlert = false;
+        for (Interest interest : new InterestRepository(context).getAll()) {
+            if (interest.isCoupon()) {
+                hasCouponAlert = true;
+            } else {
+                hasPriceAlert = true;
+            }
+        }
+        return hasCouponAlert || (hasPriceAlert && selectedGroupCount(context) > 0);
     }
 
     static boolean isEnabled(Context context) {

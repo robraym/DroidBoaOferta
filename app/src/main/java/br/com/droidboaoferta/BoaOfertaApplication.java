@@ -7,5 +7,6 @@ public class BoaOfertaApplication extends Application {
     public void onCreate() {
         super.onCreate();
         ThemeController.applySavedTheme(this);
+        CloudSyncStore.ensureCouponSyncGuarantee(this);
     }
 }

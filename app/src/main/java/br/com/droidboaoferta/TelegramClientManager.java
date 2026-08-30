@@ -447,10 +447,13 @@ final class TelegramClientManager {
     }
 
     synchronized void sendConfigurationDelta(String deltaText) {
-        if (appContext == null || deltaText == null || deltaText.trim().isEmpty()
-                || state != State.READY) return;
+        if (deltaText == null || deltaText.trim().isEmpty()) return;
+        if (appContext == null || state != State.READY) {
+            queueConfigurationDelta(deltaText);
+            return;
+        }
         if (selfChatId == 0L) {
-            pendingConfigurationDeltas.add(deltaText);
+            queueConfigurationDelta(deltaText);
             requestSelfChat();
             return;
         }
@@ -463,6 +466,13 @@ final class TelegramClientManager {
             CloudSyncStore.rememberConfigurationSynced(appContext);
         } catch (JSONException ignored) {
         }
+    }
+
+    private void queueConfigurationDelta(String deltaText) {
+        if (pendingConfigurationDeltas.size() >= 20) {
+            pendingConfigurationDeltas.remove(0);
+        }
+        pendingConfigurationDeltas.add(deltaText);
     }
 
     void refreshCloudBackupSoon() {
@@ -1575,6 +1585,14 @@ final class TelegramClientManager {
         boolean restored = forcedRestore || automaticConfigurationRestore
                 ? CloudSyncStore.importBackup(appContext, remoteBackup, true)
                 : CloudSyncStore.importIfNewer(appContext, remoteBackup);
+        boolean configurationChanged = CloudSyncStore.importConfigurationDeltas(
+                appContext,
+                messages,
+                remoteBackup == null ? 0L : remoteBackup.optLong("updated_at", 0L)
+        );
+        if (configurationChanged) {
+            MonitorServiceController.update(appContext);
+        }
         if (remoteBackup != null) {
             CloudSyncStore.rememberRemoteBackup(appContext, remoteBackup);
             if (CloudSyncStore.needsCompactBackupMigration(appContext)) {
@@ -1584,14 +1602,16 @@ final class TelegramClientManager {
                 notifyCloudSyncStatus(R.string.profile_cloud_backup_found);
             }
         }
-        if (restored) {
+        if (restored || configurationChanged) {
             loadGroups();
             notifyGroups();
             appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                     .setPackage(appContext.getPackageName()));
-            notifyCloudSyncStatus(forcedRestore
-                    ? R.string.profile_manual_restore_done
-                    : R.string.profile_cloud_restore_done);
+            if (restored) {
+                notifyCloudSyncStatus(forcedRestore
+                        ? R.string.profile_manual_restore_done
+                        : R.string.profile_cloud_restore_done);
+            }
         } else if (forcedRestore) {
             notifyCloudSyncStatus(R.string.profile_manual_restore_empty);
         }

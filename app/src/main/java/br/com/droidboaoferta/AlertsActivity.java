@@ -1,5 +1,6 @@
 package br.com.droidboaoferta;
 
+import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.app.Dialog;
 import android.content.BroadcastReceiver;
@@ -8,6 +9,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.text.Editable;
@@ -26,6 +29,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
@@ -37,13 +41,16 @@ import java.util.concurrent.Executors;
 public class AlertsActivity extends AlertouActivity {
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
+    private static final int REQUEST_NOTIFICATIONS = 1202;
 
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
     private final ExecutorService alertUpdateExecutor = Executors.newSingleThreadExecutor();
-    private LinearLayout interestsContainer;
+    private LinearLayout couponInterestsContainer;
+    private LinearLayout priceInterestsContainer;
     private EditText interestsSearchInput;
-    private TextView alertsCountText;
+    private TextView couponAlertsCountText;
+    private TextView priceAlertsCountText;
     private FloatingSearchController floatingSearchController;
     private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
         @Override
@@ -64,19 +71,24 @@ public class AlertsActivity extends AlertouActivity {
 
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);
-        interestsContainer = findViewById(R.id.container_interests);
+        couponInterestsContainer = findViewById(R.id.container_coupon_interests);
+        priceInterestsContainer = findViewById(R.id.container_price_interests);
         floatingSearchController = FloatingSearchController.attach(
                 this,
                 "alerts",
                 R.id.navigation_animated_content
         );
         interestsSearchInput = floatingSearchController.getInput();
-        alertsCountText = findViewById(R.id.text_alerts_count);
+        couponAlertsCountText = findViewById(R.id.text_coupon_alerts_count);
+        priceAlertsCountText = findViewById(R.id.text_price_alerts_count);
 
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
         ));
-        findViewById(R.id.button_add_interest).setOnClickListener(view -> showInterestDialog(null));
+        findViewById(R.id.button_add_price_interest).setOnClickListener(
+                view -> showInterestDialog(null, Interest.TYPE_PRICE));
+        findViewById(R.id.button_add_coupon_interest).setOnClickListener(
+                view -> showInterestDialog(null, Interest.TYPE_COUPON));
         interestsSearchInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
             public void afterTextChanged(Editable editable) {
@@ -119,41 +131,72 @@ public class AlertsActivity extends AlertouActivity {
 
     private void renderInterests() {
         List<Interest> registeredInterests = interestRepository.getAll();
-        int registeredCount = registeredInterests.size();
-        alertsCountText.setText(registeredCount == 0
-                ? getString(R.string.alerts_registered_count_empty)
-                : getResources().getQuantityString(
-                        R.plurals.alerts_registered_count,
-                        registeredCount,
-                        registeredCount
-                ));
-        List<Interest> interests = filterInterests(
+        int couponCount = 0;
+        int priceCount = 0;
+        for (Interest interest : registeredInterests) {
+            if (interest.isCoupon()) {
+                couponCount++;
+            } else {
+                priceCount++;
+            }
+        }
+        couponAlertsCountText.setText(couponCount == 0
+                ? getString(R.string.coupon_alerts_registered_count_empty)
+                : getString(couponCount == 1
+                        ? R.string.coupon_alerts_registered_count_one
+                        : R.string.coupon_alerts_registered_count_many, couponCount));
+        priceAlertsCountText.setText(priceCount == 0
+                ? getString(R.string.price_alerts_registered_count_empty)
+                : getString(priceCount == 1
+                        ? R.string.price_alerts_registered_count_one
+                        : R.string.price_alerts_registered_count_many, priceCount));
+
+        List<Interest> filteredInterests = filterInterests(
                 registeredInterests,
                 interestsSearchInput.getText().toString()
         );
-        interestsContainer.removeAllViews();
+        List<Interest> coupons = new java.util.ArrayList<>();
+        List<Interest> prices = new java.util.ArrayList<>();
+        for (Interest interest : filteredInterests) {
+            (interest.isCoupon() ? coupons : prices).add(interest);
+        }
+        renderInterestSection(
+                coupons, couponInterestsContainer, couponCount > 0);
+        renderInterestSection(
+                prices, priceInterestsContainer, priceCount > 0);
+    }
+
+    private void renderInterestSection(List<Interest> interests, LinearLayout container,
+                                       boolean hasRegisteredItems) {
+        container.removeAllViews();
         if (interests.isEmpty()) {
-            interestsContainer.addView(createEmptyText(R.string.dashboard_no_interests));
+            if (hasRegisteredItems) {
+                container.addView(createEmptyText(R.string.alerts_search_no_results));
+            }
             return;
         }
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
         for (int index = 0; index < interests.size(); index++) {
             Interest interest = interests.get(index);
-            LinearLayout row = createInterestRow(getString(
-                    R.string.dashboard_interest_single_line,
-                    interest.getTerm(),
-                    currency.format(interest.getMaximumPrice())
-            ));
+            String rowText = interest.isCoupon()
+                    ? getString(
+                            R.string.coupon_interest_single_line,
+                            currency.format(interest.getMaximumPrice()))
+                    : getString(
+                            R.string.dashboard_interest_single_line,
+                            interest.getTerm(),
+                            currency.format(interest.getMaximumPrice()));
+            LinearLayout row = createInterestRow(rowText);
             ImageButton edit = createEditInterestButton();
-            edit.setOnClickListener(view -> showInterestDialog(interest));
+            edit.setOnClickListener(view -> showInterestDialog(interest, interest.getType()));
             row.addView(edit, 0);
             ImageButton remove = createRemoveInterestButton();
             remove.setOnClickListener(view -> showRemoveInterestConfirmation(interest));
             row.addView(remove);
-            interestsContainer.addView(row);
+            container.addView(row);
             if (index < interests.size() - 1) {
-                interestsContainer.addView(createDivider());
+                container.addView(createDivider());
             }
         }
     }
@@ -166,7 +209,9 @@ public class AlertsActivity extends AlertouActivity {
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
         List<Interest> filtered = new java.util.ArrayList<>();
         for (Interest interest : interests) {
-            String text = interest.getTerm() + " " + currency.format(interest.getMaximumPrice())
+            String text = interest.getTerm() + " "
+                    + (interest.isCoupon() ? getString(R.string.motorola_coupon_offer_title) : "")
+                    + " " + currency.format(interest.getMaximumPrice())
                     + " " + interest.getMaximumPrice();
             if (OfferTextParser.normalize(text).contains(normalizedQuery)) {
                 filtered.add(interest);
@@ -273,8 +318,10 @@ public class AlertsActivity extends AlertouActivity {
         confirm.setTextColor(getColor(R.color.danger));
         confirm.setOnClickListener(view -> {
             interestRepository.remove(interest.getId());
+            CouponPageMonitor.getInstance().clearState(this, interest.getId());
             offerRepository.clearProcessedForInterest(interest.getId());
             offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
+            MonitorServiceController.update(this);
             dialog.dismiss();
             renderInterests();
         });
@@ -300,8 +347,9 @@ public class AlertsActivity extends AlertouActivity {
         }
     }
 
-    private void showInterestDialog(Interest interestToEdit) {
+    private void showInterestDialog(Interest interestToEdit, String requestedType) {
         boolean editing = interestToEdit != null;
+        boolean couponAlert = Interest.TYPE_COUPON.equals(requestedType);
         Dialog dialog = new Dialog(this);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -309,21 +357,27 @@ public class AlertsActivity extends AlertouActivity {
         content.setBackgroundResource(R.drawable.bg_dialog);
 
         TextView title = new TextView(this);
-        title.setText(editing ? R.string.interest_dialog_edit_title : R.string.interest_dialog_title);
+        title.setText(couponAlert
+                ? (editing ? R.string.coupon_dialog_edit_title : R.string.coupon_dialog_title)
+                : (editing ? R.string.interest_dialog_edit_title : R.string.interest_dialog_title));
         title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(22);
         content.addView(title);
 
         TextView message = new TextView(this);
-        message.setText(R.string.interest_dialog_summary);
+        message.setText(couponAlert
+                ? R.string.coupon_dialog_summary
+                : R.string.interest_dialog_summary);
         message.setTextColor(getColor(R.color.text_secondary));
         message.setTextSize(15);
         message.setPadding(0, dp(6), 0, dp(16));
         content.addView(message);
 
         EditText termInput = createDialogInput(
-                R.string.interest_term_hint,
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                couponAlert ? R.string.coupon_url_hint : R.string.interest_term_hint,
+                couponAlert
+                        ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI
+                        : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         );
         if (editing) {
             termInput.setText(interestToEdit.getTerm());
@@ -335,7 +389,9 @@ public class AlertsActivity extends AlertouActivity {
         ));
 
         EditText priceInput = createDialogInput(
-                R.string.interest_price_hint,
+                couponAlert
+                        ? R.string.coupon_minimum_value_hint
+                        : R.string.interest_price_hint,
                 InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
         if (editing) {
@@ -348,19 +404,28 @@ public class AlertsActivity extends AlertouActivity {
         priceParams.topMargin = dp(12);
         content.addView(priceInput, priceParams);
 
-        LowestPriceSuggestionView priceSuggestion = new LowestPriceSuggestionView(this);
-        priceSuggestion.bind(termInput, priceInput);
+        View suggestionView;
+        if (couponAlert) {
+            HighestCouponSuggestionView couponSuggestion =
+                    new HighestCouponSuggestionView(this);
+            couponSuggestion.bind(termInput, priceInput);
+            suggestionView = couponSuggestion;
+        } else {
+            LowestPriceSuggestionView priceSuggestion = new LowestPriceSuggestionView(this);
+            priceSuggestion.bind(termInput, priceInput);
+            suggestionView = priceSuggestion;
+        }
         LinearLayout.LayoutParams suggestionParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
         suggestionParams.topMargin = dp(10);
-        content.addView(priceSuggestion, suggestionParams);
+        content.addView(suggestionView, suggestionParams);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.END);
         actions.setPadding(0, dp(18), 0, 0);
-        if (editing) {
+        if (editing && !couponAlert) {
             TextView revalidate = createDialogAction(R.string.action_revalidate_history);
             revalidate.setOnClickListener(view -> {
                 dialog.dismiss();
@@ -376,22 +441,35 @@ public class AlertsActivity extends AlertouActivity {
             String term = termInput.getText().toString().trim();
             String priceText = priceInput.getText().toString().trim().replace(',', '.');
             if (term.isEmpty()) {
-                termInput.setError(getString(R.string.interest_term_required));
+                termInput.setError(getString(couponAlert
+                        ? R.string.coupon_url_required
+                        : R.string.interest_term_required));
+                return;
+            }
+            if (couponAlert && !CouponPageClient.isSupported(term)) {
+                termInput.setError(getString(R.string.coupon_url_unsupported));
                 return;
             }
             double maximumPrice;
             try {
                 maximumPrice = Double.parseDouble(priceText);
             } catch (NumberFormatException exception) {
-                priceInput.setError(getString(R.string.interest_price_required));
+                priceInput.setError(getString(couponAlert
+                        ? R.string.coupon_value_required
+                        : R.string.interest_price_required));
                 return;
             }
             if (maximumPrice <= 0) {
-                priceInput.setError(getString(R.string.interest_price_required));
+                priceInput.setError(getString(couponAlert
+                        ? R.string.coupon_value_required
+                        : R.string.interest_price_required));
                 return;
             }
+            if (couponAlert) {
+                term = CouponPageClient.normalizeSupportedUrl(term);
+            }
             dialog.dismiss();
-            updateInterestInBackground(interestToEdit, term, maximumPrice);
+            updateInterestInBackground(interestToEdit, term, maximumPrice, couponAlert);
         });
         actions.addView(save);
         content.addView(actions);
@@ -429,7 +507,7 @@ public class AlertsActivity extends AlertouActivity {
     }
 
     private void updateInterestInBackground(Interest interestToEdit, String term,
-                                            double maximumPrice) {
+                                            double maximumPrice, boolean couponAlert) {
         boolean editing = interestToEdit != null;
         Dialog updatingDialog = showUpdatingDialog();
         long shownAt = SystemClock.elapsedRealtime();
@@ -439,10 +517,13 @@ public class AlertsActivity extends AlertouActivity {
             try {
                 if (editing) {
                     interestRepository.update(interestToEdit.getId(), term, maximumPrice);
+                    CouponPageMonitor.getInstance().clearState(this, interestToEdit.getId());
                     offerRepository.clearProcessedForInterest(interestToEdit.getId());
                     offerRepository.clearRecentForInterest(interestToEdit.getId());
                 } else {
-                    savedInterestId = interestRepository.add(term, maximumPrice);
+                    savedInterestId = couponAlert
+                            ? interestRepository.addCoupon(term, maximumPrice)
+                            : interestRepository.add(term, maximumPrice);
                 }
                 offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
                 getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
@@ -462,18 +543,24 @@ public class AlertsActivity extends AlertouActivity {
                     return;
                 }
                 if (updateSucceeded) {
-                    OfferMonitor.getInstance().refreshInterestHistory(
-                            this,
-                            interestIdForHistory,
-                            term,
-                            maximumPrice
-                    );
+                    requestNotificationPermissionIfNeeded();
+                    MonitorServiceController.update(this);
+                    if (couponAlert) {
+                        CouponPageMonitor.getInstance().checkNow(this);
+                    } else {
+                        OfferMonitor.getInstance().refreshInterestHistory(
+                                this,
+                                interestIdForHistory,
+                                term,
+                                maximumPrice
+                        );
+                    }
                 }
                 long remaining = Math.max(
                         0L,
                         650L - (SystemClock.elapsedRealtime() - shownAt)
                 );
-                interestsContainer.postDelayed(() -> {
+                priceInterestsContainer.postDelayed(() -> {
                     if (updatingDialog.isShowing()) {
                         updatingDialog.dismiss();
                     }
@@ -551,6 +638,18 @@ public class AlertsActivity extends AlertouActivity {
             window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
         return dialog;
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    REQUEST_NOTIFICATIONS
+            );
+        }
     }
 
     private EditText createDialogInput(int hintResource, int inputType) {

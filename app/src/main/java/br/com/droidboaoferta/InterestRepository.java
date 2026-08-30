@@ -32,7 +32,8 @@ final class InterestRepository {
                 interests.add(new Interest(
                         item.getLong("id"),
                         item.getString("term"),
-                        item.getDouble("maximum_price")
+                        item.getDouble("maximum_price"),
+                        item.optString("type", Interest.TYPE_PRICE)
                 ));
             }
         } catch (Exception ignored) {
@@ -43,10 +44,18 @@ final class InterestRepository {
     }
 
     long add(String term, double maximumPrice) {
+        return add(term, maximumPrice, Interest.TYPE_PRICE);
+    }
+
+    long addCoupon(String pageUrl, double minimumCouponValue) {
+        return add(pageUrl, minimumCouponValue, Interest.TYPE_COUPON);
+    }
+
+    private long add(String term, double maximumPrice, String type) {
         List<Interest> interests = new ArrayList<>(getAll());
         long now = System.currentTimeMillis();
         long id = now;
-        interests.add(0, new Interest(id, term.trim(), maximumPrice));
+        interests.add(0, new Interest(id, term.trim(), maximumPrice, type));
         CloudSyncStore.rememberInterestChanged(context, id, now);
         save(interests);
         return id;
@@ -58,7 +67,8 @@ final class InterestRepository {
         for (int index = 0; index < interests.size(); index++) {
             Interest interest = interests.get(index);
             if (interest.getId() == id) {
-                interests.set(index, new Interest(id, term.trim(), maximumPrice));
+                interests.set(index, new Interest(
+                        id, term.trim(), maximumPrice, interest.getType()));
                 CloudSyncStore.rememberInterestChanged(context, id, now);
                 break;
             }
@@ -80,7 +90,8 @@ final class InterestRepository {
                 array.put(new JSONObject()
                         .put("id", interest.getId())
                         .put("term", interest.getTerm())
-                        .put("maximum_price", interest.getMaximumPrice()));
+                        .put("maximum_price", interest.getMaximumPrice())
+                        .put("type", interest.getType()));
             }
             preferences.edit().putString(KEY_INTERESTS, array.toString()).apply();
             CloudSyncStore.markLocalChanged(context);
