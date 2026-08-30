@@ -754,6 +754,11 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             if (firstPoints != secondPoints) {
                 return Integer.compare(secondPoints, firstPoints);
             }
+            int firstPlaces = firstRanking == null ? 0 : firstRanking.getFirstPlaces();
+            int secondPlaces = secondRanking == null ? 0 : secondRanking.getFirstPlaces();
+            if (firstPlaces != secondPlaces) {
+                return Integer.compare(secondPlaces, firstPlaces);
+            }
             return first.getTitle().compareToIgnoreCase(second.getTitle());
         });
         availableGroups = displayGroups;

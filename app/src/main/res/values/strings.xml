@@ -193,7 +193,7 @@
     <string name="profile_terms_message">O Alertou processa no aparelho apenas os grupos e canais escolhidos por você. As mensagens do Telegram não são enviadas para serviços externos de IA.</string>
     <string name="profile_ranking_rules_title">Como funciona o ranking</string>
     <string name="profile_ranking_rules_summary">Pontuação, desempate e histórico semanal</string>
-    <string name="profile_ranking_rules_message">O ranking compara quem publica primeiro o mesmo produto durante cada ciclo de 7 dias.\n\nPontuação por ordem de publicação:\n1º: 10 pontos\n2º: 8 pontos\n3º: 6 pontos\n4º: 5 pontos\n5º: 4 pontos\n6º: 3 pontos\n7º ao 10º: 2 pontos\nA partir do 11º: 1 ponto\n\nPublicações do mesmo produto feitas em até 12 horas participam da mesma disputa. Cada grupo pontua uma vez, usando sua primeira publicação. Promoções marcadas como encerradas não pontuam.\n\nDesempate: mais primeiros lugares e, depois, nome do grupo.\n\nNa lista de grupos, a qualidade semanal vem antes dos pontos. Após 7 dias, 3 ou mais promoções aprovadas indica Bom; nenhuma indica Fraco; 1 ou 2 indica pouca evidência.\n\nAo concluir a semana, o Alertou registra o campeão e o Top 3. A estrela mostra quantas vezes o grupo foi campeão.</string>
+    <string name="profile_ranking_rules_message">O ranking compara quem publica primeiro o mesmo produto durante cada ciclo de 7 dias.\n\nPontuação por ordem de publicação:\n1º: 10 pontos\n2º: 8 pontos\n3º: 6 pontos\n4º: 5 pontos\n5º: 4 pontos\n6º: 3 pontos\n7º ao 10º: 2 pontos\nA partir do 11º: 1 ponto\n\nPublicações do mesmo produto feitas em até 12 horas participam da mesma disputa. Cada grupo pontua uma vez, usando sua primeira publicação. Promoções marcadas como encerradas ou inválidas deixam de pontuar.\n\nDesempate: mais primeiros lugares e, depois, nome do grupo.\n\nNa lista de fontes, os grupos com mais estrelas aparecem primeiro; em seguida vêm os pontos da semana e o nome. Após 7 dias, 3 ou mais promoções aprovadas indica Bom; nenhuma indica Fraco; 1 ou 2 indica pouca evidência.\n\nAo concluir a semana, o Alertou registra o campeão e o Top 3. A estrela mostra quantas vezes o grupo foi campeão.</string>
     <string name="profile_sync_title">Sincronização</string>
     <string name="profile_sync_waiting">Ativa com sua conta Telegram.</string>
     <string name="profile_sync_pending">Sincronizando alterações...</string>
@@ -351,7 +351,12 @@
     <string name="telegram_group_promotion_resumed">Promoção reativada</string>
     <string name="telegram_group_promotion_expire_action">Marcar como encerrada</string>
     <string name="telegram_group_promotion_resume_action">Voltar a avaliar</string>
-    <string name="telegram_group_promotion_expire_summary">Publicações após este horário deixam de pontuar.</string>
+    <string name="telegram_group_promotion_expire_summary">A promoção era válida, mas terminou. Esta publicação e as posteriores deixam de pontuar.</string>
+    <string name="promotion_review_title">Revisar promoção</string>
+    <string name="promotion_review_summary">Escolha o que aconteceu. As duas opções retiram esta publicação do ranking.</string>
+    <string name="promotion_invalid_action">Marcar como inválida</string>
+    <string name="promotion_invalid_summary">Use quando o preço, o produto ou o alerta estiver incorreto. A publicação será enviada para a lixeira.</string>
+    <string name="promotion_invalid_confirmed">Promoção marcada como inválida</string>
     <string name="telegram_group_history_title">Histórico semanal</string>
     <string name="telegram_group_history_awards">★ Campeão: %1$dx · Top 3: %2$dx</string>
     <string name="icon_percent" translatable="false">%</string>

@@ -38,10 +38,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -683,48 +680,119 @@ public class MainActivity extends AlertouActivity {
                     .show();
             return;
         }
-        EditText time = new EditText(this);
-        time.setInputType(InputType.TYPE_CLASS_DATETIME);
-        time.setSingleLine(true);
-        time.setHint("HH:mm");
-        time.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(offer.getObservedAt())));
-        int padding = dp(24);
+
+        Dialog dialog = new Dialog(this);
         LinearLayout content = new LinearLayout(this);
-        content.setPadding(padding, 0, padding, 0);
-        content.addView(time, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        new AlertDialog.Builder(this)
-                .setTitle(product)
-                .setMessage(R.string.telegram_group_promotion_expire_summary)
-                .setView(content)
-                .setPositiveButton(R.string.telegram_group_promotion_expire_action, (dialog, which) -> {
-                    long cutoff = timeOnSameDay(offer.getObservedAt(), time.getText().toString());
-                    if (cutoff > 0L) {
-                        expiry.markExpired(OfferTextParser.normalize(product), roundStartedAt, cutoff);
-                        CloudSyncStore.syncPromotionExpiryChanged(this);
-                        refreshDashboard();
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.promotion_review_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(22);
+        content.addView(title);
+
+        TextView productView = new TextView(this);
+        productView.setText(product);
+        productView.setTextColor(getColor(R.color.text_primary));
+        productView.setTextSize(16);
+        productView.setMaxLines(2);
+        productView.setEllipsize(TextUtils.TruncateAt.END);
+        productView.setPadding(0, dp(7), 0, 0);
+        content.addView(productView);
+
+        TextView summary = new TextView(this);
+        summary.setText(R.string.promotion_review_summary);
+        summary.setTextColor(getColor(R.color.text_secondary));
+        summary.setTextSize(14);
+        summary.setPadding(0, dp(5), 0, dp(16));
+        content.addView(summary);
+
+        LinearLayout endedAction = createPromotionReviewAction(
+                R.string.telegram_group_promotion_expire_action,
+                R.string.telegram_group_promotion_expire_summary,
+                R.color.action,
+                R.drawable.bg_button_secondary
+        );
+        endedAction.setOnClickListener(view -> {
+            expiry.markExpired(OfferTextParser.normalize(product), roundStartedAt,
+                    offer.getObservedAt());
+            CloudSyncStore.syncPromotionExpiryChanged(this);
+            dialog.dismiss();
+            refreshDashboard();
+        });
+        content.addView(endedAction);
+
+        LinearLayout invalidAction = createPromotionReviewAction(
+                R.string.promotion_invalid_action,
+                R.string.promotion_invalid_summary,
+                R.color.danger,
+                R.drawable.bg_button_danger
+        );
+        LinearLayout.LayoutParams invalidParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        invalidParams.topMargin = dp(10);
+        content.addView(invalidAction, invalidParams);
+        invalidAction.setOnClickListener(view -> {
+            speed.invalidateOffer(offer);
+            offerRepository.trash(offer.getId());
+            dialog.dismiss();
+            refreshDashboard();
+            Toast.makeText(this, R.string.promotion_invalid_confirmed,
+                    Toast.LENGTH_SHORT).show();
+        });
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        actions.setPadding(0, dp(10), 0, 0);
+        TextView cancel = createDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
     }
 
-    private long timeOnSameDay(long referenceAt, String value) {
-        try {
-            String[] parts = value.trim().split(":");
-            int hour = Integer.parseInt(parts[0]);
-            int minute = Integer.parseInt(parts[1]);
-            if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return 0L;
-            Calendar calendar = Calendar.getInstance();
-            calendar.setTimeInMillis(referenceAt);
-            calendar.set(Calendar.HOUR_OF_DAY, hour);
-            calendar.set(Calendar.MINUTE, minute);
-            calendar.set(Calendar.SECOND, 0);
-            calendar.set(Calendar.MILLISECOND, 0);
-            return calendar.getTimeInMillis();
-        } catch (Exception ignored) {
-            return 0L;
-        }
+    private LinearLayout createPromotionReviewAction(int titleResource, int summaryResource,
+                                                       int titleColor, int backgroundResource) {
+        LinearLayout action = new LinearLayout(this);
+        action.setOrientation(LinearLayout.VERTICAL);
+        action.setPadding(dp(16), dp(12), dp(16), dp(12));
+        action.setBackgroundResource(backgroundResource);
+        action.setClickable(true);
+        action.setFocusable(true);
+
+        TextView title = new TextView(this);
+        title.setText(titleResource);
+        title.setTextColor(getColor(titleColor));
+        title.setTextSize(16);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        action.addView(title);
+
+        TextView summary = new TextView(this);
+        summary.setText(summaryResource);
+        summary.setTextColor(getColor(R.color.text_secondary));
+        summary.setTextSize(13);
+        summary.setPadding(0, dp(3), 0, 0);
+        action.addView(summary);
+        return action;
     }
 
     private void requestParentIntercept(View view, boolean disallow) {

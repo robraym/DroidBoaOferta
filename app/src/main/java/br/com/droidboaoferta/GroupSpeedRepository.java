@@ -19,6 +19,7 @@ import java.util.Set;
 final class GroupSpeedRepository {
     private static final String PREFS = "group_speed_preferences";
     private static final String KEY_EVENTS = "promotion_events";
+    private static final String KEY_REMOVALS = "ranking_speed_removals";
     private static final String KEY_STARTED_AT = "started_at";
     private static final long WINDOW_MS = 7L * 24L * 60L * 60L * 1000L;
     private static final long RACE_WINDOW_MS = 12L * 60L * 60L * 1000L;
@@ -76,6 +77,39 @@ final class GroupSpeedRepository {
         }
     }
 
+    synchronized boolean invalidateOffer(ObservedOffer offer) {
+        if (offer == null) return false;
+        String offerSignature = signature(offer.getInterest(), offer.getPrice(), offer.getLink());
+        String source = normalizeTitle(offer.getSource());
+        List<Event> events = readEvents();
+        List<Event> matches = new ArrayList<>();
+        for (Event event : events) {
+            if (offerSignature.equals(event.signature)
+                    && event.observedAt == offer.getObservedAt()
+                    && source.equals(normalizeTitle(event.title))) {
+                matches.add(event);
+            }
+        }
+        if (matches.isEmpty()) {
+            List<Event> sameMoment = new ArrayList<>();
+            for (Event event : events) {
+                if (offerSignature.equals(event.signature)
+                        && event.observedAt == offer.getObservedAt()) {
+                    sameMoment.add(event);
+                }
+            }
+            if (sameMoment.size() == 1) matches.add(sameMoment.get(0));
+        }
+        if (matches.isEmpty()) return false;
+        events.removeAll(matches);
+        saveEvents(events);
+        for (Event event : matches) {
+            CloudSyncStore.markRankingSpeedRemoved(appContext, event.chatId, event.signature,
+                    event.observedAt);
+        }
+        return true;
+    }
+
     private void record(long chatId, String title, String interest, long interestId, double price,
                         long observedAt, String link) {
         long startedAt = preferences.getLong(KEY_STARTED_AT, 0L);
@@ -84,6 +118,10 @@ final class GroupSpeedRepository {
         }
         List<Event> events = readEvents();
         String product = signature(interest, price, link);
+        if (containsRemoval(preferences.getString(KEY_REMOVALS, "[]"), chatId, product,
+                observedAt)) {
+            return;
+        }
         String eventId = chatId + ":" + product + ":" + observedAt;
         for (Event event : events) {
             if (event.id.equals(eventId)) return;
@@ -336,6 +374,32 @@ final class GroupSpeedRepository {
     private String normalizeSignature(String value) {
         int separator = value == null ? -1 : value.indexOf('|');
         return separator < 0 ? value : value.substring(0, separator);
+    }
+
+    static boolean containsRemoval(String removalsText, long chatId, String signature,
+                                   long observedAt) {
+        try {
+            JSONArray removals = new JSONArray(removalsText == null ? "[]" : removalsText);
+            for (int index = 0; index < removals.length(); index++) {
+                JSONObject object = removals.optJSONObject(index);
+                JSONArray compact = removals.optJSONArray(index);
+                long removedChatId = object == null
+                        ? compact == null ? 0L : compact.optLong(0, 0L)
+                        : object.optLong("chat_id", 0L);
+                long removedAt = object == null
+                        ? compact == null ? 0L : compact.optLong(1, 0L)
+                        : object.optLong("observed_at", 0L);
+                String removedSignature = object == null
+                        ? compact == null ? "" : compact.optString(2, "")
+                        : object.optString("signature", "");
+                if (removedChatId == chatId && removedAt == observedAt
+                        && removedSignature.equals(signature)) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 
     private void saveEvents(List<Event> events) {

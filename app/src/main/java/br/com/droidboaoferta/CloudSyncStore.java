@@ -191,8 +191,20 @@ final class CloudSyncStore {
 
     static void markRankingSpeedRemoved(Context context, long chatId, String signature,
                                         long observedAt) {
-        enqueueRankingDelta(context, "speed_removed", new JSONArray()
-                .put(chatId).put(observedAt).put(signature == null ? "" : signature));
+        if (context == null) return;
+        JSONArray removal = new JSONArray()
+                .put(chatId).put(observedAt).put(signature == null ? "" : signature);
+        SharedPreferences speed = context.getApplicationContext().getSharedPreferences(
+                GROUP_SPEED_PREFS, Context.MODE_PRIVATE);
+        String removals = mergeSpeedEvents(
+                speed.getString(KEY_RANKING_SPEED_REMOVALS, "[]"),
+                new JSONArray().put(removal).toString());
+        speed.edit()
+                .putString(KEY_RANKING_SPEED_REMOVALS, removals)
+                .putString("promotion_events", removeSpeedEvents(
+                        speed.getString("promotion_events", "[]"), removals))
+                .apply();
+        enqueueRankingDelta(context, "speed_removed", removal);
         markRankingChanged(context);
     }
 
@@ -1572,7 +1584,7 @@ final class CloudSyncStore {
         return result.toString();
     }
 
-    private static String removeSpeedEvents(String eventsText, String removalsText) {
+    static String removeSpeedEvents(String eventsText, String removalsText) {
         Map<String, JSONObject> events = collectSpeedEvents(eventsText, "[]");
         for (String id : collectSpeedEvents(removalsText, "[]").keySet()) {
             events.remove(id);

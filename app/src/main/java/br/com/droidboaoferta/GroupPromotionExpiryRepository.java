@@ -54,8 +54,7 @@ final class GroupPromotionExpiryRepository {
 
     synchronized boolean isExpiredAt(String product, long roundStartedAt, long observedAt) {
         Rule rule = read(product, roundStartedAt);
-        return rule.cutoffAt > 0L && observedAt > rule.cutoffAt
-                && (rule.resumedAt == 0L || observedAt < rule.resumedAt);
+        return excludesFromRanking(rule.cutoffAt, rule.resumedAt, observedAt);
     }
 
     synchronized boolean isClosed(String product, long roundStartedAt) {
@@ -77,12 +76,16 @@ final class GroupPromotionExpiryRepository {
                 if (item == null) continue;
                 long cutoffAt = item.optLong("cutoff_at");
                 long resumedAt = item.optLong("resumed_at");
-                if (cutoffAt > 0L && observedAt > cutoffAt
-                        && (resumedAt == 0L || observedAt < resumedAt)) return true;
+                if (excludesFromRanking(cutoffAt, resumedAt, observedAt)) return true;
             }
         } catch (Exception ignored) {
         }
         return false;
+    }
+
+    static boolean excludesFromRanking(long cutoffAt, long resumedAt, long observedAt) {
+        return cutoffAt > 0L && observedAt >= cutoffAt
+                && (resumedAt == 0L || observedAt < resumedAt);
     }
 
     private Rule read(String product, long roundStartedAt) {

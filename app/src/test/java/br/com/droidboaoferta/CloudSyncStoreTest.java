@@ -108,6 +108,18 @@ public class CloudSyncStoreTest {
         assertEquals(8, standing.getInt("points"));
     }
 
+    @Test
+    public void removedRankingEventCannotReturnFromOlderSnapshot() throws Exception {
+        JSONArray event = new JSONArray().put(10L).put(1_000L).put("echo spot");
+        String oldSnapshot = new JSONArray().put(event).toString();
+        String removals = new JSONArray().put(event).toString();
+
+        JSONArray result = new JSONArray(CloudSyncStore.removeSpeedEvents(
+                oldSnapshot, removals));
+
+        assertEquals(0, result.length());
+    }
+
     private JSONObject backup(long updatedAt, boolean complete, String interests,
                               int selectedGroups) throws Exception {
         JSONArray groups = new JSONArray();
