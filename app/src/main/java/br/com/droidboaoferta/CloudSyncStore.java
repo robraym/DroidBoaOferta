@@ -645,9 +645,8 @@ final class CloudSyncStore {
         syncPrefs(context).edit()
                 .putBoolean(CONFIG_DELTA_HISTORY_MIGRATED, true)
                 .apply();
-        long cutoff = Math.max(newerThan, getLastConfigurationSyncAt(context));
         Map<String, String> newestTextByType = new HashMap<>();
-        Map<String, Long> newestTimeByType = new HashMap<>();
+        Map<String, Long> newestMessageByType = new HashMap<>();
         for (int index = 0; index < messages.length(); index++) {
             JSONObject message = messages.optJSONObject(index);
             JSONObject content = message == null ? null : message.optJSONObject("content");
@@ -661,23 +660,32 @@ final class CloudSyncStore {
             try {
                 JSONObject payload = new JSONObject(text.substring(jsonStart));
                 String type = payload.optString("type", "");
-                long updatedAt = payload.optLong("updated_at", 0L);
-                if (type.isEmpty() || updatedAt <= cutoff
-                        || updatedAt < newestTimeByType.getOrDefault(type, 0L)) {
+                long messageId = message == null ? index : message.optLong("id", index);
+                if (type.isEmpty()
+                        || messageId < newestMessageByType.getOrDefault(type, 0L)) {
                     continue;
                 }
-                newestTimeByType.put(type, updatedAt);
+                newestMessageByType.put(type, messageId);
                 newestTextByType.put(type, text);
             } catch (Exception ignored) {
             }
         }
         boolean imported = false;
-        long newestImportedAt = cutoff;
+        long newestImportedAt = getLastConfigurationSyncAt(context);
         for (String text : newestTextByType.values()) {
             imported |= importConfigurationDelta(context, text);
         }
-        for (long updatedAt : newestTimeByType.values()) {
-            newestImportedAt = Math.max(newestImportedAt, updatedAt);
+        for (String text : newestTextByType.values()) {
+            int jsonStart = text.indexOf('{', text.indexOf(CONFIG_DELTA_MARKER));
+            try {
+                if (jsonStart >= 0) {
+                    newestImportedAt = Math.max(
+                            newestImportedAt,
+                            new JSONObject(text.substring(jsonStart)).optLong("updated_at", 0L)
+                    );
+                }
+            } catch (Exception ignored) {
+            }
         }
         if (imported) {
             syncPrefs(context).edit()

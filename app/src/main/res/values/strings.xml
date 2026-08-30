@@ -115,6 +115,13 @@
     <string name="dashboard_create_alert_title">Novo alerta</string>
     <string name="dashboard_create_alert_summary">Produto e preço máximo.</string>
     <string name="alerts_screen_title">Alertas</string>
+    <string name="alerts_sort_title">Ordenar alertas</string>
+    <string-array name="alerts_sort_options">
+        <item>Mais recentes</item>
+        <item>Nome (A–Z)</item>
+        <item>Preço: crescente</item>
+        <item>Preço: decrescente</item>
+    </string-array>
     <string name="alerts_list_title">Alertas salvos</string>
     <string name="alerts_registered_count_empty">Nenhum alerta cadastrado</string>
     <string name="coupon_alerts_list_title">Cupons</string>
@@ -213,7 +220,7 @@
     <string name="profile_manual_backup_message">Guarde suas configurações e o histórico de desempenho dos grupos nesta conta.</string>
     <string name="profile_manual_backup_action">Fazer backup</string>
     <string name="profile_manual_restore_action">Restaurar backup</string>
-    <string name="action_revalidate_history">Revalidar histórico</string>
+    <string name="action_revalidate_history">Revalidar</string>
     <string name="profile_manual_backup_clear_action">Excluir backup</string>
     <string name="profile_manual_backup_clear_title">Excluir backup?</string>
     <string name="profile_manual_backup_clear_message">Isso remove do Telegram somente os backups do Alertou. Seus dados deste aparelho continuam aqui.</string>
@@ -263,6 +270,7 @@
     <string name="dashboard_no_interests">Nenhum alerta criado.</string>
     <string name="dashboard_interest_limit">Avisar até %1$s</string>
     <string name="dashboard_interest_single_line">%1$s • até %2$s</string>
+    <string name="price_interest_value"> • até %1$s</string>
     <string name="dashboard_offers_title">Ofertas que valem a pena</string>
     <string name="search_hint">Pesquisar</string>
     <string name="dashboard_no_offers">Ainda não apareceu nenhuma por aqui.</string>
@@ -289,8 +297,8 @@
     <string name="trash_all_dialog_message">Todas as ofertas da tela principal sairão da lista e poderão ser restauradas pela Lixeira.</string>
     <string name="clear_trash_dialog_title">Limpar lixeira?</string>
     <string name="clear_trash_dialog_message">As ofertas da lixeira serão apagadas definitivamente.</string>
-    <string name="remove_alert_dialog_title">Remover alerta?</string>
-    <string name="remove_alert_dialog_message">O alerta “%1$s” será removido.</string>
+    <string name="remove_alert_dialog_title">Excluir alerta?</string>
+    <string name="remove_alert_dialog_message">O alerta “%1$s” será excluído.</string>
     <string name="delete_offer_dialog_title">Excluir oferta?</string>
     <string name="delete_offer_dialog_message">A oferta “%1$s” será excluída definitivamente.</string>
     <string name="action_change">Alterar</string>
@@ -315,7 +323,7 @@
     <string name="action_restore_all_offers">Restaurar todas as ofertas</string>
     <string name="action_unarchive_offer">Remover das salvas</string>
     <string name="action_edit_interest">Editar alerta</string>
-    <string name="action_remove_interest">Remover alerta</string>
+    <string name="action_remove_interest">Excluir alerta</string>
     <string name="interest_dialog_title">Novo alerta de preço</string>
     <string name="interest_dialog_edit_title">Editar alerta de preço</string>
     <string name="interest_dialog_summary">Informe o produto e o valor máximo para receber aviso.</string>
@@ -325,7 +333,7 @@
     <string name="interest_price_required">Informe um preço máximo válido</string>
     <string name="coupon_dialog_title">Novo alerta de cupom</string>
     <string name="coupon_dialog_edit_title">Editar alerta de cupom</string>
-    <string name="coupon_dialog_summary">Informe a página de cupons e o menor valor que deseja receber.</string>
+    <string name="coupon_dialog_summary">Página monitorada e valor mínimo para avisar.</string>
     <string name="coupon_url_hint">Link da página de cupons</string>
     <string name="coupon_minimum_value_hint">Valor mínimo do cupom em reais</string>
     <string name="coupon_url_required">Informe o link da página de cupons</string>
@@ -337,7 +345,7 @@
     <string name="highest_coupon_found_format">Maior cupom encontrado: %1$s · %2$s</string>
     <string name="highest_coupon_not_found">Nenhum cupom público com valor foi encontrado.</string>
     <string name="highest_coupon_load_failed">Não foi possível consultar a página agora.</string>
-    <string name="coupon_interest_single_line">Motorola • a partir de %1$s</string>
+    <string name="coupon_interest_single_line">Motorola • mín. %1$s</string>
     <string name="motorola_coupon_offer_title">Cupom Motorola</string>
     <string name="motorola_coupon_source">Motorola • cupom %1$s</string>
     <string name="coupon_notification_title">Cupom Motorola de %1$s</string>

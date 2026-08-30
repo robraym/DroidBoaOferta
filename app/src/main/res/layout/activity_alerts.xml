@@ -27,6 +27,17 @@
             android:textStyle="bold" />
 
         <ImageButton
+            android:id="@+id/button_sort_alerts"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_button_inline"
+            android:contentDescription="@string/alerts_sort_title"
+            android:padding="9dp"
+            android:scaleType="center"
+            android:src="@drawable/ic_sort" />
+
+        <ImageButton
             android:id="@+id/button_profile"
             android:layout_width="40dp"
             android:layout_height="40dp"

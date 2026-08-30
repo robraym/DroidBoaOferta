@@ -136,6 +136,7 @@ final class TelegramClientManager {
     private volatile boolean pendingManualRestore;
     private volatile boolean pendingManualBackupDeletion;
     private volatile boolean pendingGroupsDelta;
+    private volatile boolean pendingConfigurationRefresh;
     private volatile boolean selfChatRequested;
     private volatile boolean initialCloudRestorePending;
     private volatile boolean reconnectRequested;
@@ -483,12 +484,31 @@ final class TelegramClientManager {
         if (!CloudSyncStore.shouldRefreshRemote(appContext)) {
             return;
         }
+        refreshCloudConfigurationSoon();
+    }
+
+    void refreshCloudConfigurationSoon() {
+        Log.d(TAG, "refreshCloudConfigurationSoon state=" + state + ", selfChatId=" + selfChatId);
+        if (appContext == null) {
+            return;
+        }
+        if (state != State.READY) {
+            pendingConfigurationRefresh = true;
+            return;
+        }
         if (selfChatId == 0L) {
+            pendingConfigurationRefresh = true;
             requestSelfChat();
             return;
         }
+        pendingConfigurationRefresh = false;
         CloudSyncStore.rememberRemoteRefreshRequested(appContext);
-        scheduleCloudPull();
+        if (cloudSyncRequested) {
+            cloudPullAgainRequested = true;
+            return;
+        }
+        cloudHistoryFallbackRequested = false;
+        requestCloudBackup();
     }
 
     void backupCloudNow() {
@@ -1377,6 +1397,7 @@ final class TelegramClientManager {
         pendingManualBackup = false;
         pendingManualBackupConfirmation = false;
         pendingManualRestore = false;
+        pendingConfigurationRefresh = false;
         selfChatRequested = false;
         initialCloudRestorePending = false;
         cloudBackupScheduled = false;
@@ -1513,6 +1534,11 @@ final class TelegramClientManager {
             List<String> deltas = new ArrayList<>(pendingConfigurationDeltas);
             pendingConfigurationDeltas.clear();
             for (String delta : deltas) sendConfigurationDelta(delta);
+        }
+        if (pendingConfigurationRefresh) {
+            pendingConfigurationRefresh = false;
+            requestCloudBackup();
+            return;
         }
         requestCloudBackup();
         if (initialCloudRestorePending) {

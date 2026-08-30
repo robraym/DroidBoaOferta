@@ -33,6 +33,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.text.NumberFormat;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -41,7 +42,12 @@ import java.util.concurrent.Executors;
 public class AlertsActivity extends AlertouActivity {
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
+    private static final String ALERTS_SORT_ORDER = "alerts_sort_order";
     private static final int REQUEST_NOTIFICATIONS = 1202;
+    private static final int SORT_RECENT = 0;
+    private static final int SORT_NAME = 1;
+    private static final int SORT_PRICE_ASCENDING = 2;
+    private static final int SORT_PRICE_DESCENDING = 3;
 
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
@@ -85,6 +91,7 @@ public class AlertsActivity extends AlertouActivity {
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
         ));
+        findViewById(R.id.button_sort_alerts).setOnClickListener(view -> showSortDialog());
         findViewById(R.id.button_add_price_interest).setOnClickListener(
                 view -> showInterestDialog(null, Interest.TYPE_PRICE));
         findViewById(R.id.button_add_coupon_interest).setOnClickListener(
@@ -107,13 +114,15 @@ public class AlertsActivity extends AlertouActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        TelegramClientManager.getInstance().start(this);
+        TelegramClientManager clientManager = TelegramClientManager.getInstance();
+        clientManager.start(this);
         ContextCompat.registerReceiver(
                 this,
                 syncReceiver,
                 new IntentFilter(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED),
                 ContextCompat.RECEIVER_NOT_EXPORTED
         );
+        clientManager.refreshCloudConfigurationSoon();
     }
 
     @Override
@@ -155,6 +164,7 @@ public class AlertsActivity extends AlertouActivity {
                 registeredInterests,
                 interestsSearchInput.getText().toString()
         );
+        sortInterests(filteredInterests);
         List<Interest> coupons = new java.util.ArrayList<>();
         List<Interest> prices = new java.util.ArrayList<>();
         for (Interest interest : filteredInterests) {
@@ -176,24 +186,15 @@ public class AlertsActivity extends AlertouActivity {
             return;
         }
 
-        NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
+        NumberFormat amountFormat = NumberFormat.getNumberInstance(new Locale("pt", "BR"));
+        amountFormat.setMinimumFractionDigits(2);
+        amountFormat.setMaximumFractionDigits(2);
         for (int index = 0; index < interests.size(); index++) {
             Interest interest = interests.get(index);
-            String rowText = interest.isCoupon()
-                    ? getString(
-                            R.string.coupon_interest_single_line,
-                            currency.format(interest.getMaximumPrice()))
-                    : getString(
-                            R.string.dashboard_interest_single_line,
-                            interest.getTerm(),
-                            currency.format(interest.getMaximumPrice()));
-            LinearLayout row = createInterestRow(rowText);
+            LinearLayout row = createInterestRow(interest, amountFormat);
             ImageButton edit = createEditInterestButton();
             edit.setOnClickListener(view -> showInterestDialog(interest, interest.getType()));
             row.addView(edit, 0);
-            ImageButton remove = createRemoveInterestButton();
-            remove.setOnClickListener(view -> showRemoveInterestConfirmation(interest));
-            row.addView(remove);
             container.addView(row);
             if (index < interests.size() - 1) {
                 container.addView(createDivider());
@@ -220,7 +221,48 @@ public class AlertsActivity extends AlertouActivity {
         return filtered;
     }
 
-    private LinearLayout createInterestRow(String text) {
+    private void sortInterests(List<Interest> interests) {
+        int sortOrder = getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                .getInt(ALERTS_SORT_ORDER, SORT_RECENT);
+        Comparator<Interest> comparator;
+        if (sortOrder == SORT_NAME) {
+            comparator = (first, second) -> {
+                int byName = OfferTextParser.normalize(first.getTerm())
+                        .compareTo(OfferTextParser.normalize(second.getTerm()));
+                return byName != 0 ? byName : Long.compare(second.getId(), first.getId());
+            };
+        } else if (sortOrder == SORT_PRICE_ASCENDING) {
+            comparator = (first, second) -> {
+                int byValue = Double.compare(first.getMaximumPrice(), second.getMaximumPrice());
+                return byValue != 0 ? byValue : Long.compare(second.getId(), first.getId());
+            };
+        } else if (sortOrder == SORT_PRICE_DESCENDING) {
+            comparator = (first, second) -> {
+                int byValue = Double.compare(second.getMaximumPrice(), first.getMaximumPrice());
+                return byValue != 0 ? byValue : Long.compare(second.getId(), first.getId());
+            };
+        } else {
+            return;
+        }
+        interests.sort(comparator);
+    }
+
+    private void showSortDialog() {
+        int selected = getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                .getInt(ALERTS_SORT_ORDER, SORT_RECENT);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.alerts_sort_title)
+                .setSingleChoiceItems(R.array.alerts_sort_options, selected, (dialog, which) -> {
+                    getSharedPreferences(OFFER_PREFS, MODE_PRIVATE).edit()
+                            .putInt(ALERTS_SORT_ORDER, which)
+                            .apply();
+                    dialog.dismiss();
+                    renderInterests();
+                })
+                .show();
+    }
+
+    private LinearLayout createInterestRow(Interest interest, NumberFormat amountFormat) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -228,15 +270,46 @@ public class AlertsActivity extends AlertouActivity {
         row.setMinimumHeight(dp(48));
         row.setPadding(dp(4), dp(4), dp(4), dp(4));
 
-        TextView label = new TextView(this);
-        label.setText(text);
-        label.setTextColor(getColor(R.color.text_primary));
-        label.setTextSize(14);
-        label.setSingleLine(true);
-        label.setEllipsize(TextUtils.TruncateAt.END);
-        label.setPadding(0, 0, dp(3), 0);
-        row.addView(label, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        if (interest.isCoupon()) {
+            TextView label = createInterestText();
+            label.setText(getString(
+                    R.string.coupon_interest_single_line,
+                    amountFormat.format(interest.getMaximumPrice())));
+            label.setEllipsize(TextUtils.TruncateAt.END);
+            row.addView(label, new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        } else {
+            LinearLayout textContainer = new LinearLayout(this);
+            textContainer.setOrientation(LinearLayout.HORIZONTAL);
+            textContainer.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView product = createInterestText();
+            product.setText(interest.getTerm());
+            product.setEllipsize(TextUtils.TruncateAt.END);
+            textContainer.addView(product, new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+            TextView price = createInterestText();
+            price.setText(getString(
+                    R.string.price_interest_value,
+                    amountFormat.format(interest.getMaximumPrice())));
+            textContainer.addView(price, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+
+            row.addView(textContainer, new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        }
         return row;
+    }
+
+    private TextView createInterestText() {
+        TextView text = new TextView(this);
+        text.setTextColor(getColor(R.color.text_primary));
+        text.setTextSize(13);
+        text.setSingleLine(true);
+        text.setPadding(0, 0, dp(3), 0);
+        return text;
     }
 
     private View createDivider() {
@@ -271,20 +344,6 @@ public class AlertsActivity extends AlertouActivity {
         button.setPadding(dp(7), dp(7), dp(7), dp(7));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(32), dp(32));
         params.rightMargin = dp(6);
-        button.setLayoutParams(params);
-        return button;
-    }
-
-    private ImageButton createRemoveInterestButton() {
-        ImageButton button = new ImageButton(this);
-        button.setImageResource(R.drawable.ic_delete);
-        button.setColorFilter(getColor(R.color.danger));
-        button.setBackgroundResource(R.drawable.bg_icon_danger);
-        button.setContentDescription(getString(R.string.action_remove_interest));
-        button.setScaleType(ImageView.ScaleType.CENTER);
-        button.setPadding(dp(8), dp(8), dp(8), dp(8));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(32), dp(32));
-        params.leftMargin = dp(4);
         button.setLayoutParams(params);
         return button;
     }
@@ -381,11 +440,20 @@ public class AlertsActivity extends AlertouActivity {
         );
         if (editing) {
             termInput.setText(interestToEdit.getTerm());
-            termInput.setSelection(termInput.length());
+            termInput.setSelection(couponAlert ? 0 : termInput.length());
+        }
+        if (couponAlert) {
+            termInput.setSingleLine(false);
+            termInput.setMinLines(2);
+            termInput.setMaxLines(4);
+            termInput.setHorizontallyScrolling(false);
+            termInput.setTextSize(13);
+            termInput.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            termInput.setPadding(dp(12), dp(6), dp(12), dp(6));
         }
         content.addView(termInput, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(52)
+                couponAlert ? LinearLayout.LayoutParams.WRAP_CONTENT : dp(52)
         ));
 
         EditText priceInput = createDialogInput(
@@ -422,21 +490,40 @@ public class AlertsActivity extends AlertouActivity {
         suggestionParams.topMargin = dp(10);
         content.addView(suggestionView, suggestionParams);
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.END);
-        actions.setPadding(0, dp(18), 0, 0);
-        if (editing && !couponAlert) {
-            TextView revalidate = createDialogAction(R.string.action_revalidate_history);
-            revalidate.setOnClickListener(view -> {
+        if (editing) {
+            LinearLayout secondaryActions = new LinearLayout(this);
+            secondaryActions.setGravity(Gravity.CENTER_VERTICAL);
+            secondaryActions.setPadding(0, dp(12), 0, 0);
+            TextView remove = createDialogAction(R.string.action_remove_interest);
+            remove.setTextColor(getColor(R.color.danger));
+            remove.setOnClickListener(view -> {
                 dialog.dismiss();
-                revalidateInterestHistory(interestToEdit);
+                showRemoveInterestConfirmation(interestToEdit);
             });
-            actions.addView(revalidate);
+            secondaryActions.addView(remove);
+            if (!couponAlert) {
+                TextView revalidate = createDialogAction(R.string.action_revalidate_history);
+                revalidate.setOnClickListener(view -> {
+                    dialog.dismiss();
+                    revalidateInterestHistory(interestToEdit);
+                });
+                LinearLayout.LayoutParams revalidateParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                revalidateParams.leftMargin = dp(12);
+                secondaryActions.addView(revalidate, revalidateParams);
+            }
+            content.addView(secondaryActions);
         }
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        actions.setPadding(0, dp(14), 0, 0);
         TextView cancel = createDialogAction(R.string.action_cancel);
         cancel.setOnClickListener(view -> dialog.dismiss());
         actions.addView(cancel);
-        TextView save = createDialogAction(R.string.action_save);
+        TextView save = createPrimaryDialogAction(R.string.action_save);
         save.setOnClickListener(view -> {
             String term = termInput.getText().toString().trim();
             String priceText = priceInput.getText().toString().trim().replace(',', '.');
@@ -471,7 +558,12 @@ public class AlertsActivity extends AlertouActivity {
             dialog.dismiss();
             updateInterestInBackground(interestToEdit, term, maximumPrice, couponAlert);
         });
-        actions.addView(save);
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(42)
+        );
+        saveParams.leftMargin = dp(10);
+        actions.addView(save, saveParams);
         content.addView(actions);
 
         dialog.setContentView(content);
@@ -526,12 +618,15 @@ public class AlertsActivity extends AlertouActivity {
                             : interestRepository.add(term, maximumPrice);
                 }
                 offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
-                getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
-                        .edit()
-                        .putBoolean(MONITOR_ENABLED, true)
-                        .apply();
-                CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
-                CloudSyncStore.markLocalChanged(this);
+                boolean monitorWasEnabled = getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                        .getBoolean(MONITOR_ENABLED, true);
+                if (!monitorWasEnabled) {
+                    getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                            .edit()
+                            .putBoolean(MONITOR_ENABLED, true)
+                            .apply();
+                    CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
+                }
             } catch (RuntimeException exception) {
                 succeeded = false;
             }
@@ -671,7 +766,17 @@ public class AlertsActivity extends AlertouActivity {
         action.setTextColor(getColor(R.color.action));
         action.setTextSize(15);
         action.setGravity(Gravity.CENTER);
-        action.setPadding(dp(18), dp(10), 0, dp(10));
+        action.setSingleLine(true);
+        action.setPadding(dp(10), dp(8), dp(10), dp(8));
+        return action;
+    }
+
+    private TextView createPrimaryDialogAction(int textResource) {
+        TextView action = createDialogAction(textResource);
+        action.setTextColor(getColor(R.color.button_text));
+        action.setBackgroundResource(R.drawable.bg_button_primary);
+        action.setMinWidth(dp(96));
+        action.setPadding(dp(20), 0, dp(20), 0);
         return action;
     }
 
