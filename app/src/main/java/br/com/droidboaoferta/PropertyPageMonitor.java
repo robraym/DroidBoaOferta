@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -91,10 +93,15 @@ final class PropertyPageMonitor {
 
     private void checkInterest(Context context, Interest interest) throws Exception {
         PropertyPageResult result = PropertyPageClient.fetch(interest.getTerm());
-        if (result.hasCondominiumName()
-                && !result.getCondominiumName().equals(interest.getPropertyName())) {
+        String propertyName = PropertyPageResult.normalizeCondominiumName(
+                interest.getPropertyName());
+        if (propertyName.isEmpty() && result.hasCondominiumName()) {
+            propertyName = result.getCondominiumName();
             new InterestRepository(context).updatePropertyName(
-                    interest.getId(), result.getCondominiumName());
+                    interest.getId(), propertyName);
+        }
+        if (propertyName.isEmpty()) {
+            propertyName = result.getCondominiumName();
         }
         List<PropertyPageListing> matches = new ArrayList<>();
         for (PropertyPageListing listing : result.getSaleListings()) {
@@ -110,6 +117,23 @@ final class PropertyPageMonitor {
         }
         matches.sort(Comparator.comparingDouble(PropertyPageListing::getSalePrice));
 
+        long observedAt = System.currentTimeMillis();
+        PropertyHistoryRepository historyRepository = new PropertyHistoryRepository(context);
+        Map<String, Integer> historyChanges = new HashMap<>();
+        for (PropertyPageListing listing : matches) {
+            PropertyListingMetadata metadata = null;
+            if (historyRepository.shouldFetchMetadata(
+                    interest.getId(), listing.getId(), observedAt)) {
+                try {
+                    metadata = PropertyPageClient.fetchListingMetadata(listing.getUrl());
+                } catch (Exception ignored) {
+                    metadata = PropertyListingMetadata.empty();
+                }
+            }
+            historyChanges.put(listing.getId(), historyRepository.recordObservation(
+                    interest.getId(), listing, observedAt, metadata));
+        }
+
         SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String stateKey = NOTIFIED_PRICES_PREFIX + interest.getId();
         JSONObject notifiedPrices;
@@ -122,7 +146,11 @@ final class PropertyPageMonitor {
         List<PropertyPageListing> changed = new ArrayList<>();
         for (PropertyPageListing listing : matches) {
             double previousPrice = notifiedPrices.optDouble(listing.getId(), Double.NaN);
-            if (Double.isNaN(previousPrice) || listing.getSalePrice() < previousPrice) {
+            int historyChange = historyChanges.getOrDefault(
+                    listing.getId(), PropertyHistoryRepository.UNCHANGED);
+            if (Double.isNaN(previousPrice)
+                    || historyChange == PropertyHistoryRepository.CHANGED
+                    || Double.compare(listing.getSalePrice(), previousPrice) != 0) {
                 changed.add(listing);
             }
             try {
@@ -135,18 +163,14 @@ final class PropertyPageMonitor {
             return;
         }
 
-        long observedAt = System.currentTimeMillis();
         OfferRepository repository = new OfferRepository(context);
         NumberFormat areaFormat = NumberFormat.getNumberInstance(new Locale("pt", "BR"));
         areaFormat.setMaximumFractionDigits(1);
         for (PropertyPageListing listing : changed) {
-            String description = listing.getDescription().isEmpty()
-                    ? result.getCondominiumName()
-                    : listing.getDescription();
             repository.add(new ObservedOffer(
                     "property|" + interest.getId() + "|" + listing.getId(),
                     interest.getId(),
-                    description,
+                    propertyName,
                     context.getString(
                             R.string.property_offer_source,
                             areaFormat.format(listing.getArea())

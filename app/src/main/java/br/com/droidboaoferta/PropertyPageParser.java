@@ -61,13 +61,63 @@ final class PropertyPageParser {
                         area,
                         salePrice,
                         source.optString("shortSaleDescription", ""),
-                        "https://www.quintoandar.com.br/imovel/" + id + "/comprar"
+                        "https://www.quintoandar.com.br/imovel/" + id + "/comprar",
+                        containsTag(source.optJSONArray("listingTags"), "NEW_AD")
                 ));
             }
             return new PropertyPageResult(condominiumName, parsed);
         } catch (Exception ignored) {
             return new PropertyPageResult("", new ArrayList<>());
         }
+    }
+
+    static PropertyListingMetadata parseListingMetadata(String html) {
+        if (html == null || html.trim().isEmpty()) {
+            return PropertyListingMetadata.empty();
+        }
+        Matcher matcher = NEXT_DATA.matcher(html);
+        if (!matcher.find()) {
+            return PropertyListingMetadata.empty();
+        }
+        try {
+            JSONObject root = new JSONObject(matcher.group(1));
+            return new PropertyListingMetadata(
+                    parseDate(findString(root, "firstPublicationDate")),
+                    parseDate(findString(root, "lastPublicationDate"))
+            );
+        } catch (Exception ignored) {
+            return PropertyListingMetadata.empty();
+        }
+    }
+
+    private static boolean containsTag(JSONArray tags, String expected) {
+        if (tags == null) {
+            return false;
+        }
+        for (int index = 0; index < tags.length(); index++) {
+            if (expected.equals(tags.optString(index))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static long parseDate(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return 0L;
+        }
+        String[] patterns = {
+                "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSX"
+        };
+        for (String pattern : patterns) {
+            try {
+                return new java.text.SimpleDateFormat(pattern, java.util.Locale.US)
+                        .parse(value).getTime();
+            } catch (Exception ignored) {
+            }
+        }
+        return 0L;
     }
 
     private static JSONObject findObjectContainingArray(Object value, String key) {

@@ -47,7 +47,18 @@ final class PropertyPageClient {
         if (normalizedUrl == null) {
             throw new IllegalArgumentException("Unsupported property page");
         }
-        HttpURLConnection connection = (HttpURLConnection) new URL(normalizedUrl).openConnection();
+        return PropertyPageParser.parse(fetchHtml(normalizedUrl));
+    }
+
+    static PropertyListingMetadata fetchListingMetadata(String rawUrl) throws Exception {
+        if (rawUrl == null || !rawUrl.startsWith("https://www.quintoandar.com.br/imovel/")) {
+            throw new IllegalArgumentException("Unsupported listing page");
+        }
+        return PropertyPageParser.parseListingMetadata(fetchHtml(rawUrl));
+    }
+
+    private static String fetchHtml(String url) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(12_000);
         connection.setReadTimeout(18_000);
         connection.setInstanceFollowRedirects(true);
@@ -58,7 +69,7 @@ final class PropertyPageClient {
             if (status < 200 || status >= 300) {
                 throw new IllegalStateException("HTTP " + status);
             }
-            return PropertyPageParser.parse(readResponse(connection.getInputStream()));
+            return readResponse(connection.getInputStream());
         } finally {
             connection.disconnect();
         }

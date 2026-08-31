@@ -21,7 +21,7 @@ public class PropertyPageParserTest {
                 + "{\"_id\":\"sale-1\",\"_source\":{\"area\":25,"
                 + "\"salePrice\":410000,\"forSale\":false,"
                 + "\"shortSaleDescription\":\"Studio mobiliado\","
-                + "\"listingTags\":[\"COMING_SOON\"]}},"
+                + "\"listingTags\":[\"NEW_AD\"]}},"
                 + "{\"_id\":\"sale-2\",\"_source\":{\"area\":40,"
                 + "\"salePrice\":520000,\"forSale\":true}},"
                 + "{\"_id\":\"sale-1\",\"_source\":{\"area\":25,"
@@ -42,6 +42,7 @@ public class PropertyPageParserTest {
         assertEquals("Studio mobiliado", listings.get(0).getDescription());
         assertEquals("https://www.quintoandar.com.br/imovel/sale-1/comprar",
                 listings.get(0).getUrl());
+        assertTrue(listings.get(0).isNewAd());
         assertFalse(listings.stream().anyMatch(item -> "rent-1".equals(item.getId())));
         assertFalse(listings.stream().anyMatch(item -> "nearby-1".equals(item.getId())));
     }
@@ -84,5 +85,13 @@ public class PropertyPageParserTest {
         assertFalse(listing.matches(31d, 40d, 500000d));
         assertFalse(listing.matches(20d, 29d, 500000d));
         assertFalse(listing.matches(20d, 40d, 449999d));
+    }
+
+    @Test
+    public void removesCondominiumWordFromDisplayedName() {
+        PropertyPageResult result = new PropertyPageResult(
+                "Condomínio Facto Paulista", java.util.Collections.emptyList());
+
+        assertEquals("Facto Paulista", result.getCondominiumName());
     }
 }

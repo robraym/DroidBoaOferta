@@ -9,10 +9,11 @@ final class PropertyPageResult {
     private final List<PropertyPageListing> saleListings;
 
     PropertyPageResult(String condominiumName, List<PropertyPageListing> saleListings) {
-        this.hasCondominiumName = condominiumName != null && !condominiumName.trim().isEmpty();
+        String normalizedName = normalizeCondominiumName(condominiumName);
+        this.hasCondominiumName = !normalizedName.isEmpty();
         this.condominiumName = !hasCondominiumName
                 ? "Condomínio monitorado"
-                : condominiumName.trim();
+                : normalizedName;
         this.saleListings = saleListings == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(saleListings);
@@ -24,6 +25,13 @@ final class PropertyPageResult {
 
     boolean hasCondominiumName() {
         return hasCondominiumName;
+    }
+
+    static String normalizeCondominiumName(String name) {
+        if (name == null) {
+            return "";
+        }
+        return name.trim().replaceFirst("(?i)^condom[ií]nio\\s+", "").trim();
     }
 
     List<PropertyPageListing> getSaleListings() {

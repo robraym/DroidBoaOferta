@@ -87,7 +87,7 @@ final class OfferRepository {
             reconciled.add(new ObservedOffer(
                     offer.getId(),
                     matchingInterest.getId(),
-                    matchingInterest.isPrice() ? matchingInterest.getTerm() : offer.getInterest(),
+                    getReconciledInterestName(offer, matchingInterest),
                     offer.getSource(),
                     offer.getPrice(),
                     matchingInterest.getMaximumPrice(),
@@ -96,9 +96,51 @@ final class OfferRepository {
                     offer.getTelegramPostLink()
             ));
         }
-        saveOffers(KEY_OFFERS, trimOffers(sortByObservedAt(reconciled)));
+        reconciled = trimOffers(sortByObservedAt(reconciled));
+        if (areSameOfferLists(recent, reconciled)) {
+            return;
+        }
+        saveOffers(KEY_OFFERS, reconciled);
         long changedAt = System.currentTimeMillis();
         CloudSyncStore.rememberRecentChanged(context, changedAt);
+    }
+
+    private String getReconciledInterestName(ObservedOffer offer, Interest matchingInterest) {
+        if (matchingInterest.isPrice()) {
+            return matchingInterest.getTerm();
+        }
+        if (matchingInterest.isProperty()) {
+            String propertyName = PropertyPageResult.normalizeCondominiumName(
+                    matchingInterest.getPropertyName());
+            return propertyName.isEmpty()
+                    ? context.getString(R.string.property_interest_unknown_name)
+                    : propertyName;
+        }
+        return offer.getInterest();
+    }
+
+    private boolean areSameOfferLists(List<ObservedOffer> first, List<ObservedOffer> second) {
+        if (first.size() != second.size()) {
+            return false;
+        }
+        for (int index = 0; index < first.size(); index++) {
+            if (!hasSameStoredValues(first.get(index), second.get(index))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean hasSameStoredValues(ObservedOffer first, ObservedOffer second) {
+        return first.getId().equals(second.getId())
+                && first.getInterestId() == second.getInterestId()
+                && first.getInterest().equals(second.getInterest())
+                && first.getSource().equals(second.getSource())
+                && Double.compare(first.getPrice(), second.getPrice()) == 0
+                && Double.compare(first.getMaximumPrice(), second.getMaximumPrice()) == 0
+                && first.getObservedAt() == second.getObservedAt()
+                && first.getLink().equals(second.getLink())
+                && first.getTelegramPostLink().equals(second.getTelegramPostLink());
     }
 
     synchronized void archive(String id) {

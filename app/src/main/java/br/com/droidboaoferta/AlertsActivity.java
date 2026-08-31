@@ -319,16 +319,19 @@ public class AlertsActivity extends AlertouActivity {
             textContainer.setOrientation(LinearLayout.VERTICAL);
 
             TextView title = createInterestText();
-            title.setText(interest.getPropertyName().isEmpty()
+            String normalizedPropertyName = PropertyPageResult.normalizeCondominiumName(
+                    interest.getPropertyName());
+            String propertyName = normalizedPropertyName.isEmpty()
                     ? getString(R.string.property_interest_unknown_name)
-                    : interest.getPropertyName());
+                    : normalizedPropertyName;
+            title.setText(propertyName);
             title.setTextSize(14);
             title.setEllipsize(TextUtils.TruncateAt.END);
             textContainer.addView(title);
 
             TextView subtitle = createInterestText();
             subtitle.setText(getString(
-                    R.string.property_interest_criteria,
+                    R.string.property_interest_subtitle,
                     formatArea(interest.getMinimumArea()),
                     formatArea(interest.getMaximumArea()),
                     amountFormat.format(interest.getMaximumPrice())
@@ -737,6 +740,21 @@ public class AlertsActivity extends AlertouActivity {
         content.addView(areaInputs, areaRowParams);
         addDialogInputWithMargin(content, maximumPriceInput);
 
+        PropertyLowestPriceSuggestionView propertySuggestion =
+                new PropertyLowestPriceSuggestionView(this);
+        propertySuggestion.bind(
+                urlInput,
+                minimumAreaInput,
+                maximumAreaInput,
+                maximumPriceInput
+        );
+        LinearLayout.LayoutParams suggestionParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        suggestionParams.topMargin = dp(10);
+        content.addView(propertySuggestion, suggestionParams);
+
         if (editing) {
             LinearLayout secondaryActions = new LinearLayout(this);
             secondaryActions.setGravity(Gravity.CENTER_VERTICAL);
@@ -831,8 +849,24 @@ public class AlertsActivity extends AlertouActivity {
                 hintResource,
                 InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
         );
+        input.setOnFocusChangeListener((view, hasFocus) -> {
+            Double value = parsePositiveNumber(input);
+            if (value == null) {
+                return;
+            }
+            String formatted = hasFocus
+                    ? formatEditablePrice(value)
+                    : getString(R.string.property_area_value, formatArea(value));
+            input.setText(formatted);
+            if (hasFocus) {
+                input.setSelection(formatted.length());
+            }
+        });
         if (initialValue > 0d) {
-            input.setText(formatEditablePrice(initialValue));
+            input.setText(getString(
+                    R.string.property_area_value,
+                    formatArea(initialValue)
+            ));
         }
         return input;
     }
@@ -873,8 +907,11 @@ public class AlertsActivity extends AlertouActivity {
 
     private Double parsePositiveNumber(EditText input) {
         try {
+            String numericText = input.getText().toString()
+                    .replaceAll("[^0-9,.]", "")
+                    .trim();
             double value = Double.parseDouble(
-                    input.getText().toString().trim().replace(',', '.')
+                    numericText.replace(',', '.')
             );
             return value > 0d ? value : null;
         } catch (NumberFormatException ignored) {
