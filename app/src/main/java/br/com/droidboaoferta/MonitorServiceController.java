@@ -42,14 +42,19 @@ final class MonitorServiceController {
         }
         boolean hasPriceAlert = false;
         boolean hasCouponAlert = false;
+        boolean hasPropertyAlert = false;
         for (Interest interest : new InterestRepository(context).getAll()) {
             if (interest.isCoupon()) {
                 hasCouponAlert = true;
-            } else {
+            } else if (interest.isProperty()) {
+                hasPropertyAlert = true;
+            } else if (interest.isPrice()) {
                 hasPriceAlert = true;
             }
         }
-        return hasCouponAlert || (hasPriceAlert && selectedGroupCount(context) > 0);
+        return hasCouponAlert
+                || hasPropertyAlert
+                || (hasPriceAlert && selectedGroupCount(context) > 0);
     }
 
     static boolean isEnabled(Context context) {

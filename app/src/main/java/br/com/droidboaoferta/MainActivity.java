@@ -145,14 +145,18 @@ public class MainActivity extends AlertouActivity {
 
         boolean hasCouponAlert = false;
         boolean hasPriceAlert = false;
+        boolean hasPropertyAlert = false;
         for (Interest interest : interests) {
             if (interest.isCoupon()) {
                 hasCouponAlert = true;
-            } else {
+            } else if (interest.isProperty()) {
+                hasPropertyAlert = true;
+            } else if (interest.isPrice()) {
                 hasPriceAlert = true;
             }
         }
-        if (monitorEnabled && (hasCouponAlert || (hasPriceAlert && groupCount > 0))) {
+        if (monitorEnabled
+                && (hasCouponAlert || hasPropertyAlert || (hasPriceAlert && groupCount > 0))) {
             requestNotificationPermissionIfNeeded();
         }
         MonitorServiceController.update(this);

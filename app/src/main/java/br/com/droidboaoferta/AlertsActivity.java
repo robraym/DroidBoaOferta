@@ -53,9 +53,11 @@ public class AlertsActivity extends AlertouActivity {
     private OfferRepository offerRepository;
     private final ExecutorService alertUpdateExecutor = Executors.newSingleThreadExecutor();
     private LinearLayout couponInterestsContainer;
+    private LinearLayout propertyInterestsContainer;
     private LinearLayout priceInterestsContainer;
     private EditText interestsSearchInput;
     private TextView couponAlertsCountText;
+    private TextView propertyAlertsCountText;
     private TextView priceAlertsCountText;
     private FloatingSearchController floatingSearchController;
     private final BroadcastReceiver syncReceiver = new BroadcastReceiver() {
@@ -78,6 +80,7 @@ public class AlertsActivity extends AlertouActivity {
         interestRepository = new InterestRepository(this);
         offerRepository = new OfferRepository(this);
         couponInterestsContainer = findViewById(R.id.container_coupon_interests);
+        propertyInterestsContainer = findViewById(R.id.container_property_interests);
         priceInterestsContainer = findViewById(R.id.container_price_interests);
         floatingSearchController = FloatingSearchController.attach(
                 this,
@@ -86,6 +89,7 @@ public class AlertsActivity extends AlertouActivity {
         );
         interestsSearchInput = floatingSearchController.getInput();
         couponAlertsCountText = findViewById(R.id.text_coupon_alerts_count);
+        propertyAlertsCountText = findViewById(R.id.text_property_alerts_count);
         priceAlertsCountText = findViewById(R.id.text_price_alerts_count);
 
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
@@ -96,6 +100,8 @@ public class AlertsActivity extends AlertouActivity {
                 view -> showInterestDialog(null, Interest.TYPE_PRICE));
         findViewById(R.id.button_add_coupon_interest).setOnClickListener(
                 view -> showInterestDialog(null, Interest.TYPE_COUPON));
+        findViewById(R.id.button_add_property_interest).setOnClickListener(
+                view -> showPropertyDialog(null));
         interestsSearchInput.addTextChangedListener(new SimpleTextWatcher() {
             @Override
             public void afterTextChanged(Editable editable) {
@@ -141,11 +147,14 @@ public class AlertsActivity extends AlertouActivity {
     private void renderInterests() {
         List<Interest> registeredInterests = interestRepository.getAll();
         int couponCount = 0;
+        int propertyCount = 0;
         int priceCount = 0;
         for (Interest interest : registeredInterests) {
             if (interest.isCoupon()) {
                 couponCount++;
-            } else {
+            } else if (interest.isProperty()) {
+                propertyCount++;
+            } else if (interest.isPrice()) {
                 priceCount++;
             }
         }
@@ -159,6 +168,11 @@ public class AlertsActivity extends AlertouActivity {
                 : getString(priceCount == 1
                         ? R.string.price_alerts_registered_count_one
                         : R.string.price_alerts_registered_count_many, priceCount));
+        propertyAlertsCountText.setText(propertyCount == 0
+                ? getString(R.string.property_alerts_registered_count_empty)
+                : getString(propertyCount == 1
+                        ? R.string.property_alerts_registered_count_one
+                        : R.string.property_alerts_registered_count_many, propertyCount));
 
         List<Interest> filteredInterests = filterInterests(
                 registeredInterests,
@@ -166,12 +180,21 @@ public class AlertsActivity extends AlertouActivity {
         );
         sortInterests(filteredInterests);
         List<Interest> coupons = new java.util.ArrayList<>();
+        List<Interest> properties = new java.util.ArrayList<>();
         List<Interest> prices = new java.util.ArrayList<>();
         for (Interest interest : filteredInterests) {
-            (interest.isCoupon() ? coupons : prices).add(interest);
+            if (interest.isCoupon()) {
+                coupons.add(interest);
+            } else if (interest.isProperty()) {
+                properties.add(interest);
+            } else if (interest.isPrice()) {
+                prices.add(interest);
+            }
         }
         renderInterestSection(
                 coupons, couponInterestsContainer, couponCount > 0);
+        renderInterestSection(
+                properties, propertyInterestsContainer, propertyCount > 0);
         renderInterestSection(
                 prices, priceInterestsContainer, priceCount > 0);
     }
@@ -193,7 +216,13 @@ public class AlertsActivity extends AlertouActivity {
             Interest interest = interests.get(index);
             LinearLayout row = createInterestRow(interest, amountFormat);
             ImageButton edit = createEditInterestButton();
-            edit.setOnClickListener(view -> showInterestDialog(interest, interest.getType()));
+            edit.setOnClickListener(view -> {
+                if (interest.isProperty()) {
+                    showPropertyDialog(interest);
+                } else {
+                    showInterestDialog(interest, interest.getType());
+                }
+            });
             row.addView(edit, 0);
             container.addView(row);
             if (index < interests.size() - 1) {
@@ -212,6 +241,8 @@ public class AlertsActivity extends AlertouActivity {
         for (Interest interest : interests) {
             String text = interest.getTerm() + " "
                     + (interest.isCoupon() ? getString(R.string.motorola_coupon_offer_title) : "")
+                    + (interest.isProperty() ? " QuintoAndar Imóveis "
+                    + interest.getMinimumArea() + " " + interest.getMaximumArea() : "")
                     + " " + currency.format(interest.getMaximumPrice())
                     + " " + interest.getMaximumPrice();
             if (OfferTextParser.normalize(text).contains(normalizedQuery)) {
@@ -256,6 +287,11 @@ public class AlertsActivity extends AlertouActivity {
                     getSharedPreferences(OFFER_PREFS, MODE_PRIVATE).edit()
                             .putInt(ALERTS_SORT_ORDER, which)
                             .apply();
+                    CloudSyncStore.syncAlertsSortChanged(
+                            this,
+                            which,
+                            System.currentTimeMillis()
+                    );
                     dialog.dismiss();
                     renderInterests();
                 })
@@ -277,6 +313,32 @@ public class AlertsActivity extends AlertouActivity {
                     amountFormat.format(interest.getMaximumPrice())));
             label.setEllipsize(TextUtils.TruncateAt.END);
             row.addView(label, new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        } else if (interest.isProperty()) {
+            LinearLayout textContainer = new LinearLayout(this);
+            textContainer.setOrientation(LinearLayout.VERTICAL);
+
+            TextView title = createInterestText();
+            title.setText(interest.getPropertyName().isEmpty()
+                    ? getString(R.string.property_interest_unknown_name)
+                    : interest.getPropertyName());
+            title.setTextSize(14);
+            title.setEllipsize(TextUtils.TruncateAt.END);
+            textContainer.addView(title);
+
+            TextView subtitle = createInterestText();
+            subtitle.setText(getString(
+                    R.string.property_interest_criteria,
+                    formatArea(interest.getMinimumArea()),
+                    formatArea(interest.getMaximumArea()),
+                    amountFormat.format(interest.getMaximumPrice())
+            ));
+            subtitle.setTextColor(getColor(R.color.text_secondary));
+            subtitle.setTextSize(12);
+            subtitle.setEllipsize(TextUtils.TruncateAt.END);
+            textContainer.addView(subtitle);
+
+            row.addView(textContainer, new LinearLayout.LayoutParams(
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         } else {
             LinearLayout textContainer = new LinearLayout(this);
@@ -310,6 +372,12 @@ public class AlertsActivity extends AlertouActivity {
         text.setSingleLine(true);
         text.setPadding(0, 0, dp(3), 0);
         return text;
+    }
+
+    private String formatArea(double area) {
+        NumberFormat format = NumberFormat.getNumberInstance(new Locale("pt", "BR"));
+        format.setMaximumFractionDigits(1);
+        return format.format(area);
     }
 
     private View createDivider() {
@@ -378,6 +446,7 @@ public class AlertsActivity extends AlertouActivity {
         confirm.setOnClickListener(view -> {
             interestRepository.remove(interest.getId());
             CouponPageMonitor.getInstance().clearState(this, interest.getId());
+            PropertyPageMonitor.getInstance().clearState(this, interest.getId());
             offerRepository.clearProcessedForInterest(interest.getId());
             offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
             MonitorServiceController.update(this);
@@ -585,6 +654,234 @@ public class AlertsActivity extends AlertouActivity {
         }
     }
 
+    private void showPropertyDialog(Interest interestToEdit) {
+        boolean editing = interestToEdit != null;
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(editing
+                ? R.string.property_dialog_edit_title
+                : R.string.property_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(22);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(R.string.property_dialog_summary);
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(6), 0, dp(16));
+        content.addView(message);
+
+        EditText urlInput = createDialogInput(
+                R.string.property_url_hint,
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI
+        );
+        urlInput.setSingleLine(false);
+        urlInput.setMinLines(2);
+        urlInput.setMaxLines(4);
+        urlInput.setHorizontallyScrolling(false);
+        urlInput.setTextSize(13);
+        urlInput.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        urlInput.setPadding(dp(12), dp(6), dp(12), dp(6));
+        if (editing) {
+            urlInput.setText(interestToEdit.getTerm());
+            urlInput.setSelection(0);
+        }
+        content.addView(urlInput, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        EditText minimumAreaInput = createPropertyNumberInput(
+                R.string.property_minimum_area_hint,
+                editing ? interestToEdit.getMinimumArea() : 0d
+        );
+        EditText maximumAreaInput = createPropertyNumberInput(
+                R.string.property_maximum_area_hint,
+                editing ? interestToEdit.getMaximumArea() : 0d
+        );
+        EditText maximumPriceInput = createDialogInput(
+                R.string.property_maximum_price_hint,
+                InputType.TYPE_CLASS_NUMBER
+        );
+        configureWholeCurrencyInput(
+                maximumPriceInput,
+                editing ? interestToEdit.getMaximumPrice() : 0d
+        );
+
+        LinearLayout areaInputs = new LinearLayout(this);
+        areaInputs.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams minimumAreaParams = new LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                1
+        );
+        areaInputs.addView(minimumAreaInput, minimumAreaParams);
+        LinearLayout.LayoutParams maximumAreaParams = new LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                1
+        );
+        maximumAreaParams.leftMargin = dp(10);
+        areaInputs.addView(maximumAreaInput, maximumAreaParams);
+        LinearLayout.LayoutParams areaRowParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        areaRowParams.topMargin = dp(12);
+        content.addView(areaInputs, areaRowParams);
+        addDialogInputWithMargin(content, maximumPriceInput);
+
+        if (editing) {
+            LinearLayout secondaryActions = new LinearLayout(this);
+            secondaryActions.setGravity(Gravity.CENTER_VERTICAL);
+            secondaryActions.setPadding(0, dp(12), 0, 0);
+            TextView remove = createDialogAction(R.string.action_remove_interest);
+            remove.setTextColor(getColor(R.color.danger));
+            remove.setOnClickListener(view -> {
+                dialog.dismiss();
+                showRemoveInterestConfirmation(interestToEdit);
+            });
+            secondaryActions.addView(remove);
+            content.addView(secondaryActions);
+        }
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        actions.setPadding(0, dp(14), 0, 0);
+        TextView cancel = createDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        TextView save = createPrimaryDialogAction(R.string.action_save);
+        save.setOnClickListener(view -> {
+            String pageUrl = urlInput.getText().toString().trim();
+            if (pageUrl.isEmpty()) {
+                urlInput.setError(getString(R.string.property_url_required));
+                return;
+            }
+            String normalizedUrl = PropertyPageClient.normalizeSupportedUrl(pageUrl);
+            if (normalizedUrl == null) {
+                urlInput.setError(getString(R.string.property_url_unsupported));
+                return;
+            }
+            Double minimumArea = parsePositiveNumber(minimumAreaInput);
+            Double maximumArea = parsePositiveNumber(maximumAreaInput);
+            if (minimumArea == null) {
+                minimumAreaInput.setError(getString(R.string.property_area_required));
+                return;
+            }
+            if (maximumArea == null) {
+                maximumAreaInput.setError(getString(R.string.property_area_required));
+                return;
+            }
+            if (maximumArea < minimumArea) {
+                maximumAreaInput.setError(getString(R.string.property_area_range_invalid));
+                return;
+            }
+            Double maximumPrice = CurrencyTextFormatter.parseWholeReais(
+                    maximumPriceInput.getText()
+            );
+            if (maximumPrice == null) {
+                maximumPriceInput.setError(getString(R.string.property_price_required));
+                return;
+            }
+            dialog.dismiss();
+            updatePropertyInBackground(
+                    interestToEdit,
+                    normalizedUrl,
+                    minimumArea,
+                    maximumArea,
+                    maximumPrice
+            );
+        });
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(42)
+        );
+        saveParams.leftMargin = dp(10);
+        actions.addView(save, saveParams);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private EditText createPropertyNumberInput(int hintResource, double initialValue) {
+        EditText input = createDialogInput(
+                hintResource,
+                InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
+        );
+        if (initialValue > 0d) {
+            input.setText(formatEditablePrice(initialValue));
+        }
+        return input;
+    }
+
+    private void configureWholeCurrencyInput(EditText input, double initialValue) {
+        input.addTextChangedListener(new SimpleTextWatcher() {
+            private boolean formatting;
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (formatting) {
+                    return;
+                }
+                String formatted = CurrencyTextFormatter.formatWholeReais(editable);
+                if (formatted.contentEquals(editable)) {
+                    return;
+                }
+                formatting = true;
+                input.setText(formatted);
+                input.setSelection(formatted.length());
+                formatting = false;
+            }
+        });
+        if (initialValue > 0d) {
+            input.setText(CurrencyTextFormatter.formatWholeReais(initialValue));
+            input.setSelection(input.length());
+        }
+    }
+
+    private void addDialogInputWithMargin(LinearLayout content, EditText input) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+        );
+        params.topMargin = dp(12);
+        content.addView(input, params);
+    }
+
+    private Double parsePositiveNumber(EditText input) {
+        try {
+            double value = Double.parseDouble(
+                    input.getText().toString().trim().replace(',', '.')
+            );
+            return value > 0d ? value : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private void revalidateInterestHistory(Interest interest) {
         Dialog updatingDialog = showUpdatingDialog();
         alertUpdateExecutor.execute(() -> {
@@ -656,6 +953,92 @@ public class AlertsActivity extends AlertouActivity {
                         650L - (SystemClock.elapsedRealtime() - shownAt)
                 );
                 priceInterestsContainer.postDelayed(() -> {
+                    if (updatingDialog.isShowing()) {
+                        updatingDialog.dismiss();
+                    }
+                    if (updateSucceeded) {
+                        renderInterests();
+                    } else {
+                        AppErrorStore.recordSerious(
+                                this,
+                                "Alertas",
+                                getString(R.string.alert_update_failed)
+                        );
+                    }
+                }, remaining);
+            });
+        });
+    }
+
+    private void updatePropertyInBackground(Interest interestToEdit, String pageUrl,
+                                            double minimumArea, double maximumArea,
+                                            double maximumPrice) {
+        boolean editing = interestToEdit != null;
+        Dialog updatingDialog = showUpdatingDialog();
+        long shownAt = SystemClock.elapsedRealtime();
+        alertUpdateExecutor.execute(() -> {
+            boolean succeeded = true;
+            long savedInterestId = editing ? interestToEdit.getId() : 0L;
+            try {
+                String propertyName = editing ? interestToEdit.getPropertyName() : "";
+                try {
+                    PropertyPageResult propertyPage = PropertyPageClient.fetch(pageUrl);
+                    if (propertyPage.hasCondominiumName()) {
+                        propertyName = propertyPage.getCondominiumName();
+                    }
+                } catch (Exception ignored) {
+                    // Mantém o nome já conhecido quando a página estiver temporariamente indisponível.
+                }
+                if (editing) {
+                    interestRepository.updateProperty(
+                            interestToEdit.getId(),
+                            pageUrl,
+                            minimumArea,
+                            maximumArea,
+                            maximumPrice,
+                            propertyName
+                    );
+                    PropertyPageMonitor.getInstance().clearState(this, interestToEdit.getId());
+                    offerRepository.clearProcessedForInterest(interestToEdit.getId());
+                    offerRepository.clearRecentForInterest(interestToEdit.getId());
+                } else {
+                    savedInterestId = interestRepository.addProperty(
+                            pageUrl,
+                            minimumArea,
+                            maximumArea,
+                            maximumPrice,
+                            propertyName
+                    );
+                }
+                offerRepository.reconcileRecentWithInterests(interestRepository.getAll());
+                boolean monitorWasEnabled = getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                        .getBoolean(MONITOR_ENABLED, true);
+                if (!monitorWasEnabled) {
+                    getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                            .edit()
+                            .putBoolean(MONITOR_ENABLED, true)
+                            .apply();
+                    CloudSyncStore.rememberMonitorChanged(this, System.currentTimeMillis());
+                }
+            } catch (RuntimeException exception) {
+                succeeded = false;
+            }
+            boolean updateSucceeded = succeeded;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    updatingDialog.dismiss();
+                    return;
+                }
+                if (updateSucceeded) {
+                    requestNotificationPermissionIfNeeded();
+                    MonitorServiceController.update(this);
+                    PropertyPageMonitor.getInstance().checkNow(this);
+                }
+                long remaining = Math.max(
+                        0L,
+                        650L - (SystemClock.elapsedRealtime() - shownAt)
+                );
+                propertyInterestsContainer.postDelayed(() -> {
                     if (updatingDialog.isShowing()) {
                         updatingDialog.dismiss();
                     }

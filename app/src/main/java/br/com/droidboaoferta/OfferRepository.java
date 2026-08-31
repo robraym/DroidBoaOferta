@@ -87,7 +87,7 @@ final class OfferRepository {
             reconciled.add(new ObservedOffer(
                     offer.getId(),
                     matchingInterest.getId(),
-                    matchingInterest.isCoupon() ? offer.getInterest() : matchingInterest.getTerm(),
+                    matchingInterest.isPrice() ? matchingInterest.getTerm() : offer.getInterest(),
                     offer.getSource(),
                     offer.getPrice(),
                     matchingInterest.getMaximumPrice(),

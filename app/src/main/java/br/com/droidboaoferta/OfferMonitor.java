@@ -62,7 +62,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
     }
 
     synchronized void revalidateInterestHistory(Context context, Interest interest) {
-        if (interest == null || interest.isCoupon()) {
+        if (interest == null || !interest.isPrice()) {
             return;
         }
         start(context);
@@ -90,7 +90,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
 
         List<Interest> interests = interestRepository.getAll();
         for (Interest interest : interests) {
-            if (interest.isCoupon()) {
+            if (!interest.isPrice()) {
                 continue;
             }
             double price = OfferTextParser.extractPriceForInterest(text, interest.getTerm());
@@ -122,7 +122,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         }
         Interest target = null;
         for (Interest interest : interestRepository.getAll()) {
-            if (interest.isCoupon()) {
+            if (!interest.isPrice()) {
                 continue;
             }
             if (interest.getId() == interestId) {
@@ -161,7 +161,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         long observedAt = messageDate > 0L ? messageDate : System.currentTimeMillis();
         new GroupQualityRepository(appContext).recordMessage(chatId, messageId, observedAt);
         for (Interest interest : interestRepository.getAll()) {
-            if (interest.isCoupon()) {
+            if (!interest.isPrice()) {
                 continue;
             }
             double price = OfferTextParser.extractPriceForInterest(text, interest.getTerm());

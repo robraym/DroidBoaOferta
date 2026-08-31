@@ -68,6 +68,7 @@ final class CloudSyncStore {
     private static final String KEY_TRASH_UPDATED_AT = "trash_updated_at";
     private static final String KEY_MONITOR_UPDATED_AT = "monitor_updated_at";
     private static final String MONITOR_ENABLED = "monitor_enabled";
+    private static final String ALERTS_SORT_ORDER = "alerts_sort_order";
     private static final String APP_PREFS = "app_preferences";
     private static final String THEME_MODE = "theme_mode";
     private static final String ACCENT_COLOR = "accent_color";
@@ -553,6 +554,96 @@ final class CloudSyncStore {
                 exportConfigurationDelta(context, "interests", System.currentTimeMillis()));
     }
 
+    static void syncInterestChanged(Context context, Interest previous, Interest interest,
+                                    long changedAt) {
+        if (context == null || interest == null) {
+            return;
+        }
+        JSONObject fields = changedInterestFields(previous, interest);
+        if (fields.length() == 0) {
+            return;
+        }
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("type", "interest")
+                    .put("updated_at", changedAt)
+                    .put("interest_id", interest.getId())
+                    .put("deleted", false)
+                    .put("fields", fields);
+        } catch (Exception ignored) {
+        }
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                CONFIG_DELTA_MARKER + "\n" + payload);
+    }
+
+    static JSONObject changedInterestFields(Interest previous, Interest current) {
+        JSONObject fields = new JSONObject();
+        if (current == null) {
+            return fields;
+        }
+        try {
+            if (previous == null || !current.getTerm().equals(previous.getTerm())) {
+                fields.put("term", current.getTerm());
+            }
+            if (previous == null
+                    || Double.compare(current.getMaximumPrice(), previous.getMaximumPrice()) != 0) {
+                fields.put("maximum_price", current.getMaximumPrice());
+            }
+            if (previous == null || !current.getType().equals(previous.getType())) {
+                fields.put("type", current.getType());
+            }
+            if (previous == null
+                    || Double.compare(current.getMinimumArea(), previous.getMinimumArea()) != 0) {
+                fields.put("minimum_area", current.getMinimumArea());
+            }
+            if (previous == null
+                    || Double.compare(current.getMaximumArea(), previous.getMaximumArea()) != 0) {
+                fields.put("maximum_area", current.getMaximumArea());
+            }
+            if (previous == null
+                    || !current.getPropertyName().equals(previous.getPropertyName())) {
+                fields.put("property_name", current.getPropertyName());
+            }
+        } catch (Exception ignored) {
+        }
+        return fields;
+    }
+
+    static void syncInterestDeleted(Context context, long interestId, long deletedAt) {
+        if (context == null || interestId <= 0L) {
+            return;
+        }
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("type", "interest")
+                    .put("updated_at", deletedAt)
+                    .put("interest_id", interestId)
+                    .put("deleted", true);
+        } catch (Exception ignored) {
+        }
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                CONFIG_DELTA_MARKER + "\n" + payload);
+    }
+
+    static void syncAlertsSortChanged(Context context, int sortOrder, long changedAt) {
+        if (context == null) {
+            return;
+        }
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("type", "alerts_sort")
+                    .put("updated_at", changedAt)
+                    .put(ALERTS_SORT_ORDER, normalizeAlertsSortOrder(sortOrder));
+        } catch (Exception ignored) {
+        }
+        TelegramClientManager.getInstance().sendConfigurationDelta(
+                CONFIG_DELTA_MARKER + "\n" + payload);
+    }
+
+    static int normalizeAlertsSortOrder(int sortOrder) {
+        return sortOrder >= 0 && sortOrder <= 3 ? sortOrder : 0;
+    }
+
     static void syncPromotionExpiryChanged(Context context) {
         TelegramClientManager.getInstance().sendConfigurationDelta(
                 exportConfigurationDelta(context, "expiry", System.currentTimeMillis()));
@@ -616,6 +707,34 @@ final class CloudSyncStore {
             } else if ("interests".equals(type)) {
                 appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE).edit()
                         .putString(KEY_INTERESTS, payload.optString(KEY_INTERESTS, "[]")).apply();
+            } else if ("interest".equals(type)) {
+                long interestId = payload.optLong("interest_id", 0L);
+                if (interestId <= 0L) return false;
+                SharedPreferences offers = appContext.getSharedPreferences(
+                        OFFER_PREFS, Context.MODE_PRIVATE);
+                JSONArray interests = applyInterestConfigurationDelta(
+                        offers.getString(KEY_INTERESTS, "[]"), payload);
+                offers.edit().putString(KEY_INTERESTS, interests.toString()).apply();
+                SharedPreferences sync = syncPrefs(appContext);
+                JSONObject updatedAt = readObject(sync.getString(KEY_INTEREST_UPDATED_AT, "{}"));
+                JSONObject deleted = readObject(sync.getString(KEY_DELETED_INTERESTS, "{}"));
+                if (payload.optBoolean("deleted", false)) {
+                    putLong(deleted, Long.toString(interestId), changedAt);
+                    updatedAt.remove(Long.toString(interestId));
+                } else {
+                    putLong(updatedAt, Long.toString(interestId), changedAt);
+                    deleted.remove(Long.toString(interestId));
+                }
+                sync.edit()
+                        .putString(KEY_INTEREST_UPDATED_AT, updatedAt.toString())
+                        .putString(KEY_DELETED_INTERESTS, deleted.toString())
+                        .apply();
+                MonitorServiceController.update(appContext);
+            } else if ("alerts_sort".equals(type)) {
+                appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE).edit()
+                        .putInt(ALERTS_SORT_ORDER, normalizeAlertsSortOrder(
+                                payload.optInt(ALERTS_SORT_ORDER, 0)))
+                        .apply();
             } else if ("saved".equals(type)) {
                 appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE).edit()
                         .putString(KEY_ARCHIVED_OFFERS,
@@ -659,7 +778,7 @@ final class CloudSyncStore {
             }
             try {
                 JSONObject payload = new JSONObject(text.substring(jsonStart));
-                String type = payload.optString("type", "");
+                String type = configurationDeltaSelectionKey(payload);
                 long messageId = message == null ? index : message.optLong("id", index);
                 if (type.isEmpty()
                         || messageId < newestMessageByType.getOrDefault(type, 0L)) {
@@ -693,6 +812,72 @@ final class CloudSyncStore {
                     .apply();
         }
         return imported;
+    }
+
+    static String configurationDeltaSelectionKey(JSONObject payload) {
+        String type = payload == null ? "" : payload.optString("type", "");
+        if ("interest".equals(type)) {
+            return type + ":" + payload.optLong("interest_id", 0L);
+        }
+        return type;
+    }
+
+    static JSONArray applyInterestConfigurationDelta(String localText, JSONObject payload) {
+        JSONArray local = readArray(localText);
+        long interestId = payload == null ? 0L : payload.optLong("interest_id", 0L);
+        if (interestId <= 0L) {
+            return local;
+        }
+        boolean deleted = payload.optBoolean("deleted", false);
+        JSONObject fields = payload.optJSONObject("fields");
+        if (!deleted && (fields == null || fields.length() == 0)) {
+            return local;
+        }
+        JSONArray result = new JSONArray();
+        boolean replaced = false;
+        for (int index = 0; index < local.length(); index++) {
+            JSONObject item = local.optJSONObject(index);
+            if (item != null && item.optLong("id", 0L) == interestId) {
+                if (!deleted) {
+                    JSONObject updated;
+                    try {
+                        updated = new JSONObject(item.toString());
+                        Iterator<String> keys = fields.keys();
+                        while (keys.hasNext()) {
+                            String key = keys.next();
+                            updated.put(key, fields.opt(key));
+                        }
+                    } catch (Exception ignored) {
+                        updated = item;
+                    }
+                    result.put(updated);
+                    replaced = true;
+                }
+                continue;
+            }
+            if (item != null) {
+                result.put(item);
+            }
+        }
+        if (!deleted && !replaced) {
+            JSONObject created = new JSONObject();
+            try {
+                created.put("id", interestId);
+                Iterator<String> keys = fields.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    created.put(key, fields.opt(key));
+                }
+            } catch (Exception ignored) {
+                return local;
+            }
+            JSONArray withNewFirst = new JSONArray().put(created);
+            for (int index = 0; index < result.length(); index++) {
+                withNewFirst.put(result.opt(index));
+            }
+            return withNewFirst;
+        }
+        return result;
     }
 
     private static void rememberCollectionChanged(Context context, String key, long changedAt) {

@@ -120,6 +120,95 @@ public class CloudSyncStoreTest {
         assertEquals(0, result.length());
     }
 
+    @Test
+    public void quickInterestDeltaUpdatesPriceWithoutChangingPropertyFilters() throws Exception {
+        JSONObject oldProperty = propertyInterest(200L, 506000d, 29d, 31d);
+        JSONObject payload = new JSONObject()
+                .put("type", "interest")
+                .put("interest_id", 200L)
+                .put("deleted", false)
+                .put("fields", new JSONObject().put("maximum_price", 480000d));
+
+        JSONArray result = CloudSyncStore.applyInterestConfigurationDelta(
+                new JSONArray().put(oldProperty).toString(), payload);
+
+        JSONObject restored = result.getJSONObject(0);
+        assertEquals(480000d, restored.getDouble("maximum_price"), 0.001d);
+        assertEquals(29d, restored.getDouble("minimum_area"), 0.001d);
+        assertEquals(31d, restored.getDouble("maximum_area"), 0.001d);
+    }
+
+    @Test
+    public void quickInterestDeltaContainsOnlyTheChangedPropertyValue() throws Exception {
+        Interest previous = new Interest(
+                200L, "https://www.quintoandar.com.br/condominio/predio",
+                506000d, Interest.TYPE_PROPERTY, 29d, 31d);
+        Interest updated = new Interest(
+                200L, "https://www.quintoandar.com.br/condominio/predio",
+                480000d, Interest.TYPE_PROPERTY, 29d, 31d);
+
+        JSONObject fields = CloudSyncStore.changedInterestFields(previous, updated);
+
+        assertEquals(1, fields.length());
+        assertEquals(480000d, fields.getDouble("maximum_price"), 0.001d);
+    }
+
+    @Test
+    public void quickInterestDeltaSynchronizesOnlyTheCondominiumName() throws Exception {
+        Interest previous = new Interest(
+                200L, "https://www.quintoandar.com.br/condominio/predio",
+                506000d, Interest.TYPE_PROPERTY, 29d, 31d, "");
+        Interest updated = new Interest(
+                200L, "https://www.quintoandar.com.br/condominio/predio",
+                506000d, Interest.TYPE_PROPERTY, 29d, 31d, "VN Frei Caneca");
+
+        JSONObject fields = CloudSyncStore.changedInterestFields(previous, updated);
+
+        assertEquals(1, fields.length());
+        assertEquals("VN Frei Caneca", fields.getString("property_name"));
+    }
+
+    @Test
+    public void quickInterestDeltaUsesOneTelegramOrderPerAlert() throws Exception {
+        JSONObject update = new JSONObject()
+                .put("type", "interest")
+                .put("interest_id", 200L)
+                .put("deleted", false);
+        JSONObject deletion = new JSONObject(update.toString()).put("deleted", true);
+        JSONObject anotherAlert = new JSONObject(update.toString()).put("interest_id", 300L);
+
+        assertEquals("interest:200", CloudSyncStore.configurationDeltaSelectionKey(update));
+        assertEquals("interest:200", CloudSyncStore.configurationDeltaSelectionKey(deletion));
+        assertEquals("interest:300", CloudSyncStore.configurationDeltaSelectionKey(anotherAlert));
+    }
+
+    @Test
+    public void quickInterestDeltaDeletesOnlyTheSelectedAlert() throws Exception {
+        JSONArray local = new JSONArray()
+                .put(propertyInterest(200L, 506000d, 29d, 31d))
+                .put(new JSONObject().put("id", 300L).put("type", Interest.TYPE_PRICE));
+        JSONObject payload = new JSONObject()
+                .put("type", "interest")
+                .put("interest_id", 200L)
+                .put("deleted", true);
+
+        JSONArray result = CloudSyncStore.applyInterestConfigurationDelta(
+                local.toString(), payload);
+
+        assertEquals(1, result.length());
+        assertEquals(300L, result.getJSONObject(0).getLong("id"));
+    }
+
+    @Test
+    public void quickSortDeltaAcceptsOnlyExistingSortOptions() {
+        assertEquals(0, CloudSyncStore.normalizeAlertsSortOrder(0));
+        assertEquals(1, CloudSyncStore.normalizeAlertsSortOrder(1));
+        assertEquals(2, CloudSyncStore.normalizeAlertsSortOrder(2));
+        assertEquals(3, CloudSyncStore.normalizeAlertsSortOrder(3));
+        assertEquals(0, CloudSyncStore.normalizeAlertsSortOrder(-1));
+        assertEquals(0, CloudSyncStore.normalizeAlertsSortOrder(4));
+    }
+
     private JSONObject backup(long updatedAt, boolean complete, String interests,
                               int selectedGroups) throws Exception {
         JSONArray groups = new JSONArray();
@@ -142,6 +231,17 @@ public class CloudSyncStoreTest {
         JSONArray values = new JSONArray();
         for (JSONObject standing : standings) values.put(standing);
         return new JSONObject().put("started_at", startedAt).put("standings", values);
+    }
+
+    private JSONObject propertyInterest(long id, double price, double minimumArea,
+                                        double maximumArea) throws Exception {
+        return new JSONObject()
+                .put("id", id)
+                .put("term", "https://www.quintoandar.com.br/condominio/predio")
+                .put("maximum_price", price)
+                .put("type", Interest.TYPE_PROPERTY)
+                .put("minimum_area", minimumArea)
+                .put("maximum_area", maximumArea);
     }
 
     private JSONObject standing(long chatId, int position, int points) throws Exception {

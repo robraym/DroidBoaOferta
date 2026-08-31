@@ -40,6 +40,7 @@ public class OfferMonitorService extends Service {
     @Override
     public void onDestroy() {
         CouponPageMonitor.getInstance().stop();
+        PropertyPageMonitor.getInstance().stop();
         MonitorStatusStore.setServiceRunning(this, false);
         super.onDestroy();
     }
@@ -47,10 +48,13 @@ public class OfferMonitorService extends Service {
     private void updateMonitors() {
         boolean hasPriceAlert = false;
         boolean hasCouponAlert = false;
+        boolean hasPropertyAlert = false;
         for (Interest interest : new InterestRepository(this).getAll()) {
             if (interest.isCoupon()) {
                 hasCouponAlert = true;
-            } else {
+            } else if (interest.isProperty()) {
+                hasPropertyAlert = true;
+            } else if (interest.isPrice()) {
                 hasPriceAlert = true;
             }
         }
@@ -62,6 +66,11 @@ public class OfferMonitorService extends Service {
             CouponPageMonitor.getInstance().start(this);
         } else {
             CouponPageMonitor.getInstance().stop();
+        }
+        if (hasPropertyAlert) {
+            PropertyPageMonitor.getInstance().start(this);
+        } else {
+            PropertyPageMonitor.getInstance().stop();
         }
     }
 
