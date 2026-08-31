@@ -9,8 +9,10 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 final class OfferRepository {
     private static final String PREFS = "offer_preferences";
@@ -92,7 +94,7 @@ final class OfferRepository {
                     offer.getPrice(),
                     matchingInterest.getMaximumPrice(),
                     offer.getObservedAt(),
-                    offer.getLink(),
+                    getReconciledOfferLink(offer, matchingInterest),
                     offer.getTelegramPostLink()
             ));
         }
@@ -117,6 +119,16 @@ final class OfferRepository {
                     : propertyName;
         }
         return offer.getInterest();
+    }
+
+    private String getReconciledOfferLink(ObservedOffer offer, Interest matchingInterest) {
+        if (matchingInterest.isProperty()) {
+            String normalizedUrl = PropertyPageClient.normalizeListingUrl(offer.getLink());
+            if (normalizedUrl != null) {
+                return normalizedUrl;
+            }
+        }
+        return offer.getLink();
     }
 
     private boolean areSameOfferLists(List<ObservedOffer> first, List<ObservedOffer> second) {
@@ -180,6 +192,35 @@ final class OfferRepository {
             trashed.add(0, offer);
         }
         saveOffers(KEY_OFFERS, new ArrayList<>());
+        saveOffers(KEY_TRASHED_OFFERS, trimOffers(sortByObservedAt(trashed)));
+        long changedAt = System.currentTimeMillis();
+        CloudSyncStore.rememberRecentChanged(context, changedAt);
+        CloudSyncStore.rememberTrashChanged(context, changedAt);
+        return true;
+    }
+
+    synchronized boolean trashRecent(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return false;
+        }
+        Set<String> targetIds = new HashSet<>(ids);
+        List<ObservedOffer> recent = new ArrayList<>(readOffers(KEY_OFFERS));
+        List<ObservedOffer> remaining = new ArrayList<>();
+        List<ObservedOffer> trashed = new ArrayList<>(readOffers(KEY_TRASHED_OFFERS));
+        boolean changed = false;
+        for (ObservedOffer offer : recent) {
+            if (targetIds.contains(offer.getId())) {
+                trashed.removeIf(item -> item.getId().equals(offer.getId()));
+                trashed.add(0, offer);
+                changed = true;
+            } else {
+                remaining.add(offer);
+            }
+        }
+        if (!changed) {
+            return false;
+        }
+        saveOffers(KEY_OFFERS, remaining);
         saveOffers(KEY_TRASHED_OFFERS, trimOffers(sortByObservedAt(trashed)));
         long changedAt = System.currentTimeMillis();
         CloudSyncStore.rememberRecentChanged(context, changedAt);

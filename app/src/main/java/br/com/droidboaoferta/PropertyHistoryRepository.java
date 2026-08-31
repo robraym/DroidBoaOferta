@@ -25,10 +25,33 @@ final class PropertyHistoryRepository {
                 .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    synchronized boolean shouldFetchMetadata(long interestId, String listingId, long now) {
-        JSONObject item = find(readEntries(), interestId, listingId);
-        return item == null || item.optLong("first_publication_at", 0L) <= 0L
-                && now - item.optLong("metadata_attempted_at", 0L) >= METADATA_RETRY_MS;
+    synchronized boolean shouldFetchMetadata(long interestId, PropertyPageListing listing, long now) {
+        JSONObject item = find(readEntries(), interestId, listing.getId());
+        if (item == null) {
+            return true;
+        }
+        if (item.optLong("first_publication_at", 0L) > 0L) {
+            return false;
+        }
+        String normalizedUrl = PropertyPageClient.normalizeListingUrl(listing.getUrl());
+        String previousUrl = PropertyPageClient.normalizeListingUrl(item.optString("url", ""));
+        boolean urlChanged = normalizedUrl != null && !normalizedUrl.equals(previousUrl);
+        return urlChanged || now - item.optLong("metadata_attempted_at", 0L) >= METADATA_RETRY_MS;
+    }
+
+    synchronized void clearMetadataAttemptsForInterest(long interestId) {
+        JSONArray entries = readEntries();
+        boolean changed = false;
+        for (int index = 0; index < entries.length(); index++) {
+            JSONObject item = entries.optJSONObject(index);
+            if (item != null && item.optLong("interest_id", 0L) == interestId) {
+                item.remove("metadata_attempted_at");
+                changed = true;
+            }
+        }
+        if (changed) {
+            preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+        }
     }
 
     synchronized int recordObservation(long interestId, PropertyPageListing listing,
@@ -53,7 +76,7 @@ final class PropertyHistoryRepository {
             item.put("interest_id", interestId)
                     .put("listing_id", listing.getId())
                     .put("title", listing.getDescription())
-                    .put("url", listing.getUrl())
+                    .put("url", normalizeListingUrl(listing.getUrl()))
                     .put("first_seen_at", item.optLong("first_seen_at", observedAt))
                     .put("last_seen_at", observedAt)
                     .put("new_ad", listing.isNewAd());
@@ -141,9 +164,14 @@ final class PropertyHistoryRepository {
         }
         return new PropertyHistoryEntry(
                 item.optLong("interest_id", 0L), item.optString("listing_id", ""),
-                item.optString("title", ""), item.optString("url", ""),
+                item.optString("title", ""), normalizeListingUrl(item.optString("url", "")),
                 item.optLong("first_seen_at", 0L), item.optLong("last_seen_at", 0L),
                 item.optLong("first_publication_at", 0L), item.optBoolean("new_ad", false),
                 points);
+    }
+
+    private String normalizeListingUrl(String url) {
+        String normalizedUrl = PropertyPageClient.normalizeListingUrl(url);
+        return normalizedUrl == null ? (url == null ? "" : url) : normalizedUrl;
     }
 }

@@ -72,6 +72,7 @@ final class PropertyPageMonitor {
                 .edit()
                 .remove(NOTIFIED_PRICES_PREFIX + interestId)
                 .apply();
+        new PropertyHistoryRepository(context).clearMetadataAttemptsForInterest(interestId);
     }
 
     private void checkAllSafely() {
@@ -122,8 +123,7 @@ final class PropertyPageMonitor {
         Map<String, Integer> historyChanges = new HashMap<>();
         for (PropertyPageListing listing : matches) {
             PropertyListingMetadata metadata = null;
-            if (historyRepository.shouldFetchMetadata(
-                    interest.getId(), listing.getId(), observedAt)) {
+            if (historyRepository.shouldFetchMetadata(interest.getId(), listing, observedAt)) {
                 try {
                     metadata = PropertyPageClient.fetchListingMetadata(listing.getUrl());
                 } catch (Exception ignored) {

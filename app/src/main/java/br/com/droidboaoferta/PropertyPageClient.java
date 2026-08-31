@@ -51,10 +51,47 @@ final class PropertyPageClient {
     }
 
     static PropertyListingMetadata fetchListingMetadata(String rawUrl) throws Exception {
-        if (rawUrl == null || !rawUrl.startsWith("https://www.quintoandar.com.br/imovel/")) {
+        String normalizedUrl = normalizeListingUrl(rawUrl);
+        if (normalizedUrl == null) {
             throw new IllegalArgumentException("Unsupported listing page");
         }
-        return PropertyPageParser.parseListingMetadata(fetchHtml(rawUrl));
+        return PropertyPageParser.parseListingMetadata(fetchHtml(normalizedUrl));
+    }
+
+    static String buildListingUrl(String id) {
+        if (id == null || id.trim().isEmpty()) {
+            return "";
+        }
+        return "https://www.quintoandar.com.br/classificado/" + id.trim() + "/comprar";
+    }
+
+    static String normalizeListingUrl(String rawUrl) {
+        if (rawUrl == null) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(rawUrl.trim());
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            while (path.endsWith("/") && path.length() > 1) {
+                path = path.substring(0, path.length() - 1);
+            }
+            if (!"https".equals(scheme)
+                    || !("quintoandar.com.br".equals(host) || "www.quintoandar.com.br".equals(host))) {
+                return null;
+            }
+            if (path.startsWith("/classificado/") && path.endsWith("/comprar")) {
+                return "https://www.quintoandar.com.br" + path;
+            }
+            if (path.startsWith("/imovel/") && path.endsWith("/comprar")) {
+                return "https://www.quintoandar.com.br/classificado/"
+                        + path.substring("/imovel/".length());
+            }
+            return null;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private static String fetchHtml(String url) throws Exception {

@@ -299,6 +299,8 @@
     <string name="offers_trashed">Ofertas enviadas para a lixeira</string>
     <string name="trash_all_dialog_title">Enviar ofertas para a lixeira?</string>
     <string name="trash_all_dialog_message">Todas as ofertas da tela principal sairão da lista e poderão ser restauradas pela Lixeira.</string>
+    <string name="trash_offer_section_dialog_title">Enviar este card para a lixeira?</string>
+    <string name="trash_offer_section_dialog_message">As ofertas deste card sairão da aba Alertou e poderão ser restauradas pela Lixeira.</string>
     <string name="clear_trash_dialog_title">Limpar lixeira?</string>
     <string name="clear_trash_dialog_message">As ofertas da lixeira serão apagadas definitivamente.</string>
     <string name="remove_alert_dialog_title">Excluir alerta?</string>
@@ -323,6 +325,7 @@
     <string name="action_delete_offer">Excluir oferta</string>
     <string name="action_clear_trash">Limpar lixeira</string>
     <string name="action_trash_all_offers">Enviar todas para a lixeira</string>
+    <string name="action_trash_offer_section">Enviar este card para a lixeira</string>
     <string name="action_restore_offer">Restaurar oferta</string>
     <string name="action_restore_all_offers">Restaurar todas as ofertas</string>
     <string name="action_unarchive_offer">Remover das salvas</string>

@@ -40,7 +40,7 @@ public class PropertyPageParserTest {
         assertEquals(25d, listings.get(0).getArea(), 0.001d);
         assertEquals(410000d, listings.get(0).getSalePrice(), 0.001d);
         assertEquals("Studio mobiliado", listings.get(0).getDescription());
-        assertEquals("https://www.quintoandar.com.br/imovel/sale-1/comprar",
+        assertEquals("https://www.quintoandar.com.br/classificado/sale-1/comprar",
                 listings.get(0).getUrl());
         assertTrue(listings.get(0).isNewAd());
         assertFalse(listings.stream().anyMatch(item -> "rent-1".equals(item.getId())));
@@ -73,6 +73,19 @@ public class PropertyPageParserTest {
                 "https://www.quintoandar.com.br/imovel/123/comprar"));
         assertNull(PropertyPageClient.normalizeSupportedUrl(
                 "https://exemplo.com/condominio/vn-frei-caneca"));
+    }
+
+    @Test
+    public void normalizesQuintoAndarListingPages() {
+        String expected = "https://www.quintoandar.com.br/classificado/114071763/comprar";
+
+        assertEquals(expected, PropertyPageClient.normalizeListingUrl(expected + "/"));
+        assertEquals(expected, PropertyPageClient.normalizeListingUrl(
+                "https://www.quintoandar.com.br/imovel/114071763/comprar"));
+        assertNull(PropertyPageClient.normalizeListingUrl(
+                "https://www.quintoandar.com.br/condominio/vn-frei-caneca"));
+        assertNull(PropertyPageClient.normalizeListingUrl(
+                "https://exemplo.com/classificado/114071763/comprar"));
     }
 
     @Test

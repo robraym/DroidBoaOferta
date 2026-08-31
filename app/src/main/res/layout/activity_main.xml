@@ -52,9 +52,8 @@
         android:layout_marginTop="12dp"
         android:layout_marginEnd="12dp"
         android:layout_marginBottom="6dp"
-        android:background="@drawable/bg_card_compact"
         android:orientation="vertical"
-        android:padding="6dp">
+        android:padding="0dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -80,7 +79,8 @@
                 android:contentDescription="@string/action_trash_all_offers"
                 android:padding="8dp"
                 android:scaleType="center"
-                android:src="@drawable/ic_trash_outline" />
+                android:src="@drawable/ic_trash_outline"
+                android:visibility="gone" />
         </LinearLayout>
 
         <ScrollView

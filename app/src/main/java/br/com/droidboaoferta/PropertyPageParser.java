@@ -61,7 +61,7 @@ final class PropertyPageParser {
                         area,
                         salePrice,
                         source.optString("shortSaleDescription", ""),
-                        "https://www.quintoandar.com.br/imovel/" + id + "/comprar",
+                        PropertyPageClient.buildListingUrl(id),
                         containsTag(source.optJSONArray("listingTags"), "NEW_AD")
                 ));
             }

@@ -305,6 +305,72 @@ public class MainActivity extends AlertouActivity {
         }
     }
 
+    private void trashOfferSection(List<ObservedOffer> offers) {
+        if (offers == null || offers.isEmpty()) {
+            return;
+        }
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.trash_offer_section_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(R.string.trash_offer_section_dialog_message);
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(8), 0, dp(16));
+        content.addView(message);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView cancel = createDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        TextView confirm = createDialogAction(R.string.action_confirm);
+        confirm.setTextColor(getColor(R.color.danger));
+        confirm.setOnClickListener(view -> {
+            dialog.dismiss();
+            performTrashOfferSection(offers);
+        });
+        actions.addView(confirm);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private void performTrashOfferSection(List<ObservedOffer> offers) {
+        List<String> ids = new java.util.ArrayList<>();
+        for (ObservedOffer offer : offers) {
+            ids.add(offer.getId());
+        }
+        if (offerRepository.trashRecent(ids)) {
+            refreshDashboard();
+        }
+    }
+
     private void renderInterests(List<Interest> interests) {
         if (interests.isEmpty()) {
             alertsSummary.setText(R.string.dashboard_no_interests);
@@ -407,7 +473,7 @@ public class MainActivity extends AlertouActivity {
         offersContainer.removeAllViews();
         displayedOffers = offers;
         List<ObservedOffer> visibleOffers = filterOffers(offers, offersSearchInput.getText().toString());
-        trashAllOffersButton.setVisibility(offers.isEmpty() ? View.GONE : View.VISIBLE);
+        trashAllOffersButton.setVisibility(View.GONE);
         if (visibleOffers.isEmpty()) {
             offersContainer.addView(createEmptyText(R.string.dashboard_no_offers));
             return;
@@ -415,20 +481,76 @@ public class MainActivity extends AlertouActivity {
 
         NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
         PropertyHistoryRepository propertyHistoryRepository = new PropertyHistoryRepository(this);
-        int limit = visibleOffers.size();
+        List<ObservedOffer> couponOffers = new java.util.ArrayList<>();
+        List<ObservedOffer> propertyOffers = new java.util.ArrayList<>();
+        List<ObservedOffer> productOffers = new java.util.ArrayList<>();
+        for (ObservedOffer offer : visibleOffers) {
+            if (isPropertyOffer(offer)) {
+                propertyOffers.add(offer);
+            } else if (isCouponOffer(offer)) {
+                couponOffers.add(offer);
+            } else {
+                productOffers.add(offer);
+            }
+        }
+        addOfferSection(R.string.coupon_alerts_list_title, couponOffers, currency,
+                propertyHistoryRepository);
+        addOfferSection(R.string.property_alerts_list_title, propertyOffers, currency,
+                propertyHistoryRepository);
+        addOfferSection(R.string.product_alerts_list_title, productOffers, currency,
+                propertyHistoryRepository);
+    }
+
+    private void addOfferSection(int titleResource, List<ObservedOffer> offers,
+                                 NumberFormat currency,
+                                 PropertyHistoryRepository propertyHistoryRepository) {
+        if (offers.isEmpty()) {
+            return;
+        }
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.bg_card_compact);
+        card.setPadding(dp(6), dp(4), dp(6), dp(6));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(6), dp(2), 0, dp(3));
+
+        TextView title = new TextView(this);
+        title.setText(titleResource);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(18);
+        header.addView(title, new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        ImageButton trash = new ImageButton(this);
+        trash.setImageResource(R.drawable.ic_trash_outline);
+        trash.setBackgroundResource(R.drawable.bg_icon_danger);
+        trash.setContentDescription(getString(R.string.action_trash_offer_section));
+        trash.setPadding(dp(8), dp(8), dp(8), dp(8));
+        trash.setScaleType(ImageView.ScaleType.CENTER);
+        trash.setOnClickListener(view -> trashOfferSection(offers));
+        header.addView(trash, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        card.addView(header);
+
         String previousGroup = null;
-        for (int index = 0; index < limit; index++) {
-            ObservedOffer offer = visibleOffers.get(index);
+        for (int index = 0; index < offers.size(); index++) {
+            ObservedOffer offer = offers.get(index);
             String group = OfferDateFormatter.getGroupKey(offer.getObservedAt());
             String groupLabel = OfferDateFormatter.formatGroupLabel(this, offer.getObservedAt());
             if (!group.equals(previousGroup)) {
                 if (previousGroup != null) {
-                    offersContainer.addView(createDateGroupDivider());
+                    card.addView(createDateGroupDivider());
                 }
-                offersContainer.addView(createOfferGroupHeader(groupLabel, previousGroup != null));
+                card.addView(createOfferGroupHeader(groupLabel, previousGroup != null));
                 previousGroup = group;
             } else {
-                offersContainer.addView(createOfferDivider());
+                card.addView(createOfferDivider());
             }
             String displayedTime = OfferDateFormatter.formatTime(offer.getObservedAt());
             String contentDescription = getString(
@@ -456,8 +578,15 @@ public class MainActivity extends AlertouActivity {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
-            offersContainer.addView(swipeContainer, rowParams);
+            card.addView(swipeContainer, rowParams);
         }
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        cardParams.bottomMargin = dp(12);
+        offersContainer.addView(card, cardParams);
     }
 
     private TextView createOfferGroupHeader(String label, boolean hasPreviousGroup) {
@@ -729,7 +858,7 @@ public class MainActivity extends AlertouActivity {
                             && offer.getLink() != null
                             && !offer.getLink().trim().isEmpty()) {
                         startActivity(new Intent(Intent.ACTION_VIEW,
-                                Uri.parse(offer.getLink().trim())));
+                                Uri.parse(getOfferOpenLink(offer))));
                     }
                     return true;
                 case MotionEvent.ACTION_CANCEL:
@@ -744,6 +873,21 @@ public class MainActivity extends AlertouActivity {
 
     private boolean isPropertyOffer(ObservedOffer offer) {
         return offer != null && offer.getId().startsWith("property|");
+    }
+
+    private boolean isCouponOffer(ObservedOffer offer) {
+        return offer != null && (offer.getId().startsWith("coupon|")
+                || !extractCouponCode(offer.getSource()).isEmpty());
+    }
+
+    private String getOfferOpenLink(ObservedOffer offer) {
+        if (isPropertyOffer(offer)) {
+            String normalizedUrl = PropertyPageClient.normalizeListingUrl(offer.getLink());
+            if (normalizedUrl != null) {
+                return normalizedUrl;
+            }
+        }
+        return offer.getLink().trim();
     }
 
     private boolean openCouponOffer(ObservedOffer offer) {
