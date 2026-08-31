@@ -518,9 +518,6 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             inputMethodManager.hideSoftInputFromWindow(groupsSearchInput.getWindowToken(), 0);
         }
         groupsSearchInput.clearFocus();
-        if (!groupsSearchInput.getText().toString().isEmpty()) {
-            groupsSearchInput.setText("");
-        }
         groupsSearchInput.animate().cancel();
         if (!animate) {
             if (groupsSearchAnimator != null) {
