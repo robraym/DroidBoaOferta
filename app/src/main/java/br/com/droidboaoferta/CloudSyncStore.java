@@ -1030,6 +1030,18 @@ final class CloudSyncStore {
         return startedAt > 0L ? startedAt : preferences.getLong(LAST_LOCAL_CHANGE, 0L);
     }
 
+    static void cancelPendingBackup(Context context) {
+        if (context == null) {
+            return;
+        }
+        syncPrefs(context).edit()
+                .putBoolean(PENDING_PUSH, false)
+                .putLong(PENDING_STARTED_AT, 0L)
+                .putBoolean(PENDING_RANKING_ONLY, false)
+                .putString(PENDING_RANKING_DELTA, "{}")
+                .apply();
+    }
+
     static long getLastRemoteBackupAt(Context context) {
         return syncPrefs(context).getLong(LAST_REMOTE_BACKUP_AT, 0L);
     }

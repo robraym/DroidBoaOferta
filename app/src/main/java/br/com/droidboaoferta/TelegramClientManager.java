@@ -528,6 +528,33 @@ final class TelegramClientManager {
         sendCloudBackup();
     }
 
+    synchronized void cancelCloudBackup() {
+        if (appContext == null) {
+            return;
+        }
+        CloudSyncStore.cancelPendingBackup(appContext);
+        pendingManualBackup = false;
+        pendingManualBackupConfirmation = false;
+        cloudBackupScheduled = false;
+        backupPreparationRunning = false;
+        pendingCloudBackupFailed = false;
+        pendingCloudExpectedMessages = 0;
+        pendingCloudConfirmedMessages = 0;
+        pendingCloudMessageIds.clear();
+        confirmedCloudMessageIds.clear();
+        pendingCloudChunks.clear();
+        pendingCloudNextChunkIndex = 0;
+        cloudBackupChunkAwaitingResult = false;
+        pendingCloudBackupUpdatedAt = 0L;
+        pendingCloudBackupIsRankingDelta = false;
+        cloudBackupRetryNotBeforeElapsed = 0L;
+        cloudBackupGeneration++;
+        cloudBackupChunkToken++;
+        notifyCloudSyncStatus(R.string.profile_manual_backup_cancelled);
+        appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
+                .setPackage(appContext.getPackageName()));
+    }
+
     void restoreCloudBackupNow() {
         Log.d(TAG, "restoreCloudBackupNow state=" + state + ", selfChatId=" + selfChatId);
         if (appContext == null || state != State.READY) {

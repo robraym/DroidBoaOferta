@@ -223,6 +223,7 @@
     <string name="profile_manual_backup_summary">Configurações e ranking</string>
     <string name="profile_manual_backup_message">Guarde suas configurações e o histórico de desempenho dos grupos nesta conta.</string>
     <string name="profile_manual_backup_action">Fazer backup</string>
+    <string name="profile_manual_backup_cancel_action">Cancelar</string>
     <string name="profile_manual_restore_action">Restaurar backup</string>
     <string name="action_revalidate_history">Revalidar</string>
     <string name="profile_manual_backup_clear_action">Excluir backup</string>
@@ -235,6 +236,7 @@
     <string name="profile_manual_backup_login_required">Entre no Telegram para fazer backup.</string>
     <string name="profile_manual_backup_preparing">Fazendo backup...</string>
     <string name="profile_manual_backup_done">Backup concluído.</string>
+    <string name="profile_manual_backup_cancelled">Backup cancelado.</string>
     <string name="profile_manual_backup_failed">Não foi possível concluir o backup.</string>
     <string name="profile_manual_restore_login_required">Entre no Telegram para restaurar o backup.</string>
     <string name="profile_manual_restore_preparing">Preparando restauração...</string>

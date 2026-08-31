@@ -886,6 +886,10 @@ public class MainActivity extends AlertouActivity {
             if (normalizedUrl != null) {
                 return normalizedUrl;
             }
+            String listingUrl = PropertyPageClient.buildListingUrlFromOfferId(offer.getId());
+            if (!listingUrl.isEmpty()) {
+                return listingUrl;
+            }
         }
         return offer.getLink().trim();
     }

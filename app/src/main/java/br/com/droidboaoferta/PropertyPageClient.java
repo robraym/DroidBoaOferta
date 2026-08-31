@@ -62,7 +62,18 @@ final class PropertyPageClient {
         if (id == null || id.trim().isEmpty()) {
             return "";
         }
-        return "https://www.quintoandar.com.br/classificado/" + id.trim() + "/comprar";
+        return "https://www.quintoandar.com.br/imovel/" + id.trim() + "/comprar";
+    }
+
+    static String buildListingUrlFromOfferId(String offerId) {
+        if (offerId == null || !offerId.startsWith("property|")) {
+            return "";
+        }
+        String[] parts = offerId.split("\\|", -1);
+        if (parts.length < 3 || parts[2].trim().isEmpty()) {
+            return "";
+        }
+        return buildListingUrl(parts[2]);
     }
 
     static String normalizeListingUrl(String rawUrl) {
@@ -82,11 +93,11 @@ final class PropertyPageClient {
                 return null;
             }
             if (path.startsWith("/classificado/") && path.endsWith("/comprar")) {
-                return "https://www.quintoandar.com.br" + path;
+                return "https://www.quintoandar.com.br/imovel/"
+                        + path.substring("/classificado/".length());
             }
             if (path.startsWith("/imovel/") && path.endsWith("/comprar")) {
-                return "https://www.quintoandar.com.br/classificado/"
-                        + path.substring("/imovel/".length());
+                return "https://www.quintoandar.com.br" + path;
             }
             return null;
         } catch (IllegalArgumentException ignored) {

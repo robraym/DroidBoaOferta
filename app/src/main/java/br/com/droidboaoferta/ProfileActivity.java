@@ -70,6 +70,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     private TextView profileStatus;
     private TextView syncSummary;
     private TextView backupSummary;
+    private TextView cancelBackupButton;
     private TextView themeSummary;
     private TextView accentColorSummary;
     private TextView alertSoundSummary;
@@ -97,6 +98,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         profileStatus = findViewById(R.id.text_profile_status);
         syncSummary = findViewById(R.id.text_sync_summary);
         backupSummary = findViewById(R.id.text_backup_summary);
+        cancelBackupButton = findViewById(R.id.button_cancel_backup);
         themeSummary = findViewById(R.id.text_theme_summary);
         accentColorSummary = findViewById(R.id.text_accent_color_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
@@ -158,6 +160,10 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 view -> showNavigationAnimationDialog()
         );
         findViewById(R.id.row_backup).setOnClickListener(view -> clientManager.backupCloudNow());
+        cancelBackupButton.setOnClickListener(view -> {
+            clientManager.cancelCloudBackup();
+            refreshSyncSummary();
+        });
         findViewById(R.id.row_ranking_rules).setOnClickListener(view -> showRankingRulesDialog());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
         findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
@@ -1597,8 +1603,10 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
             backupSummary.setText(getString(R.string.profile_manual_backup_pending_format,
                     String.format(Locale.getDefault(), "%02d:%02d", elapsedSeconds / 60L,
                             elapsedSeconds % 60L)));
+            cancelBackupButton.setVisibility(View.VISIBLE);
             return;
         }
+        cancelBackupButton.setVisibility(View.GONE);
         long lastBackupAt = Math.max(
                 CloudSyncStore.getLastBackupAt(this),
                 CloudSyncStore.getLastRemoteBackupAt(this)
