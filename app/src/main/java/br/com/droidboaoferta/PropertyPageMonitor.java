@@ -166,6 +166,7 @@ final class PropertyPageMonitor {
         OfferRepository repository = new OfferRepository(context);
         NumberFormat areaFormat = NumberFormat.getNumberInstance(new Locale("pt", "BR"));
         areaFormat.setMaximumFractionDigits(1);
+        String sourceName = PropertyPageClient.getSourceName(interest.getTerm());
         for (PropertyPageListing listing : changed) {
             repository.add(new ObservedOffer(
                     "property|" + interest.getId() + "|" + listing.getId(),
@@ -173,6 +174,7 @@ final class PropertyPageMonitor {
                     propertyName,
                     context.getString(
                             R.string.property_offer_source,
+                            sourceName,
                             areaFormat.format(listing.getArea())
                     ),
                     listing.getSalePrice(),

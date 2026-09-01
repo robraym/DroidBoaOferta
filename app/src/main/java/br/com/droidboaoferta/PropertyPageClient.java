@@ -31,12 +31,17 @@ final class PropertyPageClient {
                 path = path.substring(0, path.length() - 1);
             }
             if (!"https".equals(scheme)
-                    || !("quintoandar.com.br".equals(host) || "www.quintoandar.com.br".equals(host))
                     || !path.startsWith("/condominio/")
                     || path.length() <= "/condominio/".length()) {
                 return null;
             }
-            return "https://www.quintoandar.com.br" + path;
+            if ("quintoandar.com.br".equals(host) || "www.quintoandar.com.br".equals(host)) {
+                return "https://www.quintoandar.com.br" + path;
+            }
+            if ("loft.com.br".equals(host) || "www.loft.com.br".equals(host)) {
+                return "https://loft.com.br" + path;
+            }
+            return null;
         } catch (IllegalArgumentException ignored) {
             return null;
         }
@@ -59,10 +64,17 @@ final class PropertyPageClient {
     }
 
     static String buildListingUrl(String id) {
+        return buildListingUrl(id, false);
+    }
+
+    static String buildListingUrl(String id, boolean classified) {
         if (id == null || id.trim().isEmpty()) {
             return "";
         }
-        return "https://www.quintoandar.com.br/imovel/" + id.trim() + "/comprar";
+        return "https://www.quintoandar.com.br/"
+                + (classified ? "classificado/" : "imovel/")
+                + id.trim()
+                + "/comprar";
     }
 
     static String buildListingUrlFromOfferId(String offerId) {
@@ -74,6 +86,21 @@ final class PropertyPageClient {
             return "";
         }
         return buildListingUrl(parts[2]);
+    }
+
+    static String getSourceName(String rawUrl) {
+        if (rawUrl == null) {
+            return "QuintoAndar";
+        }
+        try {
+            URI uri = URI.create(rawUrl.trim());
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            if ("loft.com.br".equals(host) || "www.loft.com.br".equals(host)) {
+                return "Loft";
+            }
+        } catch (IllegalArgumentException ignored) {
+        }
+        return "QuintoAndar";
     }
 
     static String normalizeListingUrl(String rawUrl) {
@@ -88,16 +115,20 @@ final class PropertyPageClient {
             while (path.endsWith("/") && path.length() > 1) {
                 path = path.substring(0, path.length() - 1);
             }
-            if (!"https".equals(scheme)
-                    || !("quintoandar.com.br".equals(host) || "www.quintoandar.com.br".equals(host))) {
+            if (!"https".equals(scheme)) {
                 return null;
             }
-            if (path.startsWith("/classificado/") && path.endsWith("/comprar")) {
-                return "https://www.quintoandar.com.br/imovel/"
-                        + path.substring("/classificado/".length());
-            }
-            if (path.startsWith("/imovel/") && path.endsWith("/comprar")) {
-                return "https://www.quintoandar.com.br" + path;
+            if ("quintoandar.com.br".equals(host) || "www.quintoandar.com.br".equals(host)) {
+                if (path.startsWith("/classificado/") && path.endsWith("/comprar")) {
+                    return "https://www.quintoandar.com.br" + path;
+                }
+                if (path.startsWith("/imovel/") && path.endsWith("/comprar")) {
+                    return "https://www.quintoandar.com.br" + path;
+                }
+            } else if ("loft.com.br".equals(host) || "www.loft.com.br".equals(host)) {
+                if (path.startsWith("/imovel/") && path.length() > "/imovel/".length()) {
+                    return "https://loft.com.br" + path;
+                }
             }
             return null;
         } catch (IllegalArgumentException ignored) {

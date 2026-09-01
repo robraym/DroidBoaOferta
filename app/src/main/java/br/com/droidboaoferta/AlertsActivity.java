@@ -332,6 +332,7 @@ public class AlertsActivity extends AlertouActivity {
             TextView subtitle = createInterestText();
             subtitle.setText(getString(
                     R.string.property_interest_subtitle,
+                    PropertyPageClient.getSourceName(interest.getTerm()),
                     formatArea(interest.getMinimumArea()),
                     formatArea(interest.getMaximumArea()),
                     amountFormat.format(interest.getMaximumPrice())

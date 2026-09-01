@@ -29,6 +29,10 @@ final class PropertyPageParser {
         }
         try {
             JSONObject root = new JSONObject(matcher.group(1));
+            PropertyPageResult loftResult = parseLoft(root, html);
+            if (loftResult != null) {
+                return loftResult;
+            }
             JSONObject listings = findObjectContainingArray(root, "saleListings");
             String condominiumName = findString(root, "nameFormatted");
             List<PropertyPageListing> parsed = new ArrayList<>();
@@ -61,7 +65,10 @@ final class PropertyPageParser {
                         area,
                         salePrice,
                         source.optString("shortSaleDescription", ""),
-                        PropertyPageClient.buildListingUrl(id),
+                        PropertyPageClient.buildListingUrl(
+                                id,
+                                isQuintoAndarClassified(wrapper, source)
+                        ),
                         containsTag(source.optJSONArray("listingTags"), "NEW_AD")
                 ));
             }
@@ -69,6 +76,98 @@ final class PropertyPageParser {
         } catch (Exception ignored) {
             return new PropertyPageResult("", new ArrayList<>());
         }
+    }
+
+    private static boolean isQuintoAndarClassified(JSONObject wrapper, JSONObject source) {
+        return "CLASSIFIED".equals(wrapper.optString("origin", ""))
+                || containsTag(source.optJSONArray("listingTags"), "CLASSIFIED");
+    }
+
+    private static PropertyPageResult parseLoft(JSONObject root, String html) {
+        JSONObject condominium = findLoftCondominium(root);
+        if (condominium == null) {
+            return null;
+        }
+        JSONArray listings = condominium.optJSONArray("listings");
+        if (listings == null) {
+            return null;
+        }
+        String condominiumName = condominium.optString("name", "");
+        List<PropertyPageListing> parsed = new ArrayList<>();
+        Set<String> seenIds = new HashSet<>();
+        for (int index = 0; index < listings.length(); index++) {
+            JSONObject listing = listings.optJSONObject(index);
+            if (listing == null || !"FOR_SALE".equals(listing.optString("status", ""))
+                    || !seenIds.add(listing.optString("id", ""))) {
+                continue;
+            }
+            String id = listing.optString("id", "");
+            double area = listing.optDouble("area", Double.NaN);
+            double price = listing.optDouble("price", Double.NaN);
+            if (id.isEmpty() || !(area > 0d) || !(price > 0d)) {
+                continue;
+            }
+            parsed.add(new PropertyPageListing(
+                    id,
+                    area,
+                    price,
+                    buildLoftDescription(listing),
+                    findLoftListingUrl(html, id),
+                    false
+            ));
+        }
+        return new PropertyPageResult(condominiumName, parsed);
+    }
+
+    private static JSONObject findLoftCondominium(Object value) {
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            if (object.optJSONArray("listings") != null
+                    && !object.optString("shortId", "").isEmpty()
+                    && !object.optString("name", "").isEmpty()) {
+                return object;
+            }
+            Iterator<String> keys = object.keys();
+            while (keys.hasNext()) {
+                JSONObject found = findLoftCondominium(object.opt(keys.next()));
+                if (found != null) {
+                    return found;
+                }
+            }
+        } else if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int index = 0; index < array.length(); index++) {
+                JSONObject found = findLoftCondominium(array.opt(index));
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String buildLoftDescription(JSONObject listing) {
+        String type = listing.optString("propertyType", "Apartamento");
+        if ("studio".equalsIgnoreCase(type)) {
+            type = "Studio";
+        } else if ("rooftop".equalsIgnoreCase(type)) {
+            type = "Cobertura";
+        } else {
+            type = "Apartamento";
+        }
+        int bedrooms = listing.optInt("bedrooms", 0);
+        return bedrooms > 0 ? type + " com " + bedrooms + " quartos" : type;
+    }
+
+    private static String findLoftListingUrl(String html, String id) {
+        if (html == null || id == null || id.trim().isEmpty()) {
+            return "";
+        }
+        Pattern pattern = Pattern.compile(
+                "https://loft\\.com\\.br/imovel/[^\\\"#]*?/" + Pattern.quote(id.trim())
+        );
+        Matcher matcher = pattern.matcher(html);
+        return matcher.find() ? matcher.group() : "";
     }
 
     static PropertyListingMetadata parseListingMetadata(String html) {

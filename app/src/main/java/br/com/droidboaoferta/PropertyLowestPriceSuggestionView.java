@@ -144,7 +144,7 @@ final class PropertyLowestPriceSuggestionView extends LinearLayout {
             statusText.setVisibility(VISIBLE);
             return;
         }
-        String price = CurrencyTextFormatter.formatWholeReais(listing.getSalePrice());
+        String price = CurrencyTextFormatter.formatWholeReaisWithCents(listing.getSalePrice());
         priceInput.setText(price);
         priceInput.setSelection(price.length());
         statusText.setText(getContext().getString(
