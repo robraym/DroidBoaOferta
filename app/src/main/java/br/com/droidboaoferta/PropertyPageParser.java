@@ -78,6 +78,21 @@ final class PropertyPageParser {
         }
     }
 
+    static PropertyPageResult parseLoftApiResponse(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            return new PropertyPageResult("", new ArrayList<>());
+        }
+        try {
+            JSONObject condominium = new JSONObject(json);
+            PropertyPageResult result = parseLoftCondominium(condominium, "");
+            return result == null
+                    ? new PropertyPageResult("", new ArrayList<>())
+                    : result;
+        } catch (Exception ignored) {
+            return new PropertyPageResult("", new ArrayList<>());
+        }
+    }
+
     private static boolean isQuintoAndarClassified(JSONObject wrapper, JSONObject source) {
         return "CLASSIFIED".equals(wrapper.optString("origin", ""))
                 || containsTag(source.optJSONArray("listingTags"), "CLASSIFIED");
@@ -88,6 +103,10 @@ final class PropertyPageParser {
         if (condominium == null) {
             return null;
         }
+        return parseLoftCondominium(condominium, html);
+    }
+
+    private static PropertyPageResult parseLoftCondominium(JSONObject condominium, String html) {
         JSONArray listings = condominium.optJSONArray("listings");
         if (listings == null) {
             return null;
@@ -147,7 +166,10 @@ final class PropertyPageParser {
     }
 
     private static String buildLoftDescription(JSONObject listing) {
-        String type = listing.optString("propertyType", "Apartamento");
+        String type = listing.optString(
+                "propertyType",
+                listing.optString("type", "Apartamento")
+        );
         if ("studio".equalsIgnoreCase(type)) {
             type = "Studio";
         } else if ("rooftop".equalsIgnoreCase(type)) {
@@ -167,7 +189,7 @@ final class PropertyPageParser {
                 "https://loft\\.com\\.br/imovel/[^\\\"#]*?/" + Pattern.quote(id.trim())
         );
         Matcher matcher = pattern.matcher(html);
-        return matcher.find() ? matcher.group() : "";
+        return matcher.find() ? matcher.group() : PropertyPageClient.buildLoftListingUrl(id);
     }
 
     static PropertyListingMetadata parseListingMetadata(String html) {

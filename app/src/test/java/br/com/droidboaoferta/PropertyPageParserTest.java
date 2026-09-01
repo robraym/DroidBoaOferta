@@ -162,6 +162,40 @@ public class PropertyPageParserTest {
     }
 
     @Test
+    public void parsesCurrentLoftApiResponseWithoutChangingQuintoAndarParser() {
+        String response = "{\"shortId\":\"XN5WUG6T\",\"name\":\"Facto Paulista\","
+                + "\"listings\":["
+                + "{\"id\":\"eg1rm7gf\",\"status\":\"FOR_SALE\",\"price\":400000,"
+                + "\"area\":24,\"type\":\"apartment\",\"bedrooms\":1},"
+                + "{\"id\":\"rental-1\",\"status\":\"FOR_SALE\",\"price\":null,"
+                + "\"rentalPrice\":3500,\"area\":27,\"transactionType\":\"FOR_RENT\"}]}";
+
+        PropertyPageResult result = PropertyPageParser.parseLoftApiResponse(response);
+
+        assertEquals("Facto Paulista", result.getCondominiumName());
+        assertEquals(1, result.getSaleListings().size());
+        PropertyPageListing listing = result.getSaleListings().get(0);
+        assertEquals("eg1rm7gf", listing.getId());
+        assertEquals(24d, listing.getArea(), 0.001d);
+        assertEquals(400000d, listing.getSalePrice(), 0.001d);
+        assertEquals("Apartamento com 1 quartos", listing.getDescription());
+        assertEquals("https://loft.com.br/imovel/eg1rm7gf", listing.getUrl());
+    }
+
+    @Test
+    public void buildsLoftApiUrlOnlyForLoftCondominiums() {
+        assertEquals(
+                "https://informational-pages-api.loft.com.br/condominiums/XN5WUG6T",
+                PropertyPageClient.buildLoftDataUrl(
+                        "https://loft.com.br/condominio/facto-paulista/XN5WUG6T"
+                )
+        );
+        assertNull(PropertyPageClient.buildLoftDataUrl(
+                "https://www.quintoandar.com.br/condominio/vn-frei-caneca"
+        ));
+    }
+
+    @Test
     public void rebuildsListingUrlFromPropertyOfferId() {
         assertEquals("https://www.quintoandar.com.br/imovel/114071763/comprar",
                 PropertyPageClient.buildListingUrlFromOfferId("property|123|114071763"));

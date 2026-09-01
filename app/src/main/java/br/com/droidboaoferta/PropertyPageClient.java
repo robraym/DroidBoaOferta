@@ -52,7 +52,35 @@ final class PropertyPageClient {
         if (normalizedUrl == null) {
             throw new IllegalArgumentException("Unsupported property page");
         }
+        String loftDataUrl = buildLoftDataUrl(normalizedUrl);
+        if (loftDataUrl != null) {
+            return PropertyPageParser.parseLoftApiResponse(fetchHtml(loftDataUrl));
+        }
         return PropertyPageParser.parse(fetchHtml(normalizedUrl));
+    }
+
+    static String buildLoftDataUrl(String normalizedUrl) {
+        if (normalizedUrl == null || !"Loft".equals(getSourceName(normalizedUrl))) {
+            return null;
+        }
+        try {
+            String path = URI.create(normalizedUrl).getPath();
+            int separator = path == null ? -1 : path.lastIndexOf('/');
+            String shortId = separator >= 0 ? path.substring(separator + 1).trim() : "";
+            if (shortId.isEmpty()) {
+                return null;
+            }
+            return "https://informational-pages-api.loft.com.br/condominiums/" + shortId;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    static String buildLoftListingUrl(String id) {
+        if (id == null || id.trim().isEmpty()) {
+            return "";
+        }
+        return "https://loft.com.br/imovel/" + id.trim();
     }
 
     static PropertyListingMetadata fetchListingMetadata(String rawUrl) throws Exception {
