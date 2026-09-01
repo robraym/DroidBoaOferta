@@ -28,16 +28,20 @@ final class InterestRepository {
         try {
             JSONArray array = new JSONArray(stored);
             for (int index = 0; index < array.length(); index++) {
-                JSONObject item = array.getJSONObject(index);
-                interests.add(new Interest(
-                        item.getLong("id"),
-                        item.getString("term"),
-                        item.getDouble("maximum_price"),
-                        item.optString("type", Interest.TYPE_PRICE),
-                        item.optDouble("minimum_area", 0d),
-                        item.optDouble("maximum_area", 0d),
-                        item.optString("property_name", "")
-                ));
+                try {
+                    JSONObject item = array.getJSONObject(index);
+                    interests.add(new Interest(
+                            item.getLong("id"),
+                            item.getString("term"),
+                            item.getDouble("maximum_price"),
+                            item.optString("type", Interest.TYPE_PRICE),
+                            item.optDouble("minimum_area", 0d),
+                            item.optDouble("maximum_area", 0d),
+                            item.optString("property_name", "")
+                    ));
+                } catch (Exception ignored) {
+                    // A corrupt synchronized item must not hide every valid alert.
+                }
             }
         } catch (Exception ignored) {
             return Collections.emptyList();

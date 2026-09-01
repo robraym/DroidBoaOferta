@@ -20,6 +20,9 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.animation.Animation;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.RotateAnimation;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.FrameLayout;
@@ -37,6 +40,7 @@ import androidx.core.content.ContextCompat;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -69,8 +73,13 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     private TextView profileSummary;
     private TextView profileStatus;
     private TextView syncSummary;
+    private ImageView syncIcon;
     private TextView backupSummary;
+    private TextView restoreSummary;
+    private ImageView backupIcon;
+    private ImageView restoreIcon;
     private TextView cancelBackupButton;
+    private View backupChevron;
     private TextView themeSummary;
     private TextView accentColorSummary;
     private TextView alertSoundSummary;
@@ -97,8 +106,13 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         profileSummary = findViewById(R.id.text_profile_summary);
         profileStatus = findViewById(R.id.text_profile_status);
         syncSummary = findViewById(R.id.text_sync_summary);
+        syncIcon = findViewById(R.id.image_sync);
         backupSummary = findViewById(R.id.text_backup_summary);
+        restoreSummary = findViewById(R.id.text_restore_summary);
+        backupIcon = findViewById(R.id.image_backup_action);
+        restoreIcon = findViewById(R.id.image_restore_action);
         cancelBackupButton = findViewById(R.id.button_cancel_backup);
+        backupChevron = findViewById(R.id.image_backup_chevron);
         themeSummary = findViewById(R.id.text_theme_summary);
         accentColorSummary = findViewById(R.id.text_accent_color_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
@@ -160,6 +174,11 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 view -> showNavigationAnimationDialog()
         );
         findViewById(R.id.row_backup).setOnClickListener(view -> clientManager.backupCloudNow());
+        findViewById(R.id.row_restore_backup).setOnClickListener(view -> {
+            restoreSummary.setText(R.string.profile_manual_restore_pending);
+            updateActionIconAnimation(restoreIcon, true, dp(4));
+            clientManager.restoreCloudBackupNow();
+        });
         cancelBackupButton.setOnClickListener(view -> {
             clientManager.cancelCloudBackup();
             refreshSyncSummary();
@@ -1596,7 +1615,18 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         if (syncSummary == null) {
             return;
         }
-        if (CloudSyncStore.hasPendingPush(this)) {
+        boolean restoring = clientManager.isManualRestoreInProgress();
+        boolean backingUp = clientManager.isCloudBackupInProgress();
+        if (restoring) {
+            cancelBackupButton.setVisibility(View.GONE);
+            backupChevron.setVisibility(View.VISIBLE);
+            updateActionIconAnimation(backupIcon, false, -dp(4));
+            updateActionIconAnimation(restoreIcon, true, dp(4));
+            updateSyncIconAnimation(false);
+            restoreSummary.setText(R.string.profile_manual_restore_pending);
+            return;
+        }
+        if (backingUp) {
             long startedAt = CloudSyncStore.getPendingStartedAt(this);
             long elapsedSeconds = startedAt <= 0L ? 0L
                     : Math.max(0L, (System.currentTimeMillis() - startedAt) / 1_000L);
@@ -1604,25 +1634,115 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                     String.format(Locale.getDefault(), "%02d:%02d", elapsedSeconds / 60L,
                             elapsedSeconds % 60L)));
             cancelBackupButton.setVisibility(View.VISIBLE);
+            backupChevron.setVisibility(View.GONE);
+            updateActionIconAnimation(backupIcon, true, -dp(4));
+            updateActionIconAnimation(restoreIcon, false, dp(4));
+            updateSyncIconAnimation(false);
             return;
         }
         cancelBackupButton.setVisibility(View.GONE);
+        backupChevron.setVisibility(View.VISIBLE);
+        updateActionIconAnimation(backupIcon, false, -dp(4));
+        updateActionIconAnimation(restoreIcon, false, dp(4));
         long lastBackupAt = Math.max(
                 CloudSyncStore.getLastBackupAt(this),
                 CloudSyncStore.getLastRemoteBackupAt(this)
         );
         long lastSyncAt = Math.max(lastBackupAt, CloudSyncStore.getLastConfigurationSyncAt(this));
         backupSummary.setText(lastBackupAt > 0L
-                ? getString(R.string.profile_sync_last_format, formatSyncTime(lastBackupAt))
+                ? formatBackupSummary(lastBackupAt, CloudSyncStore.getLastBackupSizeBytes(this))
                 : getString(R.string.profile_manual_backup_summary));
+        long lastRestoreAt = CloudSyncStore.getLastRestoreAt(this);
+        restoreSummary.setText(lastRestoreAt > 0L
+                ? formatRestoreSummary(lastRestoreAt,
+                CloudSyncStore.getLastRestoreSizeBytes(this))
+                : getString(R.string.profile_manual_restore_summary));
         syncSummary.setText(lastSyncAt > 0L
                 ? getString(R.string.profile_sync_last_format, formatSyncTime(lastSyncAt))
                 : getString(R.string.profile_sync_waiting));
+        updateSyncIconAnimation(clientManager.isCloudSyncInProgress());
+    }
+
+    private void updateSyncIconAnimation(boolean syncing) {
+        if (syncIcon == null) {
+            return;
+        }
+        if (!syncing) {
+            syncIcon.clearAnimation();
+            return;
+        }
+        if (syncIcon.getAnimation() != null) {
+            return;
+        }
+        RotateAnimation rotation = new RotateAnimation(
+                0f, 360f,
+                Animation.RELATIVE_TO_SELF, 0.5f,
+                Animation.RELATIVE_TO_SELF, 0.5f
+        );
+        rotation.setDuration(900L);
+        rotation.setInterpolator(new LinearInterpolator());
+        rotation.setRepeatCount(Animation.INFINITE);
+        syncIcon.startAnimation(rotation);
+    }
+
+    private void updateActionIconAnimation(ImageView icon, boolean active, float movementY) {
+        if (icon == null) {
+            return;
+        }
+        if (!active) {
+            icon.clearAnimation();
+            return;
+        }
+        if (icon.getAnimation() != null) {
+            return;
+        }
+        android.view.animation.TranslateAnimation movement =
+                new android.view.animation.TranslateAnimation(0f, 0f, 0f, movementY);
+        movement.setDuration(700L);
+        movement.setInterpolator(new LinearInterpolator());
+        movement.setRepeatCount(Animation.INFINITE);
+        movement.setRepeatMode(Animation.REVERSE);
+        icon.startAnimation(movement);
     }
 
     private String formatSyncTime(long timestamp) {
-        return new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", new Locale("pt", "BR"))
+        Calendar now = Calendar.getInstance();
+        Calendar date = Calendar.getInstance();
+        date.setTimeInMillis(timestamp);
+        if (now.get(Calendar.YEAR) == date.get(Calendar.YEAR)
+                && now.get(Calendar.DAY_OF_YEAR) == date.get(Calendar.DAY_OF_YEAR)) {
+            return "Hoje · " + new SimpleDateFormat("HH:mm", new Locale("pt", "BR"))
+                    .format(new Date(timestamp));
+        }
+        String pattern = now.get(Calendar.YEAR) == date.get(Calendar.YEAR)
+                ? "dd/MM · HH:mm"
+                : "dd/MM/yy · HH:mm";
+        return new SimpleDateFormat(pattern, new Locale("pt", "BR"))
                 .format(new Date(timestamp));
+    }
+
+    private String formatBackupSummary(long timestamp, long sizeBytes) {
+        return sizeBytes > 0L
+                ? getString(R.string.profile_backup_last_size_format,
+                formatSyncTime(timestamp), formatBackupSize(sizeBytes))
+                : getString(R.string.profile_backup_last_format, formatSyncTime(timestamp));
+    }
+
+    private String formatRestoreSummary(long timestamp, long sizeBytes) {
+        return sizeBytes > 0L
+                ? getString(R.string.profile_restore_last_size_format,
+                formatSyncTime(timestamp), formatBackupSize(sizeBytes))
+                : getString(R.string.profile_restore_last_format, formatSyncTime(timestamp));
+    }
+
+    private String formatBackupSize(long bytes) {
+        if (bytes < 1024L) {
+            return bytes + " B";
+        }
+        if (bytes < 1024L * 1024L) {
+            return Math.round(bytes / 1024d) + " KB";
+        }
+        return String.format(new Locale("pt", "BR"), "%.1f MB", bytes / (1024d * 1024d));
     }
 
     private void disconnectTelegram() {

@@ -8,13 +8,26 @@
     android:paddingStart="8dp"
     android:paddingEnd="8dp">
 
-    <ImageView
+    <FrameLayout
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:background="@drawable/bg_icon_circle"
-        android:contentDescription="@string/profile_manual_backup_title"
-        android:padding="8dp"
-        android:src="@drawable/ic_restore" />
+        android:background="@drawable/bg_icon_circle">
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:padding="8dp"
+            android:src="@drawable/ic_transfer_tray" />
+
+        <ImageView
+            android:id="@+id/image_backup_action"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/profile_manual_backup_title"
+            android:padding="8dp"
+            android:src="@drawable/ic_upload_arrow" />
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="0dp"
@@ -24,11 +37,14 @@
         android:orientation="vertical">
 
         <TextView
+            android:id="@+id/text_backup_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:text="@string/profile_manual_backup_title"
             android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/text_backup_summary"
@@ -43,14 +59,21 @@
     <TextView
         android:id="@+id/button_cancel_backup"
         android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:background="@drawable/bg_button_inline"
+        android:layout_height="wrap_content"
+        android:background="@null"
         android:gravity="center"
-        android:minWidth="88dp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:text="@string/profile_manual_backup_cancel_action"
-        android:textColor="@color/action"
+        android:textColor="@color/danger"
         android:textSize="14sp"
         android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/image_backup_chevron"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:contentDescription="@string/profile_manual_backup_title"
+        android:padding="8dp"
+        android:src="@drawable/ic_chevron_right" />
 </LinearLayout>

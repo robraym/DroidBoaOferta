@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/row_sync"
+    android:id="@+id/row_restore_backup"
     android:layout_width="match_parent"
     android:layout_height="60dp"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingStart="8dp"
-    android:paddingEnd="8dp">
+    android:paddingEnd="8dp"
+    android:foreground="?attr/selectableItemBackground">
 
     <FrameLayout
         android:layout_width="40dp"
@@ -14,12 +15,19 @@
         android:background="@drawable/bg_icon_circle">
 
         <ImageView
-            android:id="@+id/image_sync"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:contentDescription="@string/profile_sync_title"
+            android:contentDescription="@null"
             android:padding="8dp"
-            android:src="@drawable/ic_sync" />
+            android:src="@drawable/ic_download_tray" />
+
+        <ImageView
+            android:id="@+id/image_restore_action"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/profile_manual_restore_action"
+            android:padding="8dp"
+            android:src="@drawable/ic_download_arrow" />
     </FrameLayout>
 
     <LinearLayout
@@ -32,19 +40,25 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/profile_sync_title"
+            android:text="@string/profile_manual_restore_action"
             android:textColor="@color/text_primary"
             android:textSize="15sp" />
 
         <TextView
-            android:id="@+id/text_sync_summary"
+            android:id="@+id/text_restore_summary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="1dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="@string/profile_sync_waiting"
+            android:text="@string/profile_manual_restore_summary"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/image_restore_chevron"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:contentDescription="@string/profile_manual_restore_action"
+        android:padding="8dp"
+        android:src="@drawable/ic_chevron_right" />
 </LinearLayout>

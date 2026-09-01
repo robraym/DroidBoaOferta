@@ -33,7 +33,7 @@
             android:layout_height="wrap_content"
             android:text="@string/dashboard_status_choose_groups"
             android:textColor="@color/text_primary"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/text_monitor_status_summary"

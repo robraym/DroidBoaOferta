@@ -179,6 +179,20 @@ final class TelegramClientManager {
     private TelegramClientManager() {
     }
 
+    boolean isCloudSyncInProgress() {
+        return cloudSyncRequested;
+    }
+
+    boolean isManualRestoreInProgress() {
+        return pendingManualRestore || forceCloudRestore;
+    }
+
+    boolean isCloudBackupInProgress() {
+        return backupPreparationRunning
+                || pendingCloudExpectedMessages > 0
+                || pendingManualBackupConfirmation;
+    }
+
     synchronized void start(Context context) {
         appContext = context.getApplicationContext();
         Log.d(TAG, "start called, started=" + started + ", state=" + state);
@@ -1626,23 +1640,35 @@ final class TelegramClientManager {
             appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                     .setPackage(appContext.getPackageName()));
         }
-        JSONObject remoteBackup = CloudSyncStore.findNewestBackup(messages);
+        boolean forcedRestore = forceCloudRestore;
+        boolean automaticConfigurationRestore = initialCloudRestorePending;
+        JSONObject remoteBackup = forcedRestore || automaticConfigurationRestore
+                ? CloudSyncStore.findNewestRestorableBackup(messages)
+                : CloudSyncStore.findNewestBackup(messages);
         Log.d(TAG, "remoteBackup found=" + (remoteBackup != null)
                 + ", updatedAt=" + (remoteBackup == null ? 0L : remoteBackup.optLong("updated_at", 0L)));
         if (remoteBackup != null) {
             CloudSyncStore.rememberBackupMessageId(appContext, remoteBackup.optLong("_message_id", 0L));
         }
-        boolean forcedRestore = forceCloudRestore;
-        forceCloudRestore = false;
-        boolean automaticConfigurationRestore = initialCloudRestorePending;
         boolean restored = forcedRestore || automaticConfigurationRestore
                 ? CloudSyncStore.importBackup(appContext, remoteBackup, true)
                 : CloudSyncStore.importIfNewer(appContext, remoteBackup);
-        boolean configurationChanged = CloudSyncStore.importConfigurationDeltas(
-                appContext,
-                messages,
-                remoteBackup == null ? 0L : remoteBackup.optLong("updated_at", 0L)
-        );
+        // A completed manual restore must contain a complete alert record that
+        // the Alerts screen can render, not merely a backup message.
+        if (forcedRestore && restored
+                && !CloudSyncStore.backupHasRestorableAlerts(remoteBackup)) {
+            restored = false;
+        }
+        // A manual restore must reproduce the selected snapshot exactly. Applying
+        // historical deltas afterward can immediately remove the alerts restored
+        // from that snapshot.
+        boolean configurationChanged = (forcedRestore || automaticConfigurationRestore)
+                ? false
+                : CloudSyncStore.importConfigurationDeltas(
+                        appContext,
+                        messages,
+                        remoteBackup == null ? 0L : remoteBackup.optLong("updated_at", 0L)
+                );
         if (configurationChanged) {
             MonitorServiceController.update(appContext);
         }
@@ -1661,12 +1687,22 @@ final class TelegramClientManager {
             appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
                     .setPackage(appContext.getPackageName()));
             if (restored) {
+                if (forcedRestore) {
+                    CloudSyncStore.rememberRestoreCompleted(appContext, remoteBackup);
+                }
                 notifyCloudSyncStatus(forcedRestore
                         ? R.string.profile_manual_restore_done
                         : R.string.profile_cloud_restore_done);
             }
         } else if (forcedRestore) {
             notifyCloudSyncStatus(R.string.profile_manual_restore_empty);
+        }
+        if (forcedRestore) {
+            // Keep the restore state (and its UI animation) active until the
+            // imported data has been persisted and all alert screens were asked
+            // to render the restored list.
+            forceCloudRestore = false;
+            pendingManualRestore = false;
         }
         boolean firstRestoreFinished = initialCloudRestorePending;
         initialCloudRestorePending = false;
@@ -1838,6 +1874,17 @@ final class TelegramClientManager {
 
     private synchronized void sendNewCloudBackup() {
         Log.d(TAG, "sendNewCloudBackup selfChatId=" + selfChatId);
+        if (!CloudSyncStore.isPendingRankingOnly(appContext)
+                && !CloudSyncStore.hasRestorableAlerts(appContext)) {
+            CloudSyncStore.dismissEmptySnapshot(appContext);
+            if (pendingManualBackupConfirmation) {
+                pendingManualBackupConfirmation = false;
+                notifyCloudSyncStatus(R.string.profile_manual_backup_no_alerts);
+            }
+            appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)
+                    .setPackage(appContext.getPackageName()));
+            return;
+        }
         backupPreparationRunning = true;
         long generation = ++cloudBackupGeneration;
         long backedUpChange = CloudSyncStore.getLastLocalChangeTimestamp(appContext);

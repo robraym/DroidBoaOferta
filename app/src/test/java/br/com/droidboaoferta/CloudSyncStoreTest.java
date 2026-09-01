@@ -22,6 +22,19 @@ public class CloudSyncStoreTest {
     }
 
     @Test
+    public void manualRestorePrefersCompleteBackupThatHasAlerts() throws Exception {
+        JSONObject olderRich = backup(100L, true, "[{\"id\":1}]", 1);
+        JSONObject newerEmpty = backup(200L, true, "[]", 0);
+
+        JSONObject selected = CloudSyncStore.findNewestRestorableBackup(new JSONArray()
+                .put(message(1L, olderRich.toString()))
+                .put(message(2L, newerEmpty.toString())));
+
+        assertNotNull(selected);
+        assertEquals(100L, selected.getLong("updated_at"));
+    }
+
+    @Test
     public void richerLegacyBackupStillProtectsAgainstLegacyEmptyOverwrite() throws Exception {
         JSONObject olderRich = backup(100L, false, "[{\"id\":1}]", 1);
         JSONObject newerEmpty = backup(200L, false, "[]", 0);
@@ -136,6 +149,19 @@ public class CloudSyncStoreTest {
         assertEquals(480000d, restored.getDouble("maximum_price"), 0.001d);
         assertEquals(29d, restored.getDouble("minimum_area"), 0.001d);
         assertEquals(31d, restored.getDouble("maximum_area"), 0.001d);
+    }
+
+    @Test
+    public void partialInterestDeltaCannotCreateAnIncompleteAlert() throws Exception {
+        JSONObject payload = new JSONObject()
+                .put("type", "interest")
+                .put("interest_id", 200L)
+                .put("deleted", false)
+                .put("fields", new JSONObject().put("maximum_price", 480000d));
+
+        JSONArray result = CloudSyncStore.applyInterestConfigurationDelta("[]", payload);
+
+        assertEquals(0, result.length());
     }
 
     @Test

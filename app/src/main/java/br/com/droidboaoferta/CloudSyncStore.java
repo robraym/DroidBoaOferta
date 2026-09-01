@@ -38,6 +38,10 @@ final class CloudSyncStore {
     private static final String LAST_BACKUP_AT = "last_confirmed_backup_at";
     private static final String LAST_BACKED_UP_CHANGE = "last_backed_up_change";
     private static final String LAST_REMOTE_BACKUP_AT = "last_confirmed_remote_backup_at";
+    private static final String LAST_RESTORE_AT = "last_restore_at";
+    private static final String LAST_BACKUP_SIZE_BYTES = "last_backup_size_bytes";
+    private static final String LAST_RESTORE_SIZE_BYTES = "last_restore_size_bytes";
+    private static final String LAST_EXPORTED_BACKUP_SIZE_BYTES = "last_exported_backup_size_bytes";
     private static final String LAST_CONFIGURATION_SYNC_AT = "last_configuration_sync_at";
     private static final String LAST_REMOTE_REFRESH_REQUEST_AT = "last_remote_refresh_request_at";
     private static final String INITIAL_RESTORE_COMPLETED = "initial_restore_completed";
@@ -188,11 +192,12 @@ final class CloudSyncStore {
         SharedPreferences sync = syncPrefs(context);
         if (sync.getBoolean(INITIAL_RESTORE_COMPLETED, false)) return false;
         Context appContext = context.getApplicationContext();
-        Set<String> groups = appContext.getSharedPreferences(TELEGRAM_PREFS, Context.MODE_PRIVATE)
-                .getStringSet(SELECTED_GROUPS, Collections.emptySet());
         String interests = appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE)
                 .getString(KEY_INTERESTS, "[]");
-        return (groups == null || groups.isEmpty()) && readArray(interests).length() == 0;
+        // A device may already have the Telegram groups selected while its alert
+        // configuration is still empty. In that case it must receive the shared
+        // alerts instead of marking the initial restore as finished prematurely.
+        return readArray(interests).length() == 0;
     }
 
     static void rememberInitialRestoreFinished(Context context) {
@@ -325,10 +330,43 @@ final class CloudSyncStore {
         if (complete) {
             syncPrefs(context).edit()
                     .putLong(LAST_RANKING_CHECKPOINT_AT, System.currentTimeMillis())
+                    .putLong(LAST_BACKUP_SIZE_BYTES, syncPrefs(context).getLong(
+                            LAST_EXPORTED_BACKUP_SIZE_BYTES, 0L))
                     .putInt(RANKING_DELTAS_SINCE_CHECKPOINT, 0)
                     .apply();
         }
         return complete;
+    }
+
+    /** A device without alerts must not replace the shared restorable snapshot. */
+    static boolean hasRestorableAlerts(Context context) {
+        if (context == null) {
+            return false;
+        }
+        SharedPreferences offers = context.getApplicationContext().getSharedPreferences(
+                OFFER_PREFS, Context.MODE_PRIVATE);
+        return readArray(offers.getString(KEY_INTERESTS, "[]")).length() > 0;
+    }
+
+    static boolean backupHasRestorableAlerts(JSONObject backup) {
+        JSONObject data = backup == null ? null : backup.optJSONObject("data");
+        if (data == null) {
+            return false;
+        }
+        return completeInterests(readArray(data.optString(KEY_INTERESTS, "[]"))).length() > 0;
+    }
+
+    static void dismissEmptySnapshot(Context context) {
+        if (context == null) {
+            return;
+        }
+        SharedPreferences preferences = syncPrefs(context);
+        preferences.edit()
+                .putBoolean(PENDING_PUSH, false)
+                .putBoolean(PENDING_RANKING_ONLY, false)
+                .putLong(PENDING_STARTED_AT, 0L)
+                .putLong(LAST_BACKED_UP_CHANGE, getLastLocalChange(context))
+                .apply();
     }
 
     static boolean shouldSendRankingCheckpoint(Context context) {
@@ -705,8 +743,16 @@ final class CloudSyncStore {
                         .putBoolean(MONITOR_ENABLED, payload.optBoolean(MONITOR_ENABLED, true)).apply();
                 MonitorServiceController.update(appContext);
             } else if ("interests".equals(type)) {
-                appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE).edit()
-                        .putString(KEY_INTERESTS, payload.optString(KEY_INTERESTS, "[]")).apply();
+                SharedPreferences offers = appContext.getSharedPreferences(
+                        OFFER_PREFS, Context.MODE_PRIVATE);
+                String incoming = payload.optString(KEY_INTERESTS, "[]");
+                // An empty snapshot is not a deletion command. Never let a clean
+                // or partially initialized device erase alerts already stored locally.
+                if (readArray(incoming).length() == 0
+                        && readArray(offers.getString(KEY_INTERESTS, "[]")).length() > 0) {
+                    return false;
+                }
+                offers.edit().putString(KEY_INTERESTS, incoming).apply();
             } else if ("interest".equals(type)) {
                 long interestId = payload.optLong("interest_id", 0L);
                 if (interestId <= 0L) return false;
@@ -860,6 +906,11 @@ final class CloudSyncStore {
             }
         }
         if (!deleted && !replaced) {
+            // A fast delta may contain only the field that changed (such as the
+            // price). It cannot create an alert until a complete record arrives.
+            if (!hasRequiredInterestFields(fields)) {
+                return result;
+            }
             JSONObject created = new JSONObject();
             try {
                 created.put("id", interestId);
@@ -878,6 +929,13 @@ final class CloudSyncStore {
             return withNewFirst;
         }
         return result;
+    }
+
+    private static boolean hasRequiredInterestFields(JSONObject fields) {
+        return fields != null
+                && !fields.optString("term", "").trim().isEmpty()
+                && fields.has("maximum_price")
+                && !fields.optString("type", "").trim().isEmpty();
     }
 
     private static void rememberCollectionChanged(Context context, String key, long changedAt) {
@@ -1046,6 +1104,28 @@ final class CloudSyncStore {
         return syncPrefs(context).getLong(LAST_REMOTE_BACKUP_AT, 0L);
     }
 
+    static void rememberRestoreCompleted(Context context, JSONObject backup) {
+        if (context != null) {
+            syncPrefs(context).edit()
+                    .putLong(LAST_RESTORE_AT, System.currentTimeMillis())
+                    .putLong(LAST_RESTORE_SIZE_BYTES,
+                            backup == null ? 0L : backup.optLong("data_size_bytes", 0L))
+                    .apply();
+        }
+    }
+
+    static long getLastRestoreAt(Context context) {
+        return context == null ? 0L : syncPrefs(context).getLong(LAST_RESTORE_AT, 0L);
+    }
+
+    static long getLastBackupSizeBytes(Context context) {
+        return context == null ? 0L : syncPrefs(context).getLong(LAST_BACKUP_SIZE_BYTES, 0L);
+    }
+
+    static long getLastRestoreSizeBytes(Context context) {
+        return context == null ? 0L : syncPrefs(context).getLong(LAST_RESTORE_SIZE_BYTES, 0L);
+    }
+
     static void rememberConfigurationSynced(Context context) {
         if (context != null) {
             syncPrefs(context).edit()
@@ -1077,6 +1157,9 @@ final class CloudSyncStore {
                 .remove(LAST_BACKUP_AT)
                 .remove(LAST_BACKED_UP_CHANGE)
                 .remove(LAST_REMOTE_BACKUP_AT)
+                .remove(LAST_BACKUP_SIZE_BYTES)
+                .remove(LAST_RESTORE_SIZE_BYTES)
+                .remove(LAST_EXPORTED_BACKUP_SIZE_BYTES)
                 .putBoolean(PENDING_PUSH, false)
                 .putLong(PENDING_STARTED_AT, 0L)
                 .apply();
@@ -1092,6 +1175,7 @@ final class CloudSyncStore {
         }
         syncPrefs(context).edit()
                 .putLong(LAST_REMOTE_BACKUP_AT, updatedAt)
+                .putLong(LAST_BACKUP_SIZE_BYTES, backup.optLong("data_size_bytes", 0L))
                 .apply();
     }
 
@@ -1155,10 +1239,15 @@ final class CloudSyncStore {
             data.put(KEY_RANKING_EXPIRY_RULES, expiry.getString("rules", "{}"));
             data.put(KEY_RANKING_CURRENT_EPOCH, RANKING_CURRENT_EPOCH);
 
+            long sizeBytes = data.toString().getBytes(StandardCharsets.UTF_8).length;
             backup.put("version", 3);
             backup.put("complete", true);
             backup.put("updated_at", updatedAt);
+            backup.put("data_size_bytes", sizeBytes);
             backup.put("data", data);
+            syncPrefs(appContext).edit()
+                    .putLong(LAST_EXPORTED_BACKUP_SIZE_BYTES, sizeBytes)
+                    .apply();
         } catch (Exception ignored) {
         }
         return backup;
@@ -1200,6 +1289,15 @@ final class CloudSyncStore {
     }
 
     static JSONObject findNewestBackup(JSONArray messages) {
+        return findBackup(messages, false);
+    }
+
+    /** Manual restore must never prefer an empty snapshot over a backup with alerts. */
+    static JSONObject findNewestRestorableBackup(JSONArray messages) {
+        return findBackup(messages, true);
+    }
+
+    private static JSONObject findBackup(JSONArray messages, boolean preferUsefulData) {
         JSONObject newest = null;
         long newestUpdatedAt = 0L;
         int newestDataScore = -1;
@@ -1235,9 +1333,8 @@ final class CloudSyncStore {
             long updatedAt = backup.optLong("updated_at", 0L);
             int dataScore = backupDataScore(backup);
             boolean complete = backup.optBoolean("complete", false);
-            if ((complete && (!newestIsComplete || updatedAt > newestUpdatedAt))
-                    || (!complete && !newestIsComplete && (dataScore > newestDataScore
-                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)))) {
+            if (isBetterBackup(complete, updatedAt, dataScore, newestIsComplete,
+                    newestUpdatedAt, newestDataScore, preferUsefulData)) {
                 newest = backup;
                 newestUpdatedAt = updatedAt;
                 newestDataScore = dataScore;
@@ -1252,9 +1349,8 @@ final class CloudSyncStore {
             long updatedAt = backup.optLong("updated_at", 0L);
             int dataScore = backupDataScore(backup);
             boolean complete = backup.optBoolean("complete", false);
-            if ((complete && (!newestIsComplete || updatedAt > newestUpdatedAt))
-                    || (!complete && !newestIsComplete && (dataScore > newestDataScore
-                    || (dataScore == newestDataScore && updatedAt > newestUpdatedAt)))) {
+            if (isBetterBackup(complete, updatedAt, dataScore, newestIsComplete,
+                    newestUpdatedAt, newestDataScore, preferUsefulData)) {
                 newest = backup;
                 newestUpdatedAt = updatedAt;
                 newestDataScore = dataScore;
@@ -1262,6 +1358,22 @@ final class CloudSyncStore {
             }
         }
         return newest;
+    }
+
+    private static boolean isBetterBackup(boolean complete, long updatedAt, int dataScore,
+                                          boolean currentComplete, long currentUpdatedAt,
+                                          int currentDataScore, boolean preferUsefulData) {
+        if (complete != currentComplete) {
+            return complete;
+        }
+        if (complete && preferUsefulData && dataScore != currentDataScore) {
+            return dataScore > currentDataScore;
+        }
+        if (complete) {
+            return updatedAt > currentUpdatedAt;
+        }
+        return !currentComplete && (dataScore > currentDataScore
+                || (dataScore == currentDataScore && updatedAt > currentUpdatedAt));
     }
 
     private static int backupDataScore(JSONObject backup) {
@@ -1317,18 +1429,25 @@ final class CloudSyncStore {
         SharedPreferences offersPreferences = appContext.getSharedPreferences(OFFER_PREFS, Context.MODE_PRIVATE);
         JSONObject localInterestUpdatedAt = readObject(syncPrefs(appContext).getString(KEY_INTEREST_UPDATED_AT, "{}"));
         JSONObject remoteInterestUpdatedAt = readObject(data.optString(KEY_INTEREST_UPDATED_AT, "{}"));
-        JSONObject localDeletedInterests = readObject(syncPrefs(appContext).getString(KEY_DELETED_INTERESTS, "{}"));
+        // A manual/initial restore is an explicit request to trust the selected
+        // backup. Local deletion tombstones from a previously empty device must
+        // not erase every restored alert.
+        JSONObject localDeletedInterests = force
+                ? new JSONObject()
+                : readObject(syncPrefs(appContext).getString(KEY_DELETED_INTERESTS, "{}"));
         JSONObject remoteDeletedInterests = readObject(data.optString(KEY_DELETED_INTERESTS, "{}"));
         JSONObject mergedDeletedInterests = mergeMaxObjects(localDeletedInterests, remoteDeletedInterests);
-        JSONArray mergedInterests = mergeInterests(
-                offersPreferences.getString(KEY_INTERESTS, "[]"),
-                data.optString(KEY_INTERESTS, "[]"),
-                localInterestUpdatedAt,
-                remoteInterestUpdatedAt,
-                mergedDeletedInterests,
-                localUpdatedAt,
-                remoteUpdatedAt
-        );
+        JSONArray mergedInterests = force
+                ? completeInterests(readArray(data.optString(KEY_INTERESTS, "[]")))
+                : mergeInterests(
+                        offersPreferences.getString(KEY_INTERESTS, "[]"),
+                        data.optString(KEY_INTERESTS, "[]"),
+                        localInterestUpdatedAt,
+                        remoteInterestUpdatedAt,
+                        mergedDeletedInterests,
+                        localUpdatedAt,
+                        remoteUpdatedAt
+                );
         JSONObject mergedInterestUpdatedAt = buildInterestUpdatedAt(
                 mergedInterests,
                 localInterestUpdatedAt,
@@ -1631,6 +1750,21 @@ final class CloudSyncStore {
             }
         }
         return merged;
+    }
+
+    private static JSONArray completeInterests(JSONArray source) {
+        JSONArray complete = new JSONArray();
+        for (int index = 0; index < source.length(); index++) {
+            JSONObject interest = source.optJSONObject(index);
+            if (interest != null
+                    && interest.optLong("id", 0L) > 0L
+                    && !interest.optString("term", "").trim().isEmpty()
+                    && interest.has("maximum_price")
+                    && !interest.optString("type", "").trim().isEmpty()) {
+                complete.put(interest);
+            }
+        }
+        return complete;
     }
 
     private static void appendInterestIds(JSONArray source, List<String> ids, Set<String> addedIds) {
