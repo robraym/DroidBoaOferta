@@ -118,8 +118,10 @@ final class PropertyPageMonitor {
                     interest.getId(), listing.getId());
             PropertyPageListing currentListing = listing;
             PropertyListingMetadata metadata = null;
-            if (listing.getSalePrice()
-                    <= interest.getMaximumPrice() * PRICE_VERIFICATION_MARGIN) {
+            if (shouldVerifyIndividualPrice(
+                    previouslyObserved,
+                    listing.getSalePrice(),
+                    interest.getMaximumPrice())) {
                 try {
                     metadata = PropertyPageClient.fetchListingMetadata(listing.getUrl());
                     if (metadata.getSalePrice() > 0d) {
@@ -196,6 +198,13 @@ final class PropertyPageMonitor {
         showNotification(context, interest, result, changed);
         context.sendBroadcast(new Intent(OfferMonitor.ACTION_OFFER_FOUND)
                 .setPackage(context.getPackageName()));
+    }
+
+    static boolean shouldVerifyIndividualPrice(boolean previouslyObserved,
+                                               double summaryPrice,
+                                               double maximumPrice) {
+        return previouslyObserved
+                || summaryPrice <= maximumPrice * PRICE_VERIFICATION_MARGIN;
     }
 
     private void showNotification(Context context, Interest interest, PropertyPageResult result,
