@@ -47,9 +47,18 @@ final class PropertyPageListing {
         return newAd;
     }
 
+    PropertyPageListing withSalePrice(double updatedSalePrice) {
+        return new PropertyPageListing(
+                id, area, updatedSalePrice, description, url, newAd
+        );
+    }
+
+    boolean matchesArea(double minimumArea, double maximumArea) {
+        return area >= minimumArea && area <= maximumArea;
+    }
+
     boolean matches(double minimumArea, double maximumArea, double maximumPrice) {
-        return area >= minimumArea
-                && area <= maximumArea
+        return matchesArea(minimumArea, maximumArea)
                 && salePrice <= maximumPrice;
     }
 }

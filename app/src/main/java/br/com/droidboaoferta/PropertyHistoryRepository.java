@@ -54,6 +54,10 @@ final class PropertyHistoryRepository {
         }
     }
 
+    synchronized boolean contains(long interestId, String listingId) {
+        return find(readEntries(), interestId, listingId) != null;
+    }
+
     synchronized int recordObservation(long interestId, PropertyPageListing listing,
                                        long observedAt,
                                        PropertyListingMetadata metadata) {
@@ -69,9 +73,7 @@ final class PropertyHistoryRepository {
             points = new JSONArray();
         }
         JSONObject previous = points.optJSONObject(points.length() - 1);
-        boolean changed = previous == null
-                || Double.compare(previous.optDouble("price", 0d), listing.getSalePrice()) != 0
-                || Double.compare(previous.optDouble("area", 0d), listing.getArea()) != 0;
+        boolean changed = hasObservationChanged(previous, listing);
         try {
             item.put("interest_id", interestId)
                     .put("listing_id", listing.getId())
@@ -104,6 +106,12 @@ final class PropertyHistoryRepository {
             return UNCHANGED;
         }
         return created ? CREATED : (changed ? CHANGED : UNCHANGED);
+    }
+
+    static boolean hasObservationChanged(JSONObject previous, PropertyPageListing listing) {
+        return previous == null
+                || Double.compare(previous.optDouble("price", 0d), listing.getSalePrice()) != 0
+                || Double.compare(previous.optDouble("area", 0d), listing.getArea()) != 0;
     }
 
     synchronized PropertyHistoryEntry getForOffer(ObservedOffer offer) {

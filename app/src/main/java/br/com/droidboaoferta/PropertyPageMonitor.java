@@ -26,6 +26,7 @@ final class PropertyPageMonitor {
     private static final String PREFS = "property_page_monitor";
     private static final String NOTIFIED_PRICES_PREFIX = "notified_prices_";
     private static final long CHECK_INTERVAL_MINUTES = 15L;
+    private static final double PRICE_VERIFICATION_MARGIN = 1.10d;
     private static final PropertyPageMonitor INSTANCE = new PropertyPageMonitor();
 
     private Context appContext;
@@ -104,35 +105,43 @@ final class PropertyPageMonitor {
         if (propertyName.isEmpty()) {
             propertyName = result.getCondominiumName();
         }
+        long observedAt = System.currentTimeMillis();
+        PropertyHistoryRepository historyRepository = new PropertyHistoryRepository(context);
         List<PropertyPageListing> matches = new ArrayList<>();
+        Map<String, Integer> historyChanges = new HashMap<>();
         for (PropertyPageListing listing : result.getSaleListings()) {
-            if (listing.matches(
-                    interest.getMinimumArea(),
-                    interest.getMaximumArea(),
-                    interest.getMaximumPrice())) {
-                matches.add(listing);
+            if (!listing.matchesArea(
+                    interest.getMinimumArea(), interest.getMaximumArea())) {
+                continue;
+            }
+            boolean previouslyObserved = historyRepository.contains(
+                    interest.getId(), listing.getId());
+            PropertyPageListing currentListing = listing;
+            PropertyListingMetadata metadata = null;
+            if (listing.getSalePrice()
+                    <= interest.getMaximumPrice() * PRICE_VERIFICATION_MARGIN) {
+                try {
+                    metadata = PropertyPageClient.fetchListingMetadata(listing.getUrl());
+                    if (metadata.getSalePrice() > 0d) {
+                        currentListing = listing.withSalePrice(metadata.getSalePrice());
+                    }
+                } catch (Exception ignored) {
+                    metadata = PropertyListingMetadata.empty();
+                }
+            }
+            boolean eligible = currentListing.getSalePrice() <= interest.getMaximumPrice();
+            if (previouslyObserved || eligible) {
+                historyChanges.put(currentListing.getId(), historyRepository.recordObservation(
+                        interest.getId(), currentListing, observedAt, metadata));
+            }
+            if (eligible) {
+                matches.add(currentListing);
             }
         }
         if (matches.isEmpty()) {
             return;
         }
         matches.sort(Comparator.comparingDouble(PropertyPageListing::getSalePrice));
-
-        long observedAt = System.currentTimeMillis();
-        PropertyHistoryRepository historyRepository = new PropertyHistoryRepository(context);
-        Map<String, Integer> historyChanges = new HashMap<>();
-        for (PropertyPageListing listing : matches) {
-            PropertyListingMetadata metadata = null;
-            if (historyRepository.shouldFetchMetadata(interest.getId(), listing, observedAt)) {
-                try {
-                    metadata = PropertyPageClient.fetchListingMetadata(listing.getUrl());
-                } catch (Exception ignored) {
-                    metadata = PropertyListingMetadata.empty();
-                }
-            }
-            historyChanges.put(listing.getId(), historyRepository.recordObservation(
-                    interest.getId(), listing, observedAt, metadata));
-        }
 
         SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String stateKey = NOTIFIED_PRICES_PREFIX + interest.getId();

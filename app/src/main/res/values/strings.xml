@@ -378,7 +378,10 @@
     <string name="property_notification_explanation">%1$s • %2$s m² • %3$s</string>
     <string name="property_notification_explanation_many">Novas opções de compra em %1$s.</string>
     <string name="property_new_ad_badge">Novo</string>
-    <string name="property_published_badge">Anunciado %1$s</string>
+    <string name="property_published_line">Anunciado em %1$s</string>
+    <string name="property_price_drop_badge_thousands">↓ R$ %1$s mil</string>
+    <string name="property_price_drop_badge_reais">↓ R$ %1$s</string>
+    <string name="property_price_drop_badge_description">Ver histórico da queda de preço</string>
     <string name="property_history_empty">Histórico ainda não disponível para este anúncio.</string>
     <string name="property_history_current_summary">%1$s • %2$s</string>
     <string name="property_history_listing_title">Anúncio: %1$s</string>

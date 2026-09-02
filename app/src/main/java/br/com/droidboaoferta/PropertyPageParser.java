@@ -204,7 +204,8 @@ final class PropertyPageParser {
             JSONObject root = new JSONObject(matcher.group(1));
             return new PropertyListingMetadata(
                     parseDate(findString(root, "firstPublicationDate")),
-                    parseDate(findString(root, "lastPublicationDate"))
+                    parseDate(findString(root, "lastPublicationDate")),
+                    findPositiveDouble(root, "salePrice")
             );
         } catch (Exception ignored) {
             return PropertyListingMetadata.empty();
@@ -290,5 +291,31 @@ final class PropertyPageParser {
             }
         }
         return "";
+    }
+
+    private static double findPositiveDouble(Object value, String key) {
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            double direct = object.optDouble(key, Double.NaN);
+            if (direct > 0d) {
+                return direct;
+            }
+            Iterator<String> keys = object.keys();
+            while (keys.hasNext()) {
+                double found = findPositiveDouble(object.opt(keys.next()), key);
+                if (found > 0d) {
+                    return found;
+                }
+            }
+        } else if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int index = 0; index < array.length(); index++) {
+                double found = findPositiveDouble(array.opt(index), key);
+                if (found > 0d) {
+                    return found;
+                }
+            }
+        }
+        return Double.NaN;
     }
 }

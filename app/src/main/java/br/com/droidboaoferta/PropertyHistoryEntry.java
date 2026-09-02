@@ -38,6 +38,21 @@ final class PropertyHistoryEntry {
     boolean isNewAd() { return newAd; }
     List<PropertyHistoryPoint> getPoints() { return points; }
 
+    boolean hasPriceDrop() {
+        return getPriceDropAmount() > 0d;
+    }
+
+    double getPriceDropAmount() {
+        for (int index = points.size() - 1; index > 0; index--) {
+            double previousPrice = points.get(index - 1).getPrice();
+            double currentPrice = points.get(index).getPrice();
+            if (Double.compare(previousPrice, currentPrice) != 0) {
+                return currentPrice < previousPrice ? previousPrice - currentPrice : 0d;
+            }
+        }
+        return 0d;
+    }
+
     boolean isRecent(long now) {
         long reference = firstPublicationAt > 0L ? firstPublicationAt : firstSeenAt;
         return newAd && reference > 0L && now - reference <= 7L * 24L * 60L * 60L * 1000L;

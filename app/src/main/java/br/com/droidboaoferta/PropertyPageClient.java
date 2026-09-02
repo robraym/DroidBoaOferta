@@ -165,11 +165,16 @@ final class PropertyPageClient {
     }
 
     private static String fetchHtml(String url) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection connection = (HttpURLConnection) new URL(
+                buildFreshRequestUrl(url, System.currentTimeMillis())
+        ).openConnection();
         connection.setConnectTimeout(12_000);
         connection.setReadTimeout(18_000);
         connection.setInstanceFollowRedirects(true);
+        connection.setUseCaches(false);
         connection.setRequestProperty("Accept", "text/html,application/xhtml+xml");
+        connection.setRequestProperty("Cache-Control", "no-cache, no-store");
+        connection.setRequestProperty("Pragma", "no-cache");
         connection.setRequestProperty("User-Agent", "Alertou/1.0 Android");
         try {
             int status = connection.getResponseCode();
@@ -180,6 +185,11 @@ final class PropertyPageClient {
         } finally {
             connection.disconnect();
         }
+    }
+
+    static String buildFreshRequestUrl(String url, long requestId) {
+        String separator = url.contains("?") ? "&" : "?";
+        return url + separator + "alertou_request=" + requestId;
     }
 
     private static String readResponse(InputStream input) throws Exception {

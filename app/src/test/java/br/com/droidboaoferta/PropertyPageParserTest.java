@@ -204,6 +204,34 @@ public class PropertyPageParserTest {
     }
 
     @Test
+    public void addsUniqueParameterToBypassProviderCache() {
+        assertEquals(
+                "https://www.quintoandar.com.br/condominio/go-portugal?alertou_request=123",
+                PropertyPageClient.buildFreshRequestUrl(
+                        "https://www.quintoandar.com.br/condominio/go-portugal", 123L)
+        );
+        assertEquals(
+                "https://www.quintoandar.com.br/condominio/go-portugal?origem=app&alertou_request=456",
+                PropertyPageClient.buildFreshRequestUrl(
+                        "https://www.quintoandar.com.br/condominio/go-portugal?origem=app", 456L)
+        );
+    }
+
+    @Test
+    public void parsesCurrentPriceFromIndividualListingPage() {
+        String html = "<script id=\"__NEXT_DATA__\" type=\"application/json\">"
+                + "{\"props\":{\"pageProps\":{\"forSale\":true,\"salePrice\":399000,"
+                + "\"listings\":[{\"firstPublicationDate\":\"2026-07-21T01:51:27.000+0000\","
+                + "\"lastPublicationDate\":\"2026-07-21T01:51:27.000+0000\"}]}}}"
+                + "</script>";
+
+        PropertyListingMetadata metadata = PropertyPageParser.parseListingMetadata(html);
+
+        assertEquals(399000d, metadata.getSalePrice(), 0.001d);
+        assertTrue(metadata.getFirstPublicationAt() > 0L);
+    }
+
+    @Test
     public void matchesAreaAndMaximumPurchasePriceInclusively() {
         PropertyPageListing listing = new PropertyPageListing(
                 "sale-1", 30d, 450000d, "", ""

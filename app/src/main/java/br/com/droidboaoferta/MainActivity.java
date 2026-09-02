@@ -129,6 +129,19 @@ public class MainActivity extends AlertouActivity {
         super.onResume();
         BottomNavigationController.resetInitialFocus(this);
         refreshDashboard();
+        refreshPropertyPricesIfNeeded();
+    }
+
+    private void refreshPropertyPricesIfNeeded() {
+        if (!isMonitorEnabled()) {
+            return;
+        }
+        for (Interest interest : interestRepository.getAll()) {
+            if (interest.isProperty()) {
+                PropertyPageMonitor.getInstance().checkNow(this);
+                return;
+            }
+        }
     }
 
     @Override
@@ -570,7 +583,9 @@ public class MainActivity extends AlertouActivity {
                     contentDescription,
                     expired,
                     propertyHistory != null && propertyHistory.isRecent(System.currentTimeMillis()),
-                    propertyHistory == null ? 0L : propertyHistory.getFirstPublicationAt()
+                    propertyHistory == null ? 0L : propertyHistory.getFirstPublicationAt(),
+                    propertyHistory == null ? 0d : propertyHistory.getPriceDropAmount(),
+                    view -> showPropertyHistoryDialog(offer)
             );
             FrameLayout swipeContainer = createSwipeContainer(row);
             attachSwipeActions(row, offer, expired);
@@ -655,7 +670,9 @@ public class MainActivity extends AlertouActivity {
 
     private LinearLayout createOfferRow(String title, String price, String time, String source,
                                         String contentDescription, boolean expired,
-                                        boolean newPropertyAd, long propertyPublishedAt) {
+                                        boolean newPropertyAd, long propertyPublishedAt,
+                                        double propertyPriceDrop,
+                                        View.OnClickListener propertyHistoryClick) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setBackgroundColor(getColor(R.color.card));
@@ -684,6 +701,17 @@ public class MainActivity extends AlertouActivity {
         priceView.setSingleLine(true);
         priceView.setPadding(dp(6), 0, 0, 0);
         mainLine.addView(priceView);
+
+        if (propertyPriceDrop > 0d) {
+            TextView badge = createPropertyPriceDropBadge(
+                    propertyPriceDrop, propertyHistoryClick);
+            LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            badgeParams.leftMargin = dp(6);
+            mainLine.addView(badge, badgeParams);
+        }
         row.addView(mainLine);
 
         LinearLayout metaLine = new LinearLayout(this);
@@ -708,18 +736,8 @@ public class MainActivity extends AlertouActivity {
             metaLine.addView(badge, badgeParams);
         }
 
-        if (propertyPublishedAt > 0L) {
-            TextView badge = createPropertyPublishedBadge(propertyPublishedAt);
-            LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            badgeParams.leftMargin = dp(5);
-            metaLine.addView(badge, badgeParams);
-        }
-
         TextView sourceView = new TextView(this);
-        sourceView.setText(source);
+        sourceView.setText("• " + source);
         sourceView.setTextColor(getColor(R.color.text_secondary));
         sourceView.setTextSize(11.5f);
         sourceView.setSingleLine(true);
@@ -727,6 +745,18 @@ public class MainActivity extends AlertouActivity {
         sourceView.setPadding(dp(4), 0, 0, 0);
         metaLine.addView(sourceView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         row.addView(metaLine);
+        if (propertyPublishedAt > 0L) {
+            TextView published = new TextView(this);
+            published.setText(getString(
+                    R.string.property_published_line,
+                    formatPropertyPublishedLineDate(propertyPublishedAt)
+            ));
+            published.setTextColor(getColor(R.color.text_secondary));
+            published.setTextSize(11.5f);
+            published.setSingleLine(true);
+            published.setPadding(0, dp(2), 0, 0);
+            row.addView(published);
+        }
         if (expired) {
             TextView status = new TextView(this);
             status.setText(R.string.telegram_group_promotion_expired);
@@ -750,18 +780,33 @@ public class MainActivity extends AlertouActivity {
         return badge;
     }
 
-    private TextView createPropertyPublishedBadge(long publishedAt) {
+    private TextView createPropertyPriceDropBadge(double priceDrop,
+                                                   View.OnClickListener listener) {
         TextView badge = new TextView(this);
-        badge.setText(getString(
-                R.string.property_published_badge,
-                formatPropertyPublishedBadgeDate(publishedAt)
-        ));
-        badge.setTextColor(getColor(R.color.text_secondary));
+        badge.setText(formatPropertyPriceDrop(priceDrop));
+        badge.setContentDescription(getString(R.string.property_price_drop_badge_description));
+        badge.setTextColor(getColor(R.color.action_green));
         badge.setTextSize(10.5f);
+        badge.setTypeface(null, android.graphics.Typeface.BOLD);
         badge.setSingleLine(true);
-        badge.setBackgroundResource(R.drawable.bg_property_published_badge);
+        badge.setBackgroundResource(R.drawable.bg_property_new_badge);
         badge.setPadding(dp(6), dp(1), dp(6), dp(1));
+        badge.setClickable(true);
+        badge.setFocusable(true);
+        badge.setOnClickListener(listener);
         return badge;
+    }
+
+    private String formatPropertyPriceDrop(double priceDrop) {
+        NumberFormat number = NumberFormat.getNumberInstance(new Locale("pt", "BR"));
+        if (priceDrop >= 1000d) {
+            number.setMaximumFractionDigits(priceDrop % 1000d == 0d ? 0 : 1);
+            return getString(R.string.property_price_drop_badge_thousands,
+                    number.format(priceDrop / 1000d));
+        }
+        number.setMaximumFractionDigits(0);
+        return getString(R.string.property_price_drop_badge_reais,
+                number.format(priceDrop));
     }
 
     private View createOfferDivider() {
@@ -1136,9 +1181,10 @@ public class MainActivity extends AlertouActivity {
                 .format(new java.util.Date(timestamp));
     }
 
-    private String formatPropertyPublishedBadgeDate(long timestamp) {
-        return new SimpleDateFormat("dd/MM", new Locale("pt", "BR"))
-                .format(new java.util.Date(timestamp));
+    private String formatPropertyPublishedLineDate(long timestamp) {
+        return new SimpleDateFormat("dd MMM", new Locale("pt", "BR"))
+                .format(new java.util.Date(timestamp))
+                .replace(".", "");
     }
 
     private String formatArea(double area) {
