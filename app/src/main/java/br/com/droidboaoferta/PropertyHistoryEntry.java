@@ -53,6 +53,19 @@ final class PropertyHistoryEntry {
         return 0d;
     }
 
+    double getPriceDropPercentage() {
+        for (int index = points.size() - 1; index > 0; index--) {
+            double previousPrice = points.get(index - 1).getPrice();
+            double currentPrice = points.get(index).getPrice();
+            if (Double.compare(previousPrice, currentPrice) != 0) {
+                return currentPrice < previousPrice && previousPrice > 0d
+                        ? (previousPrice - currentPrice) * 100d / previousPrice
+                        : 0d;
+            }
+        }
+        return 0d;
+    }
+
     boolean isRecent(long now) {
         long reference = firstPublicationAt > 0L ? firstPublicationAt : firstSeenAt;
         return newAd && reference > 0L && now - reference <= 7L * 24L * 60L * 60L * 1000L;

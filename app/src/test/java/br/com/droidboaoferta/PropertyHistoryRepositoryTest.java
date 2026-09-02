@@ -46,5 +46,6 @@ public class PropertyHistoryRepositoryTest {
 
         assertTrue(entry.hasPriceDrop());
         assertEquals(15000d, entry.getPriceDropAmount(), 0.001d);
+        assertEquals(3.623d, entry.getPriceDropPercentage(), 0.001d);
     }
 }
