@@ -358,8 +358,9 @@
     <string name="coupon_value_required">Informe um valor mínimo válido</string>
     <string name="property_dialog_title">Novo alerta de imóvel</string>
     <string name="property_dialog_edit_title">Editar alerta de imóvel</string>
-    <string name="property_dialog_summary">Página do condomínio, área desejada e preço máximo de compra.</string>
+    <string name="property_dialog_summary">Nome, página do condomínio, área desejada e preço máximo de compra.</string>
     <string name="property_url_hint">Link do condomínio</string>
+    <string name="property_name_hint">Nome do condomínio</string>
     <string name="property_minimum_area_hint">Mínima (m²)</string>
     <string name="property_maximum_area_hint">Máxima (m²)</string>
     <string name="property_area_value">%1$s m²</string>

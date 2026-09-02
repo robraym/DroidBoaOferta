@@ -681,6 +681,20 @@ public class AlertsActivity extends AlertouActivity {
         message.setPadding(0, dp(6), 0, dp(16));
         content.addView(message);
 
+        EditText propertyNameInput = createDialogInput(
+                R.string.property_name_hint,
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        );
+        propertyNameInput.setSingleLine(true);
+        if (editing) {
+            propertyNameInput.setText(interestToEdit.getPropertyName());
+            propertyNameInput.setSelection(propertyNameInput.length());
+        }
+        content.addView(propertyNameInput, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+        ));
+
         EditText urlInput = createDialogInput(
                 R.string.property_url_hint,
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI
@@ -696,10 +710,12 @@ public class AlertsActivity extends AlertouActivity {
             urlInput.setText(interestToEdit.getTerm());
             urlInput.setSelection(0);
         }
-        content.addView(urlInput, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams urlParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        );
+        urlParams.topMargin = dp(12);
+        content.addView(urlInput, urlParams);
 
         EditText minimumAreaInput = createPropertyNumberInput(
                 R.string.property_minimum_area_hint,
@@ -813,6 +829,7 @@ public class AlertsActivity extends AlertouActivity {
             updatePropertyInBackground(
                     interestToEdit,
                     normalizedUrl,
+                    propertyNameInput.getText().toString(),
                     minimumArea,
                     maximumArea,
                     maximumPrice
@@ -1009,6 +1026,7 @@ public class AlertsActivity extends AlertouActivity {
     }
 
     private void updatePropertyInBackground(Interest interestToEdit, String pageUrl,
+                                            String requestedPropertyName,
                                             double minimumArea, double maximumArea,
                                             double maximumPrice) {
         boolean editing = interestToEdit != null;
@@ -1018,14 +1036,17 @@ public class AlertsActivity extends AlertouActivity {
             boolean succeeded = true;
             long savedInterestId = editing ? interestToEdit.getId() : 0L;
             try {
-                String propertyName = editing ? interestToEdit.getPropertyName() : "";
-                try {
-                    PropertyPageResult propertyPage = PropertyPageClient.fetch(pageUrl);
-                    if (propertyPage.hasCondominiumName()) {
-                        propertyName = propertyPage.getCondominiumName();
+                String propertyName = PropertyPageResult.normalizeCondominiumName(
+                        requestedPropertyName);
+                if (propertyName.isEmpty()) {
+                    try {
+                        PropertyPageResult propertyPage = PropertyPageClient.fetch(pageUrl);
+                        if (propertyPage.hasCondominiumName()) {
+                            propertyName = propertyPage.getCondominiumName();
+                        }
+                    } catch (Exception ignored) {
+                        // Mantém o campo vazio quando a página estiver temporariamente indisponível.
                     }
-                } catch (Exception ignored) {
-                    // Mantém o nome já conhecido quando a página estiver temporariamente indisponível.
                 }
                 if (editing) {
                     interestRepository.updateProperty(
