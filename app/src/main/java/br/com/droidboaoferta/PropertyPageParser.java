@@ -192,8 +192,8 @@ final class PropertyPageParser {
         return matcher.find() ? matcher.group() : PropertyPageClient.buildLoftListingUrl(id);
     }
 
-    static PropertyListingMetadata parseListingMetadata(String html) {
-        if (html == null || html.trim().isEmpty()) {
+    static PropertyListingMetadata parseListingMetadata(String html, String expectedId) {
+        if (html == null || html.trim().isEmpty() || expectedId == null || expectedId.isEmpty()) {
             return PropertyListingMetadata.empty();
         }
         Matcher matcher = NEXT_DATA.matcher(html);
@@ -202,11 +202,51 @@ final class PropertyPageParser {
         }
         try {
             JSONObject root = new JSONObject(matcher.group(1));
-            return new PropertyListingMetadata(
-                    parseDate(findString(root, "firstPublicationDate")),
-                    parseDate(findString(root, "lastPublicationDate")),
-                    findPositiveDouble(root, "salePrice")
-            );
+            JSONObject query = root.optJSONObject("query");
+            if (query == null || !expectedId.equals(query.optString("houseId"))) {
+                return PropertyListingMetadata.empty();
+            }
+            if (root.optString("page").startsWith("/indisponivel/")) {
+                return PropertyListingMetadata.unavailable(expectedId);
+            }
+            // Only the main listing is authoritative. Recommendations can have unrelated prices.
+            JSONObject info = root.getJSONObject("props").getJSONObject("pageProps")
+                    .getJSONObject("initialState").getJSONObject("house")
+                    .getJSONObject("houseInfo");
+            if (!expectedId.equals(info.optString("id"))) {
+                return PropertyListingMetadata.empty();
+            }
+            if (Boolean.FALSE.equals(info.opt("forSale"))) {
+                return PropertyListingMetadata.unavailable(expectedId);
+            }
+            double price = info.optDouble("salePrice", Double.NaN);
+            double area = info.optDouble("area", Double.NaN);
+            if (!Boolean.TRUE.equals(info.opt("forSale")) || !Double.isFinite(price)
+                    || price <= 0d || !Double.isFinite(area) || area <= 0d) {
+                return PropertyListingMetadata.empty();
+            }
+            long firstPublished = 0L;
+            long lastPublished = 0L;
+            JSONArray listings = info.optJSONArray("listings");
+            for (int index = 0; listings != null && index < listings.length(); index++) {
+                JSONObject listing = listings.optJSONObject(index);
+                if (listing == null || !"SALE".equals(listing.optString("businessContext"))) {
+                    continue;
+                }
+                String id = listing.optString("imovelId", "");
+                if (!id.isEmpty() && !expectedId.equals(id)) {
+                    continue;
+                }
+                String status = listing.optString("status", "");
+                if ("unpublished".equals(status) || "despublicado".equals(status)) {
+                    return PropertyListingMetadata.unavailable(expectedId);
+                }
+                firstPublished = parseDate(listing.optString("firstPublicationDate"));
+                lastPublished = parseDate(listing.optString("lastPublicationDate"));
+                break;
+            }
+            return PropertyListingMetadata.verified(expectedId, price, area,
+                    firstPublished, lastPublished);
         } catch (Exception ignored) {
             return PropertyListingMetadata.empty();
         }
@@ -229,6 +269,8 @@ final class PropertyPageParser {
             return 0L;
         }
         String[] patterns = {
+                "yyyy-MM-dd'T'HH:mm:ssXXX",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
                 "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
                 "yyyy-MM-dd'T'HH:mm:ss.SSSX"
         };
@@ -293,29 +335,4 @@ final class PropertyPageParser {
         return "";
     }
 
-    private static double findPositiveDouble(Object value, String key) {
-        if (value instanceof JSONObject) {
-            JSONObject object = (JSONObject) value;
-            double direct = object.optDouble(key, Double.NaN);
-            if (direct > 0d) {
-                return direct;
-            }
-            Iterator<String> keys = object.keys();
-            while (keys.hasNext()) {
-                double found = findPositiveDouble(object.opt(keys.next()), key);
-                if (found > 0d) {
-                    return found;
-                }
-            }
-        } else if (value instanceof JSONArray) {
-            JSONArray array = (JSONArray) value;
-            for (int index = 0; index < array.length(); index++) {
-                double found = findPositiveDouble(array.opt(index), key);
-                if (found > 0d) {
-                    return found;
-                }
-            }
-        }
-        return Double.NaN;
-    }
 }

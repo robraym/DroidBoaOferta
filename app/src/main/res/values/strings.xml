@@ -380,6 +380,12 @@
     <string name="property_notification_explanation_many">Novas opções de compra em %1$s.</string>
     <string name="property_new_ad_badge">Novo</string>
     <string name="property_published_line">Anunciado em %1$s</string>
+    <string name="property_listing_code">Código do anúncio: %1$s</string>
+    <string name="property_unavailable">Indisponível</string>
+    <string name="property_unavailable_description">O QuintoAndar informou que este anúncio está indisponível. Preços de outros imóveis sugeridos na página não são usados.</string>
+    <string name="property_price_pending">Preço a confirmar</string>
+    <string name="property_price_pending_description">Aguardando uma leitura válida da página deste anúncio para confirmar o preço.</string>
+    <string name="property_history_unverified_notice">As leituras anteriores à correção foram preservadas separadamente, mas não aparecem no gráfico nem entram no cálculo de quedas porque não é possível confirmar a origem de cada preço.</string>
     <string name="property_price_drop_badge_thousands">↓ R$ %1$s mil · %2$s%%</string>
     <string name="property_price_drop_badge_reais">↓ R$ %1$s · %2$s%%</string>
     <string name="property_price_drop_badge_description">Ver histórico da queda de preço</string>

@@ -21,8 +21,11 @@ final class PropertyHistoryRepository {
     private final SharedPreferences preferences;
 
     PropertyHistoryRepository(Context context) {
-        preferences = context.getApplicationContext()
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        this(context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE));
+    }
+
+    PropertyHistoryRepository(SharedPreferences preferences) {
+        this.preferences = preferences;
     }
 
     synchronized boolean shouldFetchMetadata(long interestId, PropertyPageListing listing, long now) {
@@ -40,17 +43,19 @@ final class PropertyHistoryRepository {
     }
 
     synchronized void clearMetadataAttemptsForInterest(long interestId) {
-        JSONArray entries = readEntries();
-        boolean changed = false;
-        for (int index = 0; index < entries.length(); index++) {
-            JSONObject item = entries.optJSONObject(index);
-            if (item != null && item.optLong("interest_id", 0L) == interestId) {
-                item.remove("metadata_attempted_at");
-                changed = true;
+        synchronized (preferences) {
+            JSONArray entries = readEntries();
+            boolean changed = false;
+            for (int index = 0; index < entries.length(); index++) {
+                JSONObject item = entries.optJSONObject(index);
+                if (item != null && item.optLong("interest_id", 0L) == interestId) {
+                    item.remove("metadata_attempted_at");
+                    changed = true;
+                }
             }
-        }
-        if (changed) {
-            preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+            if (changed) {
+                preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+            }
         }
     }
 
@@ -61,51 +66,64 @@ final class PropertyHistoryRepository {
     synchronized int recordObservation(long interestId, PropertyPageListing listing,
                                        long observedAt,
                                        PropertyListingMetadata metadata) {
-        JSONArray entries = readEntries();
-        JSONObject item = find(entries, interestId, listing.getId());
-        boolean created = item == null;
-        if (created) {
-            item = new JSONObject();
-            entries.put(item);
-        }
-        JSONArray points = item.optJSONArray("points");
-        if (points == null) {
-            points = new JSONArray();
-        }
-        JSONObject previous = points.optJSONObject(points.length() - 1);
-        boolean changed = hasObservationChanged(previous, listing);
-        try {
-            item.put("interest_id", interestId)
-                    .put("listing_id", listing.getId())
-                    .put("title", listing.getDescription())
-                    .put("url", normalizeListingUrl(listing.getUrl()))
-                    .put("first_seen_at", item.optLong("first_seen_at", observedAt))
-                    .put("last_seen_at", observedAt)
-                    .put("new_ad", listing.isNewAd());
-            if (metadata != null) {
-                item.put("metadata_attempted_at", observedAt);
-                if (metadata.getFirstPublicationAt() > 0L) {
-                    item.put("first_publication_at", metadata.getFirstPublicationAt());
-                }
-                if (metadata.getLastPublicationAt() > 0L) {
-                    item.put("last_publication_at", metadata.getLastPublicationAt());
-                }
+        synchronized (preferences) {
+            if (PropertyPageClient.normalizeListingUrl(listing.getUrl()) == null) return UNCHANGED;
+            boolean requiresIdentity = PropertyPageClient.isQuintoAndarListingUrl(listing.getUrl());
+            if (requiresIdentity && (metadata == null || !metadata.isVerifiedFor(listing.getId())
+                    || Double.compare(metadata.getSalePrice(), listing.getSalePrice()) != 0
+                    || Double.compare(metadata.getArea(), listing.getArea()) != 0)) {
+                return UNCHANGED;
             }
-            if (changed) {
-                points.put(new JSONObject()
-                        .put("observed_at", observedAt)
-                        .put("price", listing.getSalePrice())
-                        .put("area", listing.getArea()));
-                while (points.length() > MAX_POINTS) {
-                    points.remove(0);
-                }
+            JSONArray entries = readEntries();
+            JSONObject item = find(entries, interestId, listing.getId());
+            boolean created = item == null;
+            if (created) {
+                item = new JSONObject();
+                entries.put(item);
             }
-            item.put("points", points);
-            preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
-        } catch (Exception ignored) {
-            return UNCHANGED;
+            JSONArray points = item.optJSONArray("points");
+            if (points == null) {
+                points = new JSONArray();
+            }
+            JSONObject previous = points.optJSONObject(points.length() - 1);
+            boolean changed = hasObservationChanged(previous, listing);
+            try {
+                item.put("interest_id", interestId)
+                        .put("listing_id", listing.getId())
+                        .put("title", listing.getDescription())
+                        .put("url", normalizeListingUrl(listing.getUrl()))
+                        .put("first_seen_at", item.optLong("first_seen_at", observedAt))
+                        .put("last_seen_at", observedAt)
+                        .put("new_ad", listing.isNewAd());
+                if (requiresIdentity) {
+                    item.put("identity_validation_version", 1)
+                            .put("validation_status", "available");
+                }
+                if (metadata != null) {
+                    item.put("metadata_attempted_at", observedAt);
+                    if (metadata.getFirstPublicationAt() > 0L) {
+                        item.put("first_publication_at", metadata.getFirstPublicationAt());
+                    }
+                    if (metadata.getLastPublicationAt() > 0L) {
+                        item.put("last_publication_at", metadata.getLastPublicationAt());
+                    }
+                }
+                if (changed) {
+                    points.put(new JSONObject()
+                            .put("observed_at", observedAt)
+                            .put("price", listing.getSalePrice())
+                            .put("area", listing.getArea()));
+                    while (points.length() > MAX_POINTS) {
+                        points.remove(0);
+                    }
+                }
+                item.put("points", points);
+                preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+            } catch (Exception ignored) {
+                return UNCHANGED;
+            }
+            return created ? CREATED : (changed ? CHANGED : UNCHANGED);
         }
-        return created ? CREATED : (changed ? CHANGED : UNCHANGED);
     }
 
     static boolean hasObservationChanged(JSONObject previous, PropertyPageListing listing) {
@@ -135,11 +153,81 @@ final class PropertyHistoryRepository {
     }
 
     private JSONArray readEntries() {
-        try {
-            return new JSONArray(preferences.getString(KEY_ENTRIES, "[]"));
-        } catch (Exception ignored) {
-            return new JSONArray();
+        synchronized (preferences) {
+            try {
+                JSONArray entries = new JSONArray(preferences.getString(KEY_ENTRIES, "[]"));
+                boolean changed = false;
+                for (int index = 0; index < entries.length(); index++) {
+                    changed |= quarantineLegacyHistory(entries.optJSONObject(index));
+                }
+                if (changed) {
+                    preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+                }
+                return entries;
+            } catch (Exception ignored) {
+                return new JSONArray();
+            }
         }
+    }
+
+    // The old reader did not store price provenance. Keep a recoverable copy, not a false graph.
+    static boolean quarantineLegacyHistory(JSONObject item) throws org.json.JSONException {
+        if (item == null || !PropertyPageClient.isQuintoAndarListingUrl(item.optString("url"))
+                || item.optInt("identity_validation_version", 0) >= 1) {
+            return false;
+        }
+        JSONObject legacy = new JSONObject(item.toString());
+        item.put("legacy_unverified", legacy)
+                .put("points", new JSONArray())
+                .put("first_publication_at", 0L)
+                .put("last_publication_at", 0L)
+                .put("validation_status", "pending")
+                .put("identity_validation_version", 1);
+        return true;
+    }
+
+    synchronized void markUnavailable(long interestId, PropertyPageListing listing, long checkedAt) {
+        synchronized (preferences) {
+            JSONArray entries = readEntries();
+            JSONObject item = find(entries, interestId, listing.getId());
+            if (item == null) {
+                item = new JSONObject();
+                entries.put(item);
+            }
+            try {
+                item.put("interest_id", interestId).put("listing_id", listing.getId())
+                        .put("url", listing.getUrl()).put("title", listing.getDescription())
+                        .put("first_seen_at", item.optLong("first_seen_at", checkedAt))
+                        .put("last_seen_at", checkedAt).put("validation_status", "unavailable")
+                        .put("identity_validation_version", 1)
+                        .put("last_summary_area", listing.getArea())
+                        .put("last_summary_price", listing.getSalePrice());
+                preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+            } catch (org.json.JSONException ignored) {
+            }
+        }
+    }
+
+    synchronized List<PropertyPageListing> getTrackedListings(long interestId) {
+        List<PropertyPageListing> listings = new ArrayList<>();
+        JSONArray entries = readEntries();
+        for (int index = 0; index < entries.length(); index++) {
+            JSONObject item = entries.optJSONObject(index);
+            if (item == null || item.optLong("interest_id") != interestId
+                    || !PropertyPageClient.isQuintoAndarListingUrl(item.optString("url"))) continue;
+            JSONArray points = item.optJSONArray("points");
+            if ((points == null || points.length() == 0) && item.optJSONObject("legacy_unverified") != null) {
+                points = item.optJSONObject("legacy_unverified").optJSONArray("points");
+            }
+            JSONObject last = points == null ? null : points.optJSONObject(points.length() - 1);
+            double area = last == null ? item.optDouble("last_summary_area", 0d) : last.optDouble("area");
+            double price = last == null ? item.optDouble("last_summary_price", 0d) : last.optDouble("price");
+            if (area > 0d && price > 0d) {
+                listings.add(new PropertyPageListing(item.optString("listing_id"), area, price,
+                        item.optString("title"), item.optString("url")));
+            }
+        }
+        return listings;
     }
 
     private JSONObject find(JSONArray entries, long interestId, String listingId) {
@@ -175,7 +263,8 @@ final class PropertyHistoryRepository {
                 item.optString("title", ""), normalizeListingUrl(item.optString("url", "")),
                 item.optLong("first_seen_at", 0L), item.optLong("last_seen_at", 0L),
                 item.optLong("first_publication_at", 0L), item.optBoolean("new_ad", false),
-                points);
+                points, item.optString("validation_status", "available"),
+                item.optJSONObject("legacy_unverified") != null);
     }
 
     private String normalizeListingUrl(String url) {

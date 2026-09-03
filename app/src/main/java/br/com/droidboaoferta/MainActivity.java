@@ -566,21 +566,23 @@ public class MainActivity extends AlertouActivity {
                 card.addView(createOfferDivider());
             }
             String displayedTime = OfferDateFormatter.formatTime(offer.getObservedAt());
+            PropertyHistoryEntry propertyHistory = propertyHistoryRepository.getForOffer(offer);
+            String displayedPrice = PropertyOfferDisplay.formatPrice(this, offer, propertyHistory, currency);
             String contentDescription = getString(
                     R.string.dashboard_offer_summary,
-                    currency.format(offer.getPrice()),
+                    displayedPrice,
                     offer.getSource(),
                     groupLabel + " " + displayedTime
             );
             GroupSpeedRepository speed = new GroupSpeedRepository(this);
             boolean expired = speed.isOfferExpired(offer);
-            PropertyHistoryEntry propertyHistory = propertyHistoryRepository.getForOffer(offer);
             LinearLayout row = createOfferRow(
                     offer.getInterest(),
-                    currency.format(offer.getPrice()),
+                    displayedPrice,
                     displayedTime,
                     offer.getSource(),
                     contentDescription,
+                    getPropertyListingCode(offer),
                     expired,
                     propertyHistory != null && propertyHistory.isRecent(System.currentTimeMillis()),
                     propertyHistory == null ? 0L : propertyHistory.getFirstPublicationAt(),
@@ -670,7 +672,8 @@ public class MainActivity extends AlertouActivity {
     }
 
     private LinearLayout createOfferRow(String title, String price, String time, String source,
-                                        String contentDescription, boolean expired,
+                                        String contentDescription, String propertyListingCode,
+                                        boolean expired,
                                         boolean newPropertyAd, long propertyPublishedAt,
                                         double propertyPriceDrop,
                                         double propertyPriceDropPercentage,
@@ -757,6 +760,16 @@ public class MainActivity extends AlertouActivity {
             published.setSingleLine(true);
             published.setPadding(0, dp(2), 0, 0);
             row.addView(published);
+        }
+        if (!propertyListingCode.isEmpty()) {
+            String codeLabel = getString(R.string.property_listing_code, propertyListingCode);
+            TextView code = new TextView(this);
+            code.setText(codeLabel);
+            code.setTextColor(getColor(R.color.text_secondary));
+            code.setTextSize(11.5f);
+            code.setPadding(0, dp(2), 0, 0);
+            row.addView(code);
+            row.setContentDescription(contentDescription + ". " + codeLabel);
         }
         if (expired) {
             TextView status = new TextView(this);
@@ -880,6 +893,9 @@ public class MainActivity extends AlertouActivity {
                         return true;
                     }
                     if (!swiping[0] && Math.abs(deltaX) < dp(10) && Math.abs(deltaY) < dp(10)
+                            && isUnavailablePropertyOffer(offer)) {
+                        showPropertyHistoryDialog(offer);
+                    } else if (!swiping[0] && Math.abs(deltaX) < dp(10) && Math.abs(deltaY) < dp(10)
                             && expired) {
                         showPromotionValidityDialog(offer, true);
                     } else if (!swiping[0] && Math.abs(deltaX) < dp(10) && Math.abs(deltaY) < dp(10)
@@ -921,6 +937,20 @@ public class MainActivity extends AlertouActivity {
 
     private boolean isPropertyOffer(ObservedOffer offer) {
         return offer != null && offer.getId().startsWith("property|");
+    }
+
+    private boolean isUnavailablePropertyOffer(ObservedOffer offer) {
+        if (!isPropertyOffer(offer)) return false;
+        PropertyHistoryEntry entry = new PropertyHistoryRepository(this).getForOffer(offer);
+        return entry != null && entry.isUnavailable();
+    }
+
+    private String getPropertyListingCode(ObservedOffer offer) {
+        if (!isPropertyOffer(offer)) {
+            return "";
+        }
+        String[] parts = offer.getId().split("\\|", -1);
+        return parts.length == 3 ? parts[2].trim() : "";
     }
 
     private boolean isCouponOffer(ObservedOffer offer) {
@@ -986,7 +1016,7 @@ public class MainActivity extends AlertouActivity {
 
     private void showPropertyHistoryDialog(ObservedOffer offer) {
         PropertyHistoryEntry entry = new PropertyHistoryRepository(this).getForOffer(offer);
-        if (entry == null || entry.getPoints().isEmpty()) {
+        if (entry == null) {
             Toast.makeText(this, R.string.property_history_empty, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -1031,13 +1061,27 @@ public class MainActivity extends AlertouActivity {
         TextView summary = new TextView(this);
         summary.setText(getString(
                 R.string.property_history_current_summary,
-                currency.format(offer.getPrice()),
+                PropertyOfferDisplay.formatPrice(this, offer, entry, currency),
                 offer.getSource()
         ));
         summary.setTextColor(getColor(R.color.text_secondary));
         summary.setTextSize(14);
         summary.setPadding(0, dp(6), 0, dp(8));
         content.addView(summary);
+
+        TextView code = new TextView(this);
+        code.setText(getString(R.string.property_listing_code, entry.getListingId()));
+        code.setTextColor(getColor(R.color.text_secondary));
+        code.setTextSize(13);
+        content.addView(code);
+        if (entry.isUnavailable()) {
+            content.addView(createPropertyHistoryNotice(R.string.property_unavailable_description));
+        } else if (entry.isPendingValidation()) {
+            content.addView(createPropertyHistoryNotice(R.string.property_price_pending_description));
+        }
+        if (entry.hasUnverifiedHistory()) {
+            content.addView(createPropertyHistoryNotice(R.string.property_history_unverified_notice));
+        }
 
         if (!entry.getTitle().trim().isEmpty()
                 && !OfferTextParser.normalize(entry.getTitle())
@@ -1067,30 +1111,34 @@ public class MainActivity extends AlertouActivity {
             ));
         }
 
-        TextView chartTitle = new TextView(this);
-        chartTitle.setText(R.string.property_history_chart_title);
-        chartTitle.setTextColor(getColor(R.color.text_primary));
-        chartTitle.setTextSize(16);
-        chartTitle.setPadding(0, dp(14), 0, dp(4));
-        content.addView(chartTitle);
+        if (!entry.getPoints().isEmpty()) {
+            TextView chartTitle = new TextView(this);
+            chartTitle.setText(R.string.property_history_chart_title);
+            chartTitle.setTextColor(getColor(R.color.text_primary));
+            chartTitle.setTextSize(16);
+            chartTitle.setPadding(0, dp(14), 0, dp(4));
+            content.addView(chartTitle);
 
-        PropertyPriceTrendView trendView = new PropertyPriceTrendView(this);
-        trendView.setPoints(entry.getPoints());
-        content.addView(trendView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(210)
-        ));
+            PropertyPriceTrendView trendView = new PropertyPriceTrendView(this);
+            trendView.setPoints(entry.getPoints());
+            content.addView(trendView, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(210)
+            ));
 
-        TextView readingsTitle = new TextView(this);
-        readingsTitle.setText(R.string.property_history_readings_title);
-        readingsTitle.setTextColor(getColor(R.color.text_primary));
-        readingsTitle.setTextSize(16);
-        readingsTitle.setPadding(0, dp(8), 0, dp(4));
-        content.addView(readingsTitle);
+            TextView readingsTitle = new TextView(this);
+            readingsTitle.setText(R.string.property_history_readings_title);
+            readingsTitle.setTextColor(getColor(R.color.text_primary));
+            readingsTitle.setTextSize(16);
+            readingsTitle.setPadding(0, dp(8), 0, dp(4));
+            content.addView(readingsTitle);
 
-        int firstIndex = Math.max(0, entry.getPoints().size() - 8);
-        for (int index = entry.getPoints().size() - 1; index >= firstIndex; index--) {
-            content.addView(createPropertyHistoryPointRow(entry.getPoints().get(index), currency));
+            int firstIndex = Math.max(0, entry.getPoints().size() - 8);
+            for (int index = entry.getPoints().size() - 1; index >= firstIndex; index--) {
+                content.addView(createPropertyHistoryPointRow(entry.getPoints().get(index), currency));
+            }
+        } else {
+            content.addView(createPropertyHistoryNotice(R.string.property_history_empty));
         }
 
         LinearLayout actions = new LinearLayout(this);
@@ -1116,6 +1164,15 @@ public class MainActivity extends AlertouActivity {
             shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
+    }
+
+    private TextView createPropertyHistoryNotice(int resource) {
+        TextView notice = new TextView(this);
+        notice.setText(resource);
+        notice.setTextColor(getColor(R.color.text_secondary));
+        notice.setTextSize(13);
+        notice.setPadding(0, dp(10), 0, dp(6));
+        return notice;
     }
 
     private LinearLayout createPropertyHistoryFact(int labelResource, String value) {

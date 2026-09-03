@@ -382,7 +382,9 @@ abstract class StoredOffersActivity extends AlertouActivity {
         mainLine.addView(titleView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         TextView priceView = new TextView(this);
-        priceView.setText(price);
+        priceView.setText(PropertyOfferDisplay.formatPrice(this, offer,
+                new PropertyHistoryRepository(this).getForOffer(offer),
+                NumberFormat.getCurrencyInstance(new Locale("pt", "BR"))));
         priceView.setTextColor(getColor(R.color.text_primary));
         priceView.setTextSize(14);
         priceView.setSingleLine(true);

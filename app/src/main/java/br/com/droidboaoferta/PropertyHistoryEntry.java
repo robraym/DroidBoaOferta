@@ -13,10 +13,20 @@ final class PropertyHistoryEntry {
     private final long firstPublicationAt;
     private final boolean newAd;
     private final List<PropertyHistoryPoint> points;
+    private final String validationStatus;
+    private final boolean hasUnverifiedHistory;
 
     PropertyHistoryEntry(long interestId, String listingId, String title, String url,
                          long firstSeenAt, long lastSeenAt, long firstPublicationAt,
                          boolean newAd, List<PropertyHistoryPoint> points) {
+        this(interestId, listingId, title, url, firstSeenAt, lastSeenAt, firstPublicationAt,
+                newAd, points, "available", false);
+    }
+
+    PropertyHistoryEntry(long interestId, String listingId, String title, String url,
+                         long firstSeenAt, long lastSeenAt, long firstPublicationAt,
+                         boolean newAd, List<PropertyHistoryPoint> points,
+                         String validationStatus, boolean hasUnverifiedHistory) {
         this.interestId = interestId;
         this.listingId = listingId;
         this.title = title == null ? "" : title;
@@ -26,6 +36,8 @@ final class PropertyHistoryEntry {
         this.firstPublicationAt = firstPublicationAt;
         this.newAd = newAd;
         this.points = points == null ? Collections.emptyList() : Collections.unmodifiableList(points);
+        this.validationStatus = validationStatus;
+        this.hasUnverifiedHistory = hasUnverifiedHistory;
     }
 
     long getInterestId() { return interestId; }
@@ -37,12 +49,19 @@ final class PropertyHistoryEntry {
     long getFirstPublicationAt() { return firstPublicationAt; }
     boolean isNewAd() { return newAd; }
     List<PropertyHistoryPoint> getPoints() { return points; }
+    boolean isUnavailable() { return "unavailable".equals(validationStatus); }
+    boolean isPendingValidation() { return "pending".equals(validationStatus); }
+    boolean hasUnverifiedHistory() { return hasUnverifiedHistory; }
+    double getLatestPrice(double fallback) {
+        return points.isEmpty() ? fallback : points.get(points.size() - 1).getPrice();
+    }
 
     boolean hasPriceDrop() {
         return getPriceDropAmount() > 0d;
     }
 
     double getPriceDropAmount() {
+        if (isUnavailable() || isPendingValidation()) return 0d;
         for (int index = points.size() - 1; index > 0; index--) {
             double previousPrice = points.get(index - 1).getPrice();
             double currentPrice = points.get(index).getPrice();
@@ -54,6 +73,7 @@ final class PropertyHistoryEntry {
     }
 
     double getPriceDropPercentage() {
+        if (isUnavailable() || isPendingValidation()) return 0d;
         for (int index = points.size() - 1; index > 0; index--) {
             double previousPrice = points.get(index - 1).getPrice();
             double currentPrice = points.get(index).getPrice();
@@ -67,6 +87,7 @@ final class PropertyHistoryEntry {
     }
 
     boolean isRecent(long now) {
+        if (isUnavailable() || isPendingValidation()) return false;
         long reference = firstPublicationAt > 0L ? firstPublicationAt : firstSeenAt;
         return newAd && reference > 0L && now - reference <= 7L * 24L * 60L * 60L * 1000L;
     }

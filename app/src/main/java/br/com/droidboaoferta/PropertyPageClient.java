@@ -88,7 +88,25 @@ final class PropertyPageClient {
         if (normalizedUrl == null) {
             throw new IllegalArgumentException("Unsupported listing page");
         }
-        return PropertyPageParser.parseListingMetadata(fetchHtml(normalizedUrl));
+        if (!isQuintoAndarListingUrl(normalizedUrl)) {
+            return PropertyListingMetadata.empty();
+        }
+        return PropertyPageParser.parseListingMetadata(
+                fetchHtml(normalizedUrl), getListingId(normalizedUrl));
+    }
+
+    static boolean isQuintoAndarListingUrl(String url) {
+        String normalized = normalizeListingUrl(url);
+        return normalized != null && normalized.startsWith("https://www.quintoandar.com.br/");
+    }
+
+    static String getListingId(String url) {
+        String normalized = normalizeListingUrl(url);
+        if (normalized == null || !isQuintoAndarListingUrl(normalized)) {
+            return "";
+        }
+        String[] parts = URI.create(normalized).getPath().split("/");
+        return parts.length >= 3 ? parts[2] : "";
     }
 
     static String buildListingUrl(String id) {

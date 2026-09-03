@@ -91,6 +91,9 @@ final class PropertyPageMonitor {
                 // Uma falha temporária não altera os imóveis já avisados.
             }
         }
+        // Also refresh status when all results are unavailable or no new offer was emitted.
+        context.sendBroadcast(new Intent(OfferMonitor.ACTION_OFFER_FOUND)
+                .setPackage(context.getPackageName()));
     }
 
     private void checkInterest(Context context, Interest interest) throws Exception {
@@ -109,29 +112,39 @@ final class PropertyPageMonitor {
         PropertyHistoryRepository historyRepository = new PropertyHistoryRepository(context);
         List<PropertyPageListing> matches = new ArrayList<>();
         Map<String, Integer> historyChanges = new HashMap<>();
+        Map<String, PropertyPageListing> candidates = new java.util.LinkedHashMap<>();
+        for (PropertyPageListing listing : historyRepository.getTrackedListings(interest.getId())) {
+            candidates.put(listing.getId(), listing);
+        }
         for (PropertyPageListing listing : result.getSaleListings()) {
-            if (!listing.matchesArea(
-                    interest.getMinimumArea(), interest.getMaximumArea())) {
-                continue;
-            }
+            candidates.put(listing.getId(), listing);
+        }
+        for (PropertyPageListing listing : candidates.values()) {
             boolean previouslyObserved = historyRepository.contains(
                     interest.getId(), listing.getId());
-            PropertyPageListing currentListing = listing;
+            if (!previouslyObserved && !listing.matchesArea(
+                    interest.getMinimumArea(), interest.getMaximumArea())) continue;
             PropertyListingMetadata metadata = null;
-            if (shouldVerifyIndividualPrice(
+            boolean requiresIdentity = PropertyPageClient.isQuintoAndarListingUrl(listing.getUrl());
+            if (requiresIdentity && shouldVerifyIndividualPrice(
                     previouslyObserved,
                     listing.getSalePrice(),
                     interest.getMaximumPrice())) {
                 try {
                     metadata = PropertyPageClient.fetchListingMetadata(listing.getUrl());
-                    if (metadata.getSalePrice() > 0d) {
-                        currentListing = listing.withSalePrice(metadata.getSalePrice());
-                    }
                 } catch (Exception ignored) {
                     metadata = PropertyListingMetadata.empty();
                 }
             }
-            boolean eligible = currentListing.getSalePrice() <= interest.getMaximumPrice();
+            if (requiresIdentity && metadata != null && metadata.isUnavailableFor(listing.getId())) {
+                historyRepository.markUnavailable(interest.getId(), listing, observedAt);
+                forgetUnavailableNotification(context, interest.getId(), listing.getId());
+                continue;
+            }
+            PropertyPageListing currentListing = resolveCurrentListing(listing, metadata);
+            if (currentListing == null) continue;
+            boolean eligible = currentListing.matches(interest.getMinimumArea(),
+                    interest.getMaximumArea(), interest.getMaximumPrice());
             if (previouslyObserved || eligible) {
                 historyChanges.put(currentListing.getId(), historyRepository.recordObservation(
                         interest.getId(), currentListing, observedAt, metadata));
@@ -205,6 +218,29 @@ final class PropertyPageMonitor {
                                                double maximumPrice) {
         return previouslyObserved
                 || summaryPrice <= maximumPrice * PRICE_VERIFICATION_MARGIN;
+    }
+
+    static PropertyPageListing resolveCurrentListing(PropertyPageListing listing,
+                                                       PropertyListingMetadata metadata) {
+        String normalizedUrl = PropertyPageClient.normalizeListingUrl(listing.getUrl());
+        if (normalizedUrl == null) return null;
+        if ("Loft".equals(PropertyPageClient.getSourceName(normalizedUrl))) return listing;
+        if (metadata == null || !metadata.isVerifiedFor(listing.getId())) return null;
+        return new PropertyPageListing(listing.getId(), metadata.getArea(), metadata.getSalePrice(),
+                listing.getDescription(), listing.getUrl(), listing.isNewAd());
+    }
+
+    private void forgetUnavailableNotification(Context context, long interestId, String listingId) {
+        SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String key = NOTIFIED_PRICES_PREFIX + interestId;
+        try {
+            JSONObject prices = new JSONObject(preferences.getString(key, "{}"));
+            prices.remove(listingId);
+            preferences.edit().putString(key, prices.toString()).apply();
+        } catch (Exception ignored) {
+        }
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) manager.cancel(Long.hashCode(interestId) ^ 0x51A7);
     }
 
     private void showNotification(Context context, Interest interest, PropertyPageResult result,

@@ -218,17 +218,90 @@ public class PropertyPageParserTest {
     }
 
     @Test
-    public void parsesCurrentPriceFromIndividualListingPage() {
-        String html = "<script id=\"__NEXT_DATA__\" type=\"application/json\">"
-                + "{\"props\":{\"pageProps\":{\"forSale\":true,\"salePrice\":399000,"
-                + "\"listings\":[{\"firstPublicationDate\":\"2026-07-21T01:51:27.000+0000\","
-                + "\"lastPublicationDate\":\"2026-07-21T01:51:27.000+0000\"}]}}}"
-                + "</script>";
-
-        PropertyListingMetadata metadata = PropertyPageParser.parseListingMetadata(html);
+    public void parsesCurrentPriceFromIndividualListingPage() throws Exception {
+        org.json.JSONObject root = listingPage("895590942", "895590942");
+        PropertyListingMetadata metadata = PropertyPageParser.parseListingMetadata(wrap(root), "895590942");
 
         assertEquals(399000d, metadata.getSalePrice(), 0.001d);
+        assertTrue(metadata.isVerifiedFor("895590942"));
         assertTrue(metadata.getFirstPublicationAt() > 0L);
+    }
+
+    @Test
+    public void unavailablePageNeverUsesRecommendationPrice() throws Exception {
+        org.json.JSONObject root = listingPage("118413857", "");
+        root.put("page", "/indisponivel/[houseId]/comprar");
+        PropertyListingMetadata metadata = PropertyPageParser.parseListingMetadata(wrap(root), "118413857");
+        assertTrue(metadata.isUnavailableFor("118413857"));
+        assertFalse(metadata.isVerifiedFor("118413857"));
+        assertTrue(Double.isNaN(metadata.getSalePrice()));
+    }
+
+    @Test
+    public void rejectsDifferentMainListingAndRedirectedQuery() throws Exception {
+        assertFalse(PropertyPageParser.parseListingMetadata(
+                wrap(listingPage("118413857", "895691891")), "118413857")
+                .isVerifiedFor("118413857"));
+        org.json.JSONObject redirected = listingPage("895691891", "895691891");
+        redirected.put("page", "/indisponivel/[houseId]/comprar");
+        PropertyListingMetadata metadata = PropertyPageParser.parseListingMetadata(wrap(redirected), "118413857");
+        assertFalse(metadata.isUnavailableFor("118413857"));
+        assertTrue(Double.isNaN(metadata.getSalePrice()));
+    }
+
+    @Test
+    public void ignoresRecommendationsWhenMainPriceIsMissing() throws Exception {
+        org.json.JSONObject root = listingPage("118413857", "118413857");
+        mainInfo(root).put("salePrice", org.json.JSONObject.NULL);
+        PropertyListingMetadata metadata = PropertyPageParser.parseListingMetadata(wrap(root), "118413857");
+        assertTrue(Double.isNaN(metadata.getSalePrice()));
+        assertFalse(metadata.isUnavailableFor("118413857"));
+    }
+
+    @Test
+    public void recognizesDelistedSaleAndRejectsNonFinitePrice() throws Exception {
+        org.json.JSONObject root = listingPage("123", "123");
+        mainInfo(root).put("forSale", false);
+        assertTrue(PropertyPageParser.parseListingMetadata(wrap(root), "123").isUnavailableFor("123"));
+        mainInfo(root).put("forSale", true).put("salePrice", "Infinity");
+        assertFalse(PropertyPageParser.parseListingMetadata(wrap(root), "123").isVerifiedFor("123"));
+        assertFalse(PropertyPageParser.parseListingMetadata("<html>Error</html>", "123").isVerifiedFor("123"));
+    }
+
+    @Test
+    public void datesComeOnlyFromSaleOfSameListing() throws Exception {
+        org.json.JSONObject root = listingPage("123", "123");
+        mainInfo(root).put("listings", new org.json.JSONArray()
+                .put(new org.json.JSONObject().put("businessContext", "RENT")
+                        .put("firstPublicationDate", "2020-01-01T00:00:00-03:00"))
+                .put(new org.json.JSONObject().put("businessContext", "SALE").put("imovelId", "other")
+                        .put("firstPublicationDate", "2021-01-01T00:00:00-03:00")));
+        assertEquals(0L, PropertyPageParser.parseListingMetadata(wrap(root), "123").getFirstPublicationAt());
+    }
+
+    private static org.json.JSONObject listingPage(String queryId, String mainId) throws Exception {
+        org.json.JSONObject info = new org.json.JSONObject()
+                .put("id", mainId).put("forSale", true).put("area", 27).put("salePrice", 399000)
+                .put("listings", new org.json.JSONArray().put(new org.json.JSONObject()
+                        .put("imovelId", mainId).put("businessContext", "SALE").put("status", "publicado")
+                        .put("firstPublicationDate", "2026-07-21T01:51:27-03:00")
+                        .put("lastPublicationDate", "2026-07-21T01:51:27.000+0000")));
+        org.json.JSONObject props = new org.json.JSONObject()
+                .put("condominiumHouses", new org.json.JSONObject().put("houses", new org.json.JSONArray()
+                        .put(new org.json.JSONObject().put("id", "895691891").put("salePrice", 320000).put("area", 53))))
+                .put("initialState", new org.json.JSONObject().put("house", new org.json.JSONObject().put("houseInfo", info)));
+        return new org.json.JSONObject().put("page", "/imovel/[houseId]/comprar/[[...slug]]")
+                .put("query", new org.json.JSONObject().put("houseId", queryId))
+                .put("props", new org.json.JSONObject().put("pageProps", props));
+    }
+
+    private static org.json.JSONObject mainInfo(org.json.JSONObject root) throws Exception {
+        return root.getJSONObject("props").getJSONObject("pageProps").getJSONObject("initialState")
+                .getJSONObject("house").getJSONObject("houseInfo");
+    }
+
+    private static String wrap(org.json.JSONObject root) {
+        return "<script id=\"__NEXT_DATA__\">" + root + "</script>";
     }
 
     @Test
