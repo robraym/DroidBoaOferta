@@ -1100,6 +1100,17 @@ final class CloudSyncStore {
                 .apply();
     }
 
+    static long getBackupRetryDeadline(Context context) {
+        return syncPrefs(context).getLong("backup_retry_not_before", 0L);
+    }
+
+    static void rememberBackupRetryDeadline(Context context, long deadline) {
+        SharedPreferences prefs = syncPrefs(context);
+        if (deadline > prefs.getLong("backup_retry_not_before", 0L)) {
+            prefs.edit().putLong("backup_retry_not_before", deadline).apply();
+        }
+    }
+
     static long getLastRemoteBackupAt(Context context) {
         return syncPrefs(context).getLong(LAST_REMOTE_BACKUP_AT, 0L);
     }
@@ -1294,6 +1305,13 @@ final class CloudSyncStore {
 
     static JSONObject findNewestBackup(JSONArray messages) {
         return findBackup(messages, false);
+    }
+
+    static boolean shouldRefreshForBackupMessage(JSONObject message) {
+        JSONObject chunk = parseBackupChunkFromMessage(message);
+        if (chunk == null) return true; // Complete legacy/unfragmented snapshot.
+        int total = chunk.optInt("total");
+        return total > 0 && chunk.optInt("chunk") == total;
     }
 
     /** Manual restore must never prefer an empty snapshot over a backup with alerts. */

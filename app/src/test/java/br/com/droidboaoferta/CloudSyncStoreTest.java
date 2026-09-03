@@ -9,6 +9,20 @@ import org.junit.Test;
 
 public class CloudSyncStoreTest {
     @Test
+    public void eighteenBackupPartsTriggerOneRefreshNotEighteen() throws Exception {
+        int refreshes = 0;
+        for (int index = 1; index <= 18; index++) {
+            JSONObject part = rawMessage(index, chunk("current", 300, index, 18, "payload"));
+            if (CloudSyncStore.shouldRefreshForBackupMessage(part)) refreshes++;
+        }
+        assertEquals(1, refreshes);
+        org.junit.Assert.assertTrue(CloudSyncStore.shouldRefreshForBackupMessage(
+                rawMessage(1, chunk("single", 300, 1, 1, "payload"))));
+        org.junit.Assert.assertTrue(CloudSyncStore.shouldRefreshForBackupMessage(
+                message(1, backup(300, true, "[]", 0).toString())));
+    }
+
+    @Test
     public void mergesHistoryFromOlderSnapshotWithoutReplacingNewerConfiguration() throws Exception {
         JSONObject older = backup(100L, true, "[{\"id\":1}]", 1);
         older.getJSONObject("data").put("property_history", PropertyHistorySync.pack(new JSONArray().put(

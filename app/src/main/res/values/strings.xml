@@ -245,6 +245,7 @@
     <string name="profile_manual_backup_no_alerts">Nenhum alerta cadastrado para incluir no backup.</string>
     <string name="profile_manual_backup_cancelled">Backup cancelado.</string>
     <string name="profile_manual_backup_failed">Não foi possível concluir o backup.</string>
+    <string name="profile_backup_waiting_telegram">O Telegram pediu uma pausa. O backup será retomado automaticamente.</string>
     <string name="profile_manual_restore_login_required">Entre no Telegram para restaurar o backup.</string>
     <string name="profile_manual_restore_preparing">Preparando restauração...</string>
     <string name="profile_manual_restore_searching">Restaurando backup...</string>
