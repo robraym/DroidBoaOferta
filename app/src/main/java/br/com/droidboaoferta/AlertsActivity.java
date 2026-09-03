@@ -258,8 +258,8 @@ public class AlertsActivity extends AlertouActivity {
         Comparator<Interest> comparator;
         if (sortOrder == SORT_NAME) {
             comparator = (first, second) -> {
-                int byName = OfferTextParser.normalize(first.getTerm())
-                        .compareTo(OfferTextParser.normalize(second.getTerm()));
+                int byName = OfferTextParser.normalize(getInterestSortName(first))
+                        .compareTo(OfferTextParser.normalize(getInterestSortName(second)));
                 return byName != 0 ? byName : Long.compare(second.getId(), first.getId());
             };
         } else if (sortOrder == SORT_PRICE_ASCENDING) {
@@ -276,6 +276,15 @@ public class AlertsActivity extends AlertouActivity {
             return;
         }
         interests.sort(comparator);
+    }
+
+    private String getInterestSortName(Interest interest) {
+        return interest.isProperty() ? getPropertyDisplayName(interest) : interest.getTerm();
+    }
+
+    private String getPropertyDisplayName(Interest interest) {
+        String name = PropertyPageResult.normalizeCondominiumName(interest.getPropertyName());
+        return name.isEmpty() ? getString(R.string.property_interest_unknown_name) : name;
     }
 
     private void showSortDialog() {
@@ -319,12 +328,7 @@ public class AlertsActivity extends AlertouActivity {
             textContainer.setOrientation(LinearLayout.VERTICAL);
 
             TextView title = createInterestText();
-            String normalizedPropertyName = PropertyPageResult.normalizeCondominiumName(
-                    interest.getPropertyName());
-            String propertyName = normalizedPropertyName.isEmpty()
-                    ? getString(R.string.property_interest_unknown_name)
-                    : normalizedPropertyName;
-            title.setText(propertyName);
+            title.setText(getPropertyDisplayName(interest));
             title.setTextSize(14);
             title.setEllipsize(TextUtils.TruncateAt.END);
             textContainer.addView(title);
