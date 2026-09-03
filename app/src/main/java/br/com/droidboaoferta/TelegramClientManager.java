@@ -2314,6 +2314,11 @@ final class TelegramClientManager {
     }
 
     private synchronized void handleBackupPruneSearch(JSONArray messages) {
+        if (CloudSyncStore.preservePropertyHistoryBeforePrune(appContext, messages, backupPruneKeepMessageIds)) {
+            backupPruneRequested = false;
+            backupPruneKeepMessageIds.clear();
+            return;
+        }
         JSONArray oldBackupIds = new JSONArray();
         if (messages != null) {
             for (int index = 0; index < messages.length(); index++) {

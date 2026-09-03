@@ -91,6 +91,7 @@ final class PropertyPageMonitor {
                 // Uma falha temporária não altera os imóveis já avisados.
             }
         }
+        PropertyHistoryRepository.publishPendingChanges(context);
         // Also refresh status when all results are unavailable or no new offer was emitted.
         context.sendBroadcast(new Intent(OfferMonitor.ACTION_OFFER_FOUND)
                 .setPackage(context.getPackageName()));
@@ -121,7 +122,7 @@ final class PropertyPageMonitor {
         }
         for (PropertyPageListing listing : candidates.values()) {
             boolean previouslyObserved = historyRepository.contains(
-                    interest.getId(), listing.getId());
+                    interest.getId(), listing);
             if (!previouslyObserved && !listing.matchesArea(
                     interest.getMinimumArea(), interest.getMaximumArea())) continue;
             PropertyListingMetadata metadata = null;

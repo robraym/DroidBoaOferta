@@ -1179,6 +1179,8 @@ final class CloudSyncStore {
                 .apply();
     }
 
+    private static final String KEY_PROPERTY_HISTORY = "property_history";
+
     static JSONObject exportBackup(Context context) {
         Context appContext = context.getApplicationContext();
         long updatedAt = getLastLocalChange(appContext);
@@ -1204,6 +1206,8 @@ final class CloudSyncStore {
                     Collections.emptySet()
             )));
             data.put(KEY_INTERESTS, offers.getString(KEY_INTERESTS, "[]"));
+            data.put(KEY_PROPERTY_HISTORY, PropertyHistorySync.pack(
+                    new PropertyHistoryRepository(appContext).exportForSync()));
             data.put(KEY_ARCHIVED_OFFERS, offers.getString(KEY_ARCHIVED_OFFERS, "[]"));
             data.put(KEY_ARCHIVED_UPDATED_AT, ensureCollectionUpdatedAt(
                     appContext,
@@ -1298,6 +1302,7 @@ final class CloudSyncStore {
     }
 
     private static JSONObject findBackup(JSONArray messages, boolean preferUsefulData) {
+        JSONArray propertyHistory = new JSONArray();
         JSONObject newest = null;
         long newestUpdatedAt = 0L;
         int newestDataScore = -1;
@@ -1326,6 +1331,7 @@ final class CloudSyncStore {
             if (backup == null) {
                 continue;
             }
+            propertyHistory = mergeBackupPropertyHistory(propertyHistory, backup);
             try {
                 backup.put("_message_id", message.optLong("id", 0L));
             } catch (Exception ignored) {
@@ -1346,6 +1352,7 @@ final class CloudSyncStore {
             if (backup == null) {
                 continue;
             }
+            propertyHistory = mergeBackupPropertyHistory(propertyHistory, backup);
             long updatedAt = backup.optLong("updated_at", 0L);
             int dataScore = backupDataScore(backup);
             boolean complete = backup.optBoolean("complete", false);
@@ -1357,7 +1364,59 @@ final class CloudSyncStore {
                 newestIsComplete = complete;
             }
         }
+        if (newest != null && propertyHistory.length() > 0) {
+            try {
+                JSONObject data = newest.optJSONObject("data");
+                if (data != null) {
+                    JSONArray own = PropertyHistorySync.unpack(data.opt(KEY_PROPERTY_HISTORY));
+                    boolean combined = !PropertyHistorySync.contentKey(propertyHistory)
+                            .equals(PropertyHistorySync.contentKey(PropertyHistorySync.merge(own, new JSONArray())));
+                    data.put(KEY_PROPERTY_HISTORY, PropertyHistorySync.pack(propertyHistory));
+                    if (combined) newest.put("_property_history_combined", true);
+                }
+            } catch (Exception ignored) { }
+        }
         return newest;
+    }
+
+    private static JSONArray mergeBackupPropertyHistory(JSONArray current, JSONObject backup) {
+        JSONObject data = backup.optJSONObject("data");
+        if (data == null) return current;
+        try {
+            return PropertyHistorySync.merge(current, PropertyHistorySync.unpack(data.opt(KEY_PROPERTY_HISTORY)));
+        } catch (Exception ignored) {
+            return current;
+        }
+    }
+
+    static JSONArray propertyHistoryFromBackup(JSONObject backup) {
+        if (backup == null) return new JSONArray();
+        return mergeBackupPropertyHistory(new JSONArray(), backup);
+    }
+
+    // A simultaneous backup from another device must be merged before older messages are pruned.
+    static boolean preservePropertyHistoryBeforePrune(Context context, JSONArray messages, Set<Long> keptIds) {
+        JSONArray keptMessages = new JSONArray();
+        for (int i = 0; messages != null && i < messages.length(); i++) {
+            JSONObject message = messages.optJSONObject(i);
+            if (message != null && keptIds.contains(message.optLong("id"))) keptMessages.put(message);
+        }
+        JSONObject all = findNewestBackup(messages);
+        JSONObject kept = findNewestBackup(keptMessages);
+        try {
+            JSONArray allHistory = propertyHistoryFromBackup(all);
+            if (allHistory.length() == 0) return false;
+            // Search may not have indexed all the freshly uploaded chunks yet. Do not delete originals.
+            if (kept == null) return true;
+            JSONArray keptHistory = propertyHistoryFromBackup(kept);
+            if (PropertyHistorySync.contentKey(PropertyHistorySync.merge(keptHistory, allHistory))
+                    .equals(PropertyHistorySync.contentKey(keptHistory))) return false;
+            new PropertyHistoryRepository(context).mergeFromSync(allHistory);
+            markLocalChanged(context);
+            return true;
+        } catch (Exception ignored) {
+            return true;
+        }
     }
 
     private static boolean isBetterBackup(boolean complete, long updatedAt, int dataScore,
@@ -1408,15 +1467,28 @@ final class CloudSyncStore {
         long remoteUpdatedAt = backup.optLong("updated_at", 0L);
         long localUpdatedAt = getLastLocalChange(appContext);
         long lastSeenRemoteAt = getLastRemoteBackupAt(appContext);
+        JSONObject data = backup.optJSONObject("data");
+        if (data == null || remoteUpdatedAt <= 0L) return false;
+        PropertyHistoryRepository propertyHistory = new PropertyHistoryRepository(appContext);
+        JSONArray remoteHistory;
+        try {
+            remoteHistory = data.has(KEY_PROPERTY_HISTORY)
+                    ? PropertyHistorySync.unpack(data.opt(KEY_PROPERTY_HISTORY)) : null;
+        } catch (Exception ignored) { remoteHistory = null; }
+        boolean historyChanged = propertyHistory.mergeFromSync(remoteHistory);
+        boolean historyNeedsPush = false;
+        try {
+            historyNeedsPush = (remoteHistory != null || historyChanged)
+                    && (!PropertyHistorySync.contentKey(propertyHistory.exportForSync()).equals(
+                    PropertyHistorySync.contentKey(PropertyHistorySync.merge(remoteHistory, new JSONArray())))
+                    || backup.optBoolean("_property_history_combined"));
+        } catch (Exception ignored) { }
+        if (historyNeedsPush) markLocalChanged(appContext);
         if (remoteUpdatedAt <= 0L
                 || (!force && remoteUpdatedAt <= lastSeenRemoteAt)) {
-            return false;
+            return historyChanged;
         }
 
-        JSONObject data = backup.optJSONObject("data");
-        if (data == null) {
-            return false;
-        }
         importRankingHistory(appContext, data, remoteUpdatedAt, localUpdatedAt);
 
         SharedPreferences.Editor telegram = appContext
@@ -1509,7 +1581,7 @@ final class CloudSyncStore {
 
         boolean shouldPushMergedBackup = hasPendingPush(appContext) || localUpdatedAt > remoteUpdatedAt;
         syncPrefs(appContext).edit()
-                .putLong(LAST_LOCAL_CHANGE, Math.max(localUpdatedAt, remoteUpdatedAt))
+                .putLong(LAST_LOCAL_CHANGE, Math.max(getLastLocalChange(appContext), remoteUpdatedAt))
                 .putBoolean(PENDING_PUSH, shouldPushMergedBackup)
                 .putString(KEY_INTEREST_UPDATED_AT, mergedInterestUpdatedAt.toString())
                 .putString(KEY_DELETED_INTERESTS, mergedDeletedInterests.toString())

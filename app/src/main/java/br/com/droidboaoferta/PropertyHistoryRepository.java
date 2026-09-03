@@ -29,7 +29,7 @@ final class PropertyHistoryRepository {
     }
 
     synchronized boolean shouldFetchMetadata(long interestId, PropertyPageListing listing, long now) {
-        JSONObject item = find(readEntries(), interestId, listing.getId());
+        JSONObject item = find(readEntries(), interestId, listing.getId(), listing.getUrl());
         if (item == null) {
             return true;
         }
@@ -59,8 +59,8 @@ final class PropertyHistoryRepository {
         }
     }
 
-    synchronized boolean contains(long interestId, String listingId) {
-        return find(readEntries(), interestId, listingId) != null;
+    synchronized boolean contains(long interestId, PropertyPageListing listing) {
+        return find(readEntries(), interestId, listing.getId(), listing.getUrl()) != null;
     }
 
     synchronized int recordObservation(long interestId, PropertyPageListing listing,
@@ -75,13 +75,15 @@ final class PropertyHistoryRepository {
                 return UNCHANGED;
             }
             JSONArray entries = readEntries();
-            JSONObject item = find(entries, interestId, listing.getId());
+            JSONObject item = find(entries, interestId, listing.getId(), listing.getUrl());
             boolean created = item == null;
             if (created) {
                 item = new JSONObject();
                 entries.put(item);
             }
+            String before;
             try {
+                before = PropertyHistorySync.changeKey(item);
                 restoreCompatibleLegacyHistory(item, metadata);
             } catch (org.json.JSONException ignored) {
                 return UNCHANGED;
@@ -117,13 +119,16 @@ final class PropertyHistoryRepository {
                     points.put(new JSONObject()
                             .put("observed_at", observedAt)
                             .put("price", listing.getSalePrice())
-                            .put("area", listing.getArea()));
+                            .put("area", listing.getArea())
+                            .put("identity_verified", requiresIdentity));
                     while (points.length() > MAX_POINTS) {
                         points.remove(0);
                     }
                 }
                 item.put("points", points);
-                preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+                SharedPreferences.Editor editor = preferences.edit().putString(KEY_ENTRIES, entries.toString());
+                if (!before.equals(PropertyHistorySync.changeKey(item))) editor.putBoolean("sync_dirty", true);
+                editor.apply();
             } catch (Exception ignored) {
                 return UNCHANGED;
             }
@@ -146,7 +151,17 @@ final class PropertyHistoryRepository {
             return null;
         }
         try {
-            return toEntry(find(readEntries(), Long.parseLong(parts[1]), parts[2]));
+            JSONArray entries = readEntries();
+            String identity = PropertyHistorySync.identity(offer.getLink(), parts[2]);
+            JSONObject exact = find(entries, Long.parseLong(parts[1]), parts[2]);
+            if (exact != null && (identity.isEmpty() || identity.equals(PropertyHistorySync.identity(
+                    exact.optString("url"), exact.optString("listing_id"))))) return toEntry(exact);
+            for (int index = 0; !identity.isEmpty() && index < entries.length(); index++) {
+                JSONObject item = entries.optJSONObject(index);
+                if (item != null && identity.equals(PropertyHistorySync.identity(
+                        item.optString("url"), item.optString("listing_id")))) return toEntry(item);
+            }
+            return null;
         } catch (NumberFormatException ignored) {
             return null;
         }
@@ -253,12 +268,13 @@ final class PropertyHistoryRepository {
     synchronized void markUnavailable(long interestId, PropertyPageListing listing, long checkedAt) {
         synchronized (preferences) {
             JSONArray entries = readEntries();
-            JSONObject item = find(entries, interestId, listing.getId());
+            JSONObject item = find(entries, interestId, listing.getId(), listing.getUrl());
             if (item == null) {
                 item = new JSONObject();
                 entries.put(item);
             }
             try {
+                String before = PropertyHistorySync.changeKey(item);
                 quarantineLegacyHistory(item);
                 if (item.optJSONObject("legacy_unverified") != null
                         && !item.optBoolean("legacy_history_restored", false)) {
@@ -271,7 +287,9 @@ final class PropertyHistoryRepository {
                         .put("identity_validation_version", 1)
                         .put("last_summary_area", listing.getArea())
                         .put("last_summary_price", listing.getSalePrice());
-                preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
+                SharedPreferences.Editor editor = preferences.edit().putString(KEY_ENTRIES, entries.toString());
+                if (!before.equals(PropertyHistorySync.changeKey(item))) editor.putBoolean("sync_dirty", true);
+                editor.apply();
             } catch (org.json.JSONException ignored) {
             }
         }
@@ -299,11 +317,63 @@ final class PropertyHistoryRepository {
         return listings;
     }
 
+    synchronized JSONArray exportForSync() {
+        try {
+            return PropertyHistorySync.merge(readEntries(), new JSONArray());
+        } catch (org.json.JSONException ignored) {
+            return new JSONArray();
+        }
+    }
+
+    synchronized boolean mergeFromSync(JSONArray remote) {
+        if (remote == null || remote.length() == 0) return false;
+        synchronized (preferences) {
+            try {
+                JSONArray local = readEntries();
+                JSONArray merged = PropertyHistorySync.merge(local, remote);
+                // Malformed local legacy records are preserved but never exported or merged by identity.
+                for (int i = 0; i < local.length(); i++) {
+                    JSONObject item = local.optJSONObject(i);
+                    if (item != null && PropertyHistorySync.identity(item.optString("url"),
+                            item.optString("listing_id")).isEmpty()) merged.put(item);
+                }
+                if (PropertyHistorySync.contentKey(local).equals(PropertyHistorySync.contentKey(merged))) return false;
+                preferences.edit().putString(KEY_ENTRIES, merged.toString()).apply();
+                return true;
+            } catch (org.json.JSONException ignored) {
+                return false;
+            }
+        }
+    }
+
+    static void publishPendingChanges(Context context) {
+        SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (consumePendingSync(prefs)) CloudSyncStore.markLocalChanged(context);
+    }
+
+    static boolean consumePendingSync(SharedPreferences prefs) {
+        synchronized (prefs) {
+            boolean migrated = prefs.getBoolean("sync_migrated_v1", false);
+            boolean dirty = prefs.getBoolean("sync_dirty", false)
+                    || (!migrated && !"[]".equals(prefs.getString(KEY_ENTRIES, "[]")));
+            if (migrated && !dirty) return false;
+            prefs.edit().putBoolean("sync_migrated_v1", true).putBoolean("sync_dirty", false).apply();
+            return dirty;
+        }
+    }
+
     private JSONObject find(JSONArray entries, long interestId, String listingId) {
+        return find(entries, interestId, listingId, null);
+    }
+
+    private JSONObject find(JSONArray entries, long interestId, String listingId, String url) {
+        String identity = PropertyHistorySync.identity(url, listingId);
         for (int index = 0; index < entries.length(); index++) {
             JSONObject item = entries.optJSONObject(index);
             if (item != null && item.optLong("interest_id", 0L) == interestId
-                    && listingId.equals(item.optString("listing_id", ""))) {
+                    && listingId.equals(item.optString("listing_id", ""))
+                    && (url == null || (!identity.isEmpty() && identity.equals(PropertyHistorySync.identity(
+                    item.optString("url"), item.optString("listing_id")))))) {
                 return item;
             }
         }
@@ -333,8 +403,10 @@ final class PropertyHistoryRepository {
                 item.optLong("first_seen_at", 0L), item.optLong("last_seen_at", 0L),
                 item.optLong("first_publication_at", 0L), item.optBoolean("new_ad", false),
                 points, item.optString("validation_status", "available"),
-                item.optJSONObject("legacy_unverified") != null
-                        && !item.optBoolean("legacy_history_restored", false));
+                (item.optJSONObject("legacy_unverified") != null
+                        && !item.optBoolean("legacy_history_restored", false))
+                        || (item.optJSONArray("sync_quarantined_points") != null
+                        && item.optJSONArray("sync_quarantined_points").length() > 0));
     }
 
     private String normalizeListingUrl(String url) {

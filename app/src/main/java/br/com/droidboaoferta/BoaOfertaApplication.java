@@ -8,5 +8,6 @@ public class BoaOfertaApplication extends Application {
         super.onCreate();
         ThemeController.applySavedTheme(this);
         CloudSyncStore.ensureCouponSyncGuarantee(this);
+        PropertyHistoryRepository.publishPendingChanges(this);
     }
 }

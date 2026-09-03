@@ -9,6 +9,46 @@ import org.junit.Test;
 
 public class CloudSyncStoreTest {
     @Test
+    public void mergesHistoryFromOlderSnapshotWithoutReplacingNewerConfiguration() throws Exception {
+        JSONObject older = backup(100L, true, "[{\"id\":1}]", 1);
+        older.getJSONObject("data").put("property_history", PropertyHistorySync.pack(new JSONArray().put(
+                PropertyHistorySyncTest.entry(1, "123", 200, PropertyHistorySyncTest.point(100, 414000),
+                        PropertyHistorySyncTest.point(200, 399000)))));
+        JSONObject newer = backup(200L, true, "[{\"id\":2}]", 1);
+        newer.getJSONObject("data").put("property_history", PropertyHistorySync.pack(new JSONArray().put(
+                PropertyHistorySyncTest.entry(1, "123", 300, PropertyHistorySyncTest.point(300, 399000)))));
+        JSONObject selected = CloudSyncStore.findNewestBackup(new JSONArray()
+                .put(message(1, older.toString())).put(message(2, newer.toString())));
+        assertEquals(200, selected.getLong("updated_at"));
+        assertEquals("[{\"id\":2}]", selected.getJSONObject("data").getString("interests"));
+        assertEquals(3, CloudSyncStore.propertyHistoryFromBackup(selected).getJSONObject(0).getJSONArray("points").length());
+        org.junit.Assert.assertTrue(selected.getBoolean("_property_history_combined"));
+        // After the union is published, seeing the older backups cannot request another union.
+        selected.remove("_property_history_combined");
+        selected.put("updated_at", 400);
+        JSONObject secondPull = CloudSyncStore.findNewestBackup(new JSONArray()
+                .put(message(1, older.toString())).put(message(2, newer.toString()))
+                .put(message(3, selected.toString())));
+        org.junit.Assert.assertFalse(secondPull.optBoolean("_property_history_combined"));
+    }
+
+    @Test
+    public void chunkedPropertyHistoryRoundTripPreservesOriginalReadings() throws Exception {
+        JSONObject source = backup(300, true, "[{\"id\":1}]", 1);
+        source.getJSONObject("data").put("property_history", PropertyHistorySync.pack(new JSONArray().put(
+                PropertyHistorySyncTest.entry(1, "123", 200, PropertyHistorySyncTest.point(100, 414000),
+                        PropertyHistorySyncTest.point(200, 399000)))));
+        String payload = source.toString();
+        int middle = payload.length() / 2;
+        JSONObject restored = CloudSyncStore.findNewestBackup(new JSONArray()
+                .put(rawMessage(2, chunk("history", 300, 2, 2, payload.substring(middle))))
+                .put(rawMessage(1, chunk("history", 300, 1, 2, payload.substring(0, middle)))));
+        assertEquals(PropertyHistorySync.contentKey(CloudSyncStore.propertyHistoryFromBackup(source)),
+                PropertyHistorySync.contentKey(CloudSyncStore.propertyHistoryFromBackup(restored)));
+        org.junit.Assert.assertFalse(restored.optBoolean("_property_history_combined"));
+    }
+
+    @Test
     public void newestCompleteBackupWinsEvenWhenItIsIntentionallyEmpty() throws Exception {
         JSONObject olderRich = backup(100L, false, "[{\"id\":1}]", 1);
         JSONObject newerEmpty = backup(200L, true, "[]", 0);

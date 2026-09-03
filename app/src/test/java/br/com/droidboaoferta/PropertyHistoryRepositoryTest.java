@@ -148,17 +148,19 @@ public class PropertyHistoryRepositoryTest {
         assertFalse(repository.getForOffer(offer).hasUnverifiedHistory());
     }
 
-    private static android.content.SharedPreferences memoryPreferences(java.util.Map<String, String> values) {
+    static android.content.SharedPreferences memoryPreferences(java.util.Map<String, String> values) {
         return (android.content.SharedPreferences) java.lang.reflect.Proxy.newProxyInstance(
                 PropertyHistoryRepositoryTest.class.getClassLoader(),
                 new Class<?>[]{android.content.SharedPreferences.class}, (proxy, method, args) -> {
                     if ("getString".equals(method.getName())) return values.getOrDefault((String) args[0], (String) args[1]);
+                    if ("getBoolean".equals(method.getName())) return Boolean.parseBoolean(
+                            values.getOrDefault((String) args[0], String.valueOf(args[1])));
                     if ("edit".equals(method.getName())) {
                         java.util.Map<String, String> pending = new java.util.HashMap<>();
                         return java.lang.reflect.Proxy.newProxyInstance(PropertyHistoryRepositoryTest.class.getClassLoader(),
                                 new Class<?>[]{android.content.SharedPreferences.Editor.class}, (editor, action, params) -> {
-                                    if ("putString".equals(action.getName())) {
-                                        pending.put((String) params[0], (String) params[1]);
+                                    if ("putString".equals(action.getName()) || "putBoolean".equals(action.getName())) {
+                                        pending.put((String) params[0], String.valueOf(params[1]));
                                         return editor;
                                     }
                                     if ("apply".equals(action.getName())) { values.putAll(pending); return null; }
