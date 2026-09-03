@@ -56,19 +56,29 @@ final class TelegramMessagePayload {
     }
 
     String findBestLink(String interest) {
+        if (OfferTextParser.hasDifferentFlipEdition(text, interest)) return "";
+        boolean flipModel = OfferTextParser.isFlipModelInterest(interest);
         if (links.isEmpty()) {
             return OfferTextParser.extractLink(text);
         }
-        if (links.size() == 1) {
+        if (links.size() == 1 && !flipModel) {
             return links.get(0).url;
         }
         String normalizedInterest = OfferTextParser.normalize(interest);
         String lowerText = text.toLowerCase(Locale.ROOT);
         String lowerInterest = interest == null ? "" : interest.toLowerCase(Locale.ROOT).trim();
         int interestOffset = lowerInterest.isEmpty() ? -1 : lowerText.indexOf(lowerInterest);
-        LinkCandidate best = links.get(0);
+        if (flipModel) interestOffset = OfferTextParser.findInterestOffset(text, interest);
+        LinkCandidate best = null;
         long bestScore = Long.MAX_VALUE;
         for (LinkCandidate candidate : links) {
+            if (flipModel) {
+                if (OfferTextParser.hasDifferentFlipEdition(candidate.label, interest)) continue;
+                boolean matchingLabel = OfferTextParser.isFlipModelInterest(candidate.label)
+                        && OfferTextParser.matchesInterest(candidate.label, interest);
+                if (!matchingLabel && OfferTextParser.belongsToDifferentFlipModel(
+                        text, interest, candidate.offset)) continue;
+            }
             long score = candidate.offset < 0 || interestOffset < 0
                     ? 100000L
                     : Math.abs((long) candidate.offset - interestOffset);
@@ -86,7 +96,7 @@ final class TelegramMessagePayload {
                 best = candidate;
             }
         }
-        return best.url;
+        return best == null ? "" : best.url;
     }
 
     private static void collectEntityLinks(JSONObject formattedText, String text,

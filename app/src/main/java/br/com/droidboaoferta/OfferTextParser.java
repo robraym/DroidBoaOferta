@@ -9,6 +9,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class OfferTextParser {
+    private static final Pattern FLIP_MODEL = Pattern.compile(
+            "(?i)\\bz\\s*flip\\s*(\\d+)\\b(?:[\\s-]*(fe|fan\\s+edition)\\b)?");
     private static final String[] ACCESSORY_TERMS = {
             "pulseira", "bracelete", "correia", "capa", "case", "cover",
             "capinha", "capas", "cases", "pelicula", "peliculas", "vidro",
@@ -87,12 +89,14 @@ final class OfferTextParser {
     }
 
     static double extractPriceForInterest(String text, String interest) {
+        if (hasDifferentFlipEdition(text, interest)) return Double.NaN;
         int interestOffset = findInterestOffset(text, interest);
         if (interestOffset < 0) {
             return extractPrice(text);
         }
         List<PriceCandidate> candidates = new ArrayList<>();
         for (PriceCandidate candidate : collectPriceCandidates(text)) {
+            if (belongsToDifferentFlipModel(text, interest, candidate.offset)) continue;
             if (isExplicitlyAnotherItemPrice(text, interest, interestOffset, candidate.offset)) {
                 continue;
             }
@@ -159,6 +163,10 @@ final class OfferTextParser {
             return false;
         }
         int interestEnd = Math.min(text.length(), interestOffset + interest.length());
+        Matcher model = FLIP_MODEL.matcher(text);
+        model.region(interestOffset, text.length());
+        if (isFlipModelInterest(interest) && model.lookingAt()) interestEnd = model.end();
+        if (interestEnd >= priceOffset) return false;
         String between = text.substring(interestEnd, priceOffset);
         Matcher sectionMatcher = PRODUCT_SECTION_START.matcher(between);
         if (!sectionMatcher.find()) {
@@ -188,9 +196,16 @@ final class OfferTextParser {
                 .replaceAll("\\s+", " ");
     }
 
-    private static int findInterestOffset(String text, String interest) {
+    static int findInterestOffset(String text, String interest) {
         if (text == null || interest == null) {
             return -1;
+        }
+        Matcher expectedModel = FLIP_MODEL.matcher(interest);
+        if (expectedModel.find()) {
+            Matcher mentioned = FLIP_MODEL.matcher(text);
+            while (mentioned.find()) {
+                if (sameFlipModel(expectedModel, mentioned, text)) return mentioned.start();
+            }
         }
         String lowerText = text.toLowerCase(Locale.ROOT);
         String lowerInterest = interest.toLowerCase(Locale.ROOT).trim();
@@ -246,8 +261,9 @@ final class OfferTextParser {
     }
 
     static boolean matchesInterest(String message, String interest) {
-        String normalizedMessage = " " + normalize(message) + " ";
-        String normalizedInterest = normalize(interest);
+        if (hasDifferentFlipEdition(message, interest)) return false;
+        String normalizedMessage = " " + normalizeFlipSpelling(normalize(message)) + " ";
+        String normalizedInterest = normalizeFlipSpelling(normalize(interest));
         if (normalizedInterest.isEmpty()) {
             return false;
         }
@@ -262,6 +278,61 @@ final class OfferTextParser {
             return true;
         }
         return !looksLikeAccessoryOffer(normalizedMessage.trim(), normalizedInterest);
+    }
+
+    static boolean isFlipModelInterest(String interest) {
+        return interest != null && FLIP_MODEL.matcher(interest).find();
+    }
+
+    static boolean hasDifferentFlipEdition(String message, String interest) {
+        if (message == null || interest == null) return false;
+        Matcher expected = FLIP_MODEL.matcher(interest);
+        if (!expected.find()) return false;
+        boolean differentEdition = false;
+        Matcher mentioned = FLIP_MODEL.matcher(message);
+        while (mentioned.find()) {
+            if (sameFlipModel(expected, mentioned, message)) return false;
+            if (expected.group(1).equals(mentioned.group(1))) differentEdition = true;
+        }
+        return differentEdition;
+    }
+
+    private static boolean sameFlipModel(Matcher first, Matcher second, String message) {
+        return first.group(1).equals(second.group(1))
+                && (first.group(2) != null) == isFanEditionMention(message, second);
+    }
+
+    private static boolean isFanEditionMention(String message, Matcher mention) {
+        if (mention.group(2) != null) return true;
+        Matcher explicit = FLIP_MODEL.matcher(message);
+        while (explicit.find()) {
+            if (explicit.group(2) == null || !explicit.group(1).equals(mention.group(1))) continue;
+            int start = Math.min(explicit.end(), mention.end());
+            int end = Math.max(explicit.start(), mention.start());
+            String between = message.substring(start, end);
+            // A shortened repetition inside the same product title is not a second offer.
+            // A price, purchase link or new product heading separates independent offers.
+            if (!ANY_PRICE.matcher(between).find() && !LINK.matcher(between).find()
+                    && !PRODUCT_SECTION_START.matcher(between).find()) return true;
+        }
+        return false;
+    }
+
+    private static String normalizeFlipSpelling(String text) {
+        return text.replaceAll("\\bz\\s*flip\\s*(\\d+)\\b", "z flip $1")
+                .replaceAll("(\\bz flip \\d+) fan edition\\b", "$1 fe");
+    }
+
+    static boolean belongsToDifferentFlipModel(String text, String interest, int priceOffset) {
+        if (interest == null) return false;
+        Matcher expected = FLIP_MODEL.matcher(interest);
+        if (!expected.find()) return false;
+        Matcher mentioned = FLIP_MODEL.matcher(text);
+        boolean different = false;
+        while (mentioned.find() && mentioned.start() < priceOffset) {
+            different = !sameFlipModel(expected, mentioned, text);
+        }
+        return different;
     }
 
     private static boolean isMentionedOnlyAsNumberedVariant(String message, String interest) {

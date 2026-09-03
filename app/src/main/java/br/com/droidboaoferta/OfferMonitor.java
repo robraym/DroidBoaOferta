@@ -24,6 +24,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
     private Context appContext;
     private InterestRepository interestRepository;
     private OfferRepository offerRepository;
+    private final Set<String> pendingPublications = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private OfferMonitor() {
     }
@@ -38,6 +39,7 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
         TelegramClientManager clientManager = TelegramClientManager.getInstance();
         clientManager.setMessageListener(this);
         clientManager.start(appContext);
+        clientManager.revalidateStoredOfferLinks();
         CloudSyncStore.ensureRankingHistorySync(appContext);
         GroupQualityRepository qualityRepository = new GroupQualityRepository(appContext);
         if (qualityRepository.prepareYesterdayHistory()) {
@@ -183,35 +185,62 @@ final class OfferMonitor implements TelegramClientManager.MessageListener {
                 || !OfferEligibility.hasUsableLink(offerLink)) {
             return;
         }
-        if (recordQuality) {
-            new GroupQualityRepository(appContext).recordApprovedOffer(
-                    chatId, messageId, messageDate > 0L ? messageDate : System.currentTimeMillis()
-            );
-        }
-        if (!offerRepository.markOfferProcessed(chatId, messageId, interest.getId())) {
-            return;
-        }
-        TelegramClientManager.getInstance().resolveMessageLink(chatId, messageId, telegramPostLink -> {
-            ObservedOffer offer = new ObservedOffer(
-                    interest.getId(),
-                    interest.getTerm(),
-                    sourceTitle,
-                    price,
-                    interest.getMaximumPrice(),
-                    messageDate > 0L ? messageDate : System.currentTimeMillis(),
-                    offerLink,
-                    telegramPostLink
-            );
-            offerRepository.add(offer);
-            new GroupSpeedRepository(appContext).record(
-                    chatId, sourceTitle, interest, price, offer.getObservedAt(), offerLink
-            );
-            MonitorStatusStore.markApprovedOffer(appContext);
-            if (notifyUser) {
-                showOfferNotification(offer, chatId, messageId);
+        String pendingKey = chatId + ":" + messageId + ":" + interest.getId();
+        if (!pendingPublications.add(pendingKey)) return;
+        TelegramClientManager client = TelegramClientManager.getInstance();
+        client.resolveMessageLink(chatId, messageId, telegramPostLink -> {
+            if (telegramPostLink.isEmpty()) {
+                pendingPublications.remove(pendingKey);
+                return;
             }
-            appContext.sendBroadcast(new Intent(ACTION_OFFER_FOUND)
-                    .setPackage(appContext.getPackageName()));
+            client.validateMessageLink(telegramPostLink, chatId, messageId, message -> {
+                pendingPublications.remove(pendingKey);
+                if (message == null) return;
+                Interest current = null;
+                for (Interest candidate : interestRepository.getAll()) {
+                    if (candidate.getId() == interest.getId() && candidate.isPrice()) {
+                        current = candidate;
+                        break;
+                    }
+                }
+                if (current == null) return;
+                TelegramMessagePayload verifiedPayload = TelegramMessagePayload.fromMessage(message);
+                String verifiedText = verifiedPayload.getText();
+                double verifiedPrice = OfferTextParser.extractPriceForInterest(verifiedText, current.getTerm());
+                String verifiedLink = verifiedPayload.findBestLink(current.getTerm());
+                long verifiedDate = message.optLong("date") * 1000L;
+                if (!OfferTextParser.matchesInterest(verifiedText, current.getTerm())
+                        || !OfferTextParser.isPlausiblePriceForInterest(verifiedPrice, current.getTerm())
+                        || verifiedPrice > current.getMaximumPrice()
+                        || !OfferEligibility.isRecent(verifiedDate, System.currentTimeMillis())
+                        || !OfferEligibility.hasUsableLink(verifiedLink)) return;
+                // Failed validation must never consume deduplication, ranking or notification state.
+                if (!offerRepository.markOfferProcessed(chatId, messageId, current.getId())) return;
+                if (recordQuality) {
+                    new GroupQualityRepository(appContext).recordApprovedOffer(chatId, messageId, verifiedDate);
+                }
+                ObservedOffer offer = new ObservedOffer(
+                        current.getId(),
+                        current.getTerm(),
+                        sourceTitle,
+                        verifiedPrice,
+                        current.getMaximumPrice(),
+                        verifiedDate,
+                        verifiedLink,
+                        telegramPostLink
+                );
+                new OfferLinkValidationStore(appContext).setValidated(offer, true);
+                offerRepository.add(offer);
+                new GroupSpeedRepository(appContext).record(
+                        chatId, sourceTitle, current, verifiedPrice, offer.getObservedAt(), verifiedLink
+                );
+                MonitorStatusStore.markApprovedOffer(appContext);
+                if (notifyUser) {
+                    showOfferNotification(offer, chatId, messageId);
+                }
+                appContext.sendBroadcast(new Intent(ACTION_OFFER_FOUND)
+                        .setPackage(appContext.getPackageName()));
+            });
         });
     }
 

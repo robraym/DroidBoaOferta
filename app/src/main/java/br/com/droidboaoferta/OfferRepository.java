@@ -46,7 +46,7 @@ final class OfferRepository {
     }
 
     synchronized void add(ObservedOffer offer) {
-        List<ObservedOffer> offers = new ArrayList<>(getRecent());
+        List<ObservedOffer> offers = new ArrayList<>(getRecentForValidation());
         offers.removeIf(item -> item.getId().equals(offer.getId())
                 || isSameObservedOffer(item, offer));
         offers.add(0, offer);
@@ -285,6 +285,13 @@ final class OfferRepository {
     }
 
     List<ObservedOffer> getRecent() {
+        List<ObservedOffer> recent = getRecentForValidation();
+        OfferLinkValidationStore validation = new OfferLinkValidationStore(context);
+        recent.removeIf(offer -> !validation.canDisplay(offer));
+        return recent;
+    }
+
+    List<ObservedOffer> getRecentForValidation() {
         List<ObservedOffer> recent = new ArrayList<>(readOffers(KEY_OFFERS));
         long now = System.currentTimeMillis();
         recent.removeIf(offer -> !OfferEligibility.canDisplay(offer, now));

@@ -81,6 +81,11 @@ final class PropertyHistoryRepository {
                 item = new JSONObject();
                 entries.put(item);
             }
+            try {
+                restoreCompatibleLegacyHistory(item, metadata);
+            } catch (org.json.JSONException ignored) {
+                return UNCHANGED;
+            }
             JSONArray points = item.optJSONArray("points");
             if (points == null) {
                 points = new JSONArray();
@@ -158,7 +163,7 @@ final class PropertyHistoryRepository {
                 JSONArray entries = new JSONArray(preferences.getString(KEY_ENTRIES, "[]"));
                 boolean changed = false;
                 for (int index = 0; index < entries.length(); index++) {
-                    changed |= quarantineLegacyHistory(entries.optJSONObject(index));
+                    changed |= restoreCompatibleLegacyHistory(entries.optJSONObject(index), null);
                 }
                 if (changed) {
                     preferences.edit().putString(KEY_ENTRIES, entries.toString()).apply();
@@ -170,7 +175,7 @@ final class PropertyHistoryRepository {
         }
     }
 
-    // The old reader did not store price provenance. Keep a recoverable copy, not a false graph.
+    // Only an unavailable listing that has never been validated triggers this isolation.
     static boolean quarantineLegacyHistory(JSONObject item) throws org.json.JSONException {
         if (item == null || !PropertyPageClient.isQuintoAndarListingUrl(item.optString("url"))
                 || item.optInt("identity_validation_version", 0) >= 1) {
@@ -182,8 +187,67 @@ final class PropertyHistoryRepository {
                 .put("first_publication_at", 0L)
                 .put("last_publication_at", 0L)
                 .put("validation_status", "pending")
+                .put("legacy_isolation_reason", "unavailable")
                 .put("identity_validation_version", 1);
         return true;
+    }
+
+    // Repair the previous overly broad migration without restoring known-bad histories.
+    static boolean restoreCompatibleLegacyHistory(JSONObject item, PropertyListingMetadata metadata)
+            throws org.json.JSONException {
+        if (item == null || !PropertyPageClient.isQuintoAndarListingUrl(item.optString("url"))
+                || item.optBoolean("legacy_history_restored", false)) return false;
+        JSONObject legacy = item.optJSONObject("legacy_unverified");
+        if (legacy == null || item.has("legacy_isolation_reason")) return false;
+        if ("unavailable".equals(item.optString("validation_status"))) {
+            item.put("legacy_isolation_reason", "unavailable");
+            return true;
+        }
+        JSONArray oldPoints = legacy.optJSONArray("points");
+        JSONObject lastOld = oldPoints == null ? null : oldPoints.optJSONObject(oldPoints.length() - 1);
+        if (lastOld == null) return false;
+        JSONArray currentPoints = item.optJSONArray("points");
+        boolean compatible = metadata != null && metadata.isVerifiedFor(item.optString("listing_id"))
+                && samePriceAndArea(lastOld, metadata.getSalePrice(), metadata.getArea());
+        if (!compatible && "available".equals(item.optString("validation_status"))) {
+            for (int index = 0; currentPoints != null && index < currentPoints.length(); index++) {
+                JSONObject point = currentPoints.optJSONObject(index);
+                if (point != null && samePriceAndArea(lastOld,
+                        point.optDouble("price"), point.optDouble("area"))) {
+                    compatible = true;
+                    break;
+                }
+            }
+        }
+        if (!compatible) return false;
+        List<JSONObject> combined = new ArrayList<>();
+        for (JSONArray array : new JSONArray[]{oldPoints, currentPoints}) {
+            for (int index = 0; array != null && index < array.length(); index++) {
+                JSONObject point = array.optJSONObject(index);
+                if (point != null) combined.add(point);
+            }
+        }
+        combined.sort(java.util.Comparator.comparingLong(point -> point.optLong("observed_at")));
+        JSONArray restored = new JSONArray();
+        JSONObject previous = null;
+        for (JSONObject point : combined) {
+            if (previous == null || !samePriceAndArea(previous,
+                    point.optDouble("price"), point.optDouble("area"))) {
+                restored.put(point);
+                previous = point;
+            }
+        }
+        item.put("points", restored).put("legacy_history_restored", true);
+        for (String key : new String[]{"first_publication_at", "last_publication_at"}) {
+            if (item.optLong(key, 0L) <= 0L) item.put(key, legacy.optLong(key, 0L));
+        }
+        return true;
+    }
+
+    private static boolean samePriceAndArea(JSONObject point, double price, double area) {
+        return price > 0d && area > 0d
+                && Double.compare(point.optDouble("price", Double.NaN), price) == 0
+                && Double.compare(point.optDouble("area", Double.NaN), area) == 0;
     }
 
     synchronized void markUnavailable(long interestId, PropertyPageListing listing, long checkedAt) {
@@ -195,6 +259,11 @@ final class PropertyHistoryRepository {
                 entries.put(item);
             }
             try {
+                quarantineLegacyHistory(item);
+                if (item.optJSONObject("legacy_unverified") != null
+                        && !item.optBoolean("legacy_history_restored", false)) {
+                    item.put("legacy_isolation_reason", "unavailable");
+                }
                 item.put("interest_id", interestId).put("listing_id", listing.getId())
                         .put("url", listing.getUrl()).put("title", listing.getDescription())
                         .put("first_seen_at", item.optLong("first_seen_at", checkedAt))
@@ -264,7 +333,8 @@ final class PropertyHistoryRepository {
                 item.optLong("first_seen_at", 0L), item.optLong("last_seen_at", 0L),
                 item.optLong("first_publication_at", 0L), item.optBoolean("new_ad", false),
                 points, item.optString("validation_status", "available"),
-                item.optJSONObject("legacy_unverified") != null);
+                item.optJSONObject("legacy_unverified") != null
+                        && !item.optBoolean("legacy_history_restored", false));
     }
 
     private String normalizeListingUrl(String url) {

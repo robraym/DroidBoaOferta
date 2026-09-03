@@ -52,11 +52,20 @@ public class MainActivity extends AlertouActivity {
     private static final String STARTUP_PREFS = "startup_preferences";
     private static final String BATTERY_NOTICE_SHOWN = "battery_notice_shown";
     private static final int REQUEST_NOTIFICATIONS = 1201;
+    private final android.os.Handler dashboardHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean dashboardUpdatePending;
+    private final Runnable dashboardUpdate = () -> {
+        dashboardUpdatePending = false;
+        refreshDashboard(false);
+    };
 
     private final BroadcastReceiver offerReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            refreshDashboard();
+            if (!dashboardUpdatePending) {
+                dashboardUpdatePending = true;
+                dashboardHandler.postDelayed(dashboardUpdate, 250L);
+            }
         }
     };
 
@@ -146,12 +155,18 @@ public class MainActivity extends AlertouActivity {
 
     @Override
     protected void onStop() {
+        dashboardHandler.removeCallbacks(dashboardUpdate);
+        dashboardUpdatePending = false;
         floatingSearchController.collapse(false);
         unregisterReceiver(offerReceiver);
         super.onStop();
     }
 
     private void refreshDashboard() {
+        refreshDashboard(true);
+    }
+
+    private void refreshDashboard(boolean updateMonitor) {
         int groupCount = getSelectedGroupCount();
         List<Interest> interests = interestRepository.getAll();
         boolean monitorEnabled = isMonitorEnabled();
@@ -175,7 +190,8 @@ public class MainActivity extends AlertouActivity {
                 && (hasCouponAlert || hasPropertyAlert || (hasPriceAlert && groupCount > 0))) {
             requestNotificationPermissionIfNeeded();
         }
-        MonitorServiceController.update(this);
+        // A data/status broadcast must not restart the monitor and trigger another broadcast.
+        if (updateMonitor) MonitorServiceController.update(this);
     }
 
     private void showBatteryNoticeIfNeeded() {
@@ -488,7 +504,10 @@ public class MainActivity extends AlertouActivity {
         List<ObservedOffer> visibleOffers = filterOffers(offers, offersSearchInput.getText().toString());
         trashAllOffersButton.setVisibility(View.GONE);
         if (visibleOffers.isEmpty()) {
-            offersContainer.addView(createEmptyText(R.string.dashboard_no_offers));
+            boolean awaitingLinks = offersSearchInput.getText().toString().trim().isEmpty()
+                    && !offerRepository.getRecentForValidation().isEmpty();
+            offersContainer.addView(createEmptyText(awaitingLinks
+                    ? R.string.dashboard_waiting_offer_links : R.string.dashboard_no_offers));
             return;
         }
 
@@ -749,27 +768,30 @@ public class MainActivity extends AlertouActivity {
             metaLine.addView(badge, badgeParams);
         }
         row.addView(metaLine);
-        if (propertyPublishedAt > 0L) {
-            TextView published = new TextView(this);
-            published.setText(getString(
-                    R.string.property_published_line,
-                    formatPropertyPublishedLineDate(propertyPublishedAt)
-            ));
-            published.setTextColor(getColor(R.color.text_secondary));
-            published.setTextSize(11.5f);
-            published.setSingleLine(true);
-            published.setPadding(0, dp(2), 0, 0);
-            row.addView(published);
-        }
-        if (!propertyListingCode.isEmpty()) {
-            String codeLabel = getString(R.string.property_listing_code, propertyListingCode);
-            TextView code = new TextView(this);
-            code.setText(codeLabel);
-            code.setTextColor(getColor(R.color.text_secondary));
-            code.setTextSize(11.5f);
-            code.setPadding(0, dp(2), 0, 0);
-            row.addView(code);
-            row.setContentDescription(contentDescription + ". " + codeLabel);
+        if (propertyPublishedAt > 0L || !propertyListingCode.isEmpty()) {
+            String date = propertyPublishedAt > 0L
+                    ? formatPropertyPublishedLineDate(propertyPublishedAt) : "";
+            String details = date.isEmpty()
+                    ? getString(R.string.property_listing_code_compact, propertyListingCode)
+                    : propertyListingCode.isEmpty()
+                    ? getString(R.string.property_published_line, date)
+                    : getString(R.string.property_published_and_code, date, propertyListingCode);
+            androidx.appcompat.widget.AppCompatTextView detailsView =
+                    new androidx.appcompat.widget.AppCompatTextView(this);
+            detailsView.setText(details);
+            detailsView.setTextColor(getColor(R.color.text_secondary));
+            detailsView.setMaxLines(1);
+            detailsView.setHorizontallyScrolling(false);
+            detailsView.setAutoSizeTextTypeUniformWithConfiguration(
+                    9, 12, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+            detailsView.setPadding(0, dp(2), 0, 0);
+            row.addView(detailsView, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            String accessibleDetails = date.isEmpty() ? "" : getString(R.string.property_published_line, date);
+            if (!propertyListingCode.isEmpty()) {
+                accessibleDetails += ". " + getString(R.string.property_listing_code, propertyListingCode);
+            }
+            row.setContentDescription(contentDescription + ". " + accessibleDetails);
         }
         if (expired) {
             TextView status = new TextView(this);
@@ -1242,7 +1264,7 @@ public class MainActivity extends AlertouActivity {
     }
 
     private String formatPropertyPublishedLineDate(long timestamp) {
-        return new SimpleDateFormat("dd MMM", new Locale("pt", "BR"))
+        return new SimpleDateFormat("dd/MM/yyyy", new Locale("pt", "BR"))
                 .format(new java.util.Date(timestamp))
                 .replace(".", "");
     }

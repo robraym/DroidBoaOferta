@@ -9,6 +9,80 @@ import static org.junit.Assert.assertTrue;
 
 public class OfferTextParserTest {
     @Test
+    public void rejectsFeTitleEvenWhenItEndsWithShortenedBaseModelName() {
+        String text = "🔵 Loja Magalu\n\n"
+                + "✅ Celular Samsung Galaxy Z Flip7\nFE 128GB Preto 5G 8GB RAM Tela\n"
+                + "6,7\" Câm. Dupla de 50MP Galaxy AI -\nGalaxy Z Flip 7\n\n"
+                + "💰 R$ 2.599,00 com cupom TEL400\n"
+                + "💳 Em até 10x R$ 333,22 sem juros\n\n"
+                + "🔗 Link do produto:\nhttps://ofertalink.com.br/Magalu/EbrQDP5\n\n"
+                + "⚠️ Preço do produto pode Mudar!!";
+        org.junit.Assert.assertFalse(OfferTextParser.matchesInterest(text, "Z Flip7"));
+        assertTrue(OfferTextParser.hasDifferentFlipEdition(text, "Z Flip7"));
+        assertTrue(Double.isNaN(OfferTextParser.extractPriceForInterest(text, "Z Flip7")));
+        assertTrue(OfferTextParser.matchesInterest(text, "Z Flip7 FE"));
+        assertEquals(2599d, OfferTextParser.extractPriceForInterest(text, "Z Flip7 FE"), 0.001d);
+    }
+
+    @Test
+    public void shortenedFeTitleDoesNotStealPriceOfSeparateStandardOffer() {
+        String text = "Z Flip7 FE 128GB - Galaxy Z Flip 7 R$ 2599\n"
+                + "https://loja.example/fe\nZ Flip7 256GB R$ 3999\nhttps://loja.example/base";
+        assertTrue(OfferTextParser.matchesInterest(text, "Z Flip7"));
+        assertEquals(3999d, OfferTextParser.extractPriceForInterest(text, "Z Flip7"), 0.001d);
+        assertEquals(2599d, OfferTextParser.extractPriceForInterest(text, "Z Flip7 FE"), 0.001d);
+        org.junit.Assert.assertFalse(OfferTextParser.hasDifferentFlipEdition(text, "Z Flip7"));
+    }
+
+    @Test
+    public void handlesShortenedModelBeforeFeAndPreservesStandardOffer() {
+        assertTrue(OfferTextParser.hasDifferentFlipEdition(
+                "Galaxy Z Flip 7 - Samsung Z Flip7 FE 128GB R$ 2599", "Z Flip7"));
+        org.junit.Assert.assertFalse(OfferTextParser.hasDifferentFlipEdition(
+                "Samsung Z Flip7 256GB - Galaxy Z Flip 7 R$ 3999", "Z Flip7"));
+        assertEquals(3999d, OfferTextParser.extractPriceForInterest(
+                "Samsung Z Flip7 256GB - Galaxy Z Flip 7 R$ 3999", "Z Flip7"), 0.001d);
+    }
+
+    @Test
+    public void rejectsFlip7FeForStandardFlip7Alert() {
+        String text = "Celular Samsung Galaxy Z Flip7 FE 128GB Preto 5G\n"
+                + "R$ 2599,00\nMagalu\nhttps://pelando.promo/apV7T";
+        org.junit.Assert.assertFalse(OfferTextParser.matchesInterest(text, "Z Flip7"));
+        assertTrue(Double.isNaN(OfferTextParser.extractPriceForInterest(text, "Z Flip7")));
+        assertTrue(OfferTextParser.matchesInterest(text, "Z Flip7 FE"));
+        assertEquals(2599d, OfferTextParser.extractPriceForInterest(text, "Z Flip7 FE"), 0.001d);
+    }
+
+    @Test
+    public void distinguishesFlipEditionsRegardlessOfSpacesAndCase() {
+        for (String base : Arrays.asList("Z Flip7", "Z Flip 7", "ZFlip7")) {
+            assertTrue(OfferTextParser.matchesInterest("Samsung Galaxy Z Flip 7 256GB R$ 3999", base));
+            org.junit.Assert.assertFalse(OfferTextParser.matchesInterest("Samsung ZFlip7 FE R$ 2599", base));
+            org.junit.Assert.assertFalse(OfferTextParser.matchesInterest("Samsung Z Flip 7 Fan Edition R$ 2599", base));
+            org.junit.Assert.assertFalse(OfferTextParser.matchesInterest("Samsung Z Flip7 R$ 3999", base + " FE"));
+        }
+        assertTrue(OfferTextParser.matchesInterest("Samsung Z Flip7 Fan Edition R$ 2599", "Z Flip7 FE"));
+    }
+
+    @Test
+    public void assignsSeparatePricesWhenBothFlipEditionsAreInOneMessage() {
+        String text = "Samsung Z Flip7 FE R$ 2599\nhttps://loja.example/fe\n"
+                + "Samsung Z Flip7 R$ 3999\nhttps://loja.example/base";
+        assertTrue(OfferTextParser.matchesInterest(text, "Z Flip7"));
+        assertEquals(3999d, OfferTextParser.extractPriceForInterest(text, "Z Flip7"), 0.001d);
+        assertEquals(2599d, OfferTextParser.extractPriceForInterest(text, "Z Flip7 FE"), 0.001d);
+        org.junit.Assert.assertFalse(OfferTextParser.hasDifferentFlipEdition(text, "Z Flip7"));
+    }
+
+    @Test
+    public void flipEditionRepairDoesNotRejectOtherGenerationsOrUnrelatedProducts() {
+        org.junit.Assert.assertFalse(OfferTextParser.hasDifferentFlipEdition("Z Flip6 FE", "Z Flip7"));
+        org.junit.Assert.assertFalse(OfferTextParser.hasDifferentFlipEdition("Galaxy S25 FE", "Galaxy S25"));
+        org.junit.Assert.assertFalse(OfferTextParser.hasDifferentFlipEdition("Texto indisponível", "Z Flip7"));
+        org.junit.Assert.assertFalse(OfferTextParser.matchesInterest("Z Flip7 FE", "Z Flip70"));
+    }
+    @Test
     public void prioritizesPromotionalPriceAfterPor() {
         double price = OfferTextParser.extractPrice("De R$ 2.999,00 por R$ 1.899,90");
         assertEquals(1899.90, price, 0.001);

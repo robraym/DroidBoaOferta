@@ -381,11 +381,14 @@
     <string name="property_new_ad_badge">Novo</string>
     <string name="property_published_line">Anunciado em %1$s</string>
     <string name="property_listing_code">Código do anúncio: %1$s</string>
+    <string name="property_listing_code_compact">Cód. %1$s</string>
+    <string name="dashboard_waiting_offer_links">As ofertas aguardam confirmação de que seus links abrem a mensagem original. Os registros foram preservados.</string>
+    <string name="property_published_and_code">Anunciado %1$s · Cód. %2$s</string>
     <string name="property_unavailable">Indisponível</string>
     <string name="property_unavailable_description">O QuintoAndar informou que este anúncio está indisponível. Preços de outros imóveis sugeridos na página não são usados.</string>
     <string name="property_price_pending">Preço a confirmar</string>
     <string name="property_price_pending_description">Aguardando uma leitura válida da página deste anúncio para confirmar o preço.</string>
-    <string name="property_history_unverified_notice">As leituras anteriores à correção foram preservadas separadamente, mas não aparecem no gráfico nem entram no cálculo de quedas porque não é possível confirmar a origem de cada preço.</string>
+    <string name="property_history_unverified_notice">Parte do histórico anterior está preservada separadamente e fora do cálculo de quedas. Ela só volta ao gráfico quando houver uma leitura compatível do mesmo anúncio, sem registro de indisponibilidade durante a validação.</string>
     <string name="property_price_drop_badge_thousands">↓ R$ %1$s mil · %2$s%%</string>
     <string name="property_price_drop_badge_reais">↓ R$ %1$s · %2$s%%</string>
     <string name="property_price_drop_badge_description">Ver histórico da queda de preço</string>

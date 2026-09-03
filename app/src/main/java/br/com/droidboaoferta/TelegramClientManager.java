@@ -80,6 +80,10 @@ final class TelegramClientManager {
         void onResolved(String link);
     }
 
+    interface MessageValidationCallback {
+        void onResolved(JSONObject message);
+    }
+
     private static final TelegramClientManager INSTANCE = new TelegramClientManager();
     // A burst of offers is kept local and coalesced into one small backup.
     private static final long CLOUD_BACKUP_DEBOUNCE_MS = 2_000L;
@@ -106,6 +110,9 @@ final class TelegramClientManager {
     private final Map<Long, LowestPriceBatch> lowestPriceBatches = new HashMap<>();
     private final Map<String, CachedLowestPriceResult> cachedLowestPriceResults = new HashMap<>();
     private final Map<String, MessageLinkCallback> pendingMessageLinkCallbacks = new HashMap<>();
+    private final Map<String, MessageValidationCallback> pendingMessageValidations = new HashMap<>();
+    private final OfferLinkRevalidationGate storedOfferLinkGate = new OfferLinkRevalidationGate();
+    private boolean validationBroadcastPending;
     private final Set<Long> groupChatIds = new HashSet<>();
     private final Set<Long> pendingCloudMessageIds = new HashSet<>();
     private final Set<Long> confirmedCloudMessageIds = new HashSet<>();
@@ -371,6 +378,13 @@ final class TelegramClientManager {
         }
         String extra = "message_link:" + (++nextMessageLinkRequestId);
         pendingMessageLinkCallbacks.put(extra, callback);
+        cloudSyncHandler.postDelayed(() -> {
+            MessageLinkCallback timedOut;
+            synchronized (TelegramClientManager.this) {
+                timedOut = pendingMessageLinkCallbacks.remove(extra);
+            }
+            if (timedOut != null) timedOut.onResolved("");
+        }, 20_000L);
         try {
             send(new JSONObject()
                     .put("@type", "getMessageLink")
@@ -384,6 +398,80 @@ final class TelegramClientManager {
             pendingMessageLinkCallbacks.remove(extra);
             callback.onResolved("");
         }
+    }
+
+    synchronized void validateMessageLink(String link, long chatId, long messageId,
+                                         MessageValidationCallback callback) {
+        if (state != State.READY || !started || link == null || link.trim().isEmpty()) {
+            callback.onResolved(null);
+            return;
+        }
+        String extra = "validate_message_link:" + (++nextMessageLinkRequestId);
+        pendingMessageValidations.put(extra,
+                response -> callback.onResolved(TelegramLinkValidation.readableMessage(response, chatId, messageId)));
+        cloudSyncHandler.postDelayed(() -> completeMessageValidation(extra, null), 20_000L);
+        try {
+            send(new JSONObject().put("@type", "getMessageLinkInfo").put("url", link).put("@extra", extra));
+        } catch (JSONException ignored) {
+            completeMessageValidation(extra, null);
+        }
+    }
+
+    private void completeMessageValidation(String extra, JSONObject response) {
+        MessageValidationCallback callback;
+        synchronized (this) {
+            callback = pendingMessageValidations.remove(extra);
+        }
+        if (callback != null) callback.onResolved(response);
+    }
+
+    synchronized void revalidateStoredOfferLinks() {
+        if (state != State.READY || appContext == null) return;
+        OfferRepository repository = new OfferRepository(appContext);
+        List<ObservedOffer> offers = new ArrayList<>(repository.getRecentForValidation());
+        offers.addAll(repository.getArchived());
+        OfferLinkValidationStore validation = new OfferLinkValidationStore(appContext);
+        boolean visibilityChanged = false;
+        for (ObservedOffer offer : offers) {
+            if (!OfferLinkValidationStore.requiresValidation(offer)
+                    || !storedOfferLinkGate.begin(offer.getId(), SystemClock.elapsedRealtime())) continue;
+            visibilityChanged |= validation.setValidated(offer, false);
+            validateMessageLink(offer.getTelegramPostLink(), 0L, 0L,
+                    message -> handleStoredOfferValidation(offer, message));
+        }
+        if (visibilityChanged) broadcastOfferValidationChanged();
+    }
+
+    private synchronized void handleStoredOfferValidation(ObservedOffer offer, JSONObject message) {
+        boolean readable = message != null;
+        storedOfferLinkGate.finish(offer.getId(), readable, SystemClock.elapsedRealtime());
+        boolean removedWrongEdition = false;
+        if (readable) {
+            String text = TelegramMessagePayload.fromMessage(message).getText();
+            if (OfferTextParser.hasDifferentFlipEdition(text, offer.getInterest())) {
+                new GroupSpeedRepository(appContext).invalidateOffer(offer);
+                OfferRepository repository = new OfferRepository(appContext);
+                repository.trash(offer.getId());
+                repository.trashArchived(offer.getId());
+                readable = false;
+                removedWrongEdition = true;
+            }
+        }
+        // Failed checks only hide the card; they do not erase offers or ranking history.
+        boolean visibilityChanged = new OfferLinkValidationStore(appContext).setValidated(offer, readable);
+        if (visibilityChanged || removedWrongEdition) broadcastOfferValidationChanged();
+    }
+
+    private synchronized void broadcastOfferValidationChanged() {
+        if (validationBroadcastPending) return;
+        validationBroadcastPending = true;
+        cloudSyncHandler.postDelayed(() -> {
+            synchronized (TelegramClientManager.this) {
+                validationBroadcastPending = false;
+            }
+            appContext.sendBroadcast(new android.content.Intent(OfferMonitor.ACTION_OFFER_FOUND)
+                    .setPackage(appContext.getPackageName()));
+        }, 250L);
     }
 
     synchronized boolean publishCachedLowestPriceMatches(long interestId, String term,
@@ -781,6 +869,10 @@ final class TelegramClientManager {
     private void handleResult(JSONObject result) throws Exception {
         String type = result.optString("@type");
         String extra = result.optString("@extra");
+        if (extra.startsWith("validate_message_link:")) {
+            completeMessageValidation(extra, result);
+            return;
+        }
         if (type.startsWith("authorization")
                 || type.startsWith("updateAuthorization")
                 || extra.startsWith("cloud_sync")
@@ -1259,6 +1351,7 @@ final class TelegramClientManager {
                 scheduleRuntimeStabilityReset(runtimeGeneration);
                 loadAccount();
                 loadGroups();
+                revalidateStoredOfferLinks();
                 break;
             case "authorizationStateClosing":
             case "authorizationStateLoggingOut":
@@ -1425,6 +1518,10 @@ final class TelegramClientManager {
         lowestPriceSearches.clear();
         lowestPriceBatches.clear();
         cachedLowestPriceResults.clear();
+        List<MessageValidationCallback> interrupted = new ArrayList<>(pendingMessageValidations.values());
+        pendingMessageValidations.clear();
+        for (MessageValidationCallback callback : interrupted) callback.onResolved(null);
+        storedOfferLinkGate.clear();
         groups = Collections.emptyList();
         accountName = "";
         accountPhone = "";
@@ -1682,6 +1779,7 @@ final class TelegramClientManager {
             }
         }
         if (restored || configurationChanged) {
+            revalidateStoredOfferLinks();
             loadGroups();
             notifyGroups();
             appContext.sendBroadcast(new android.content.Intent(ACTION_CLOUD_SYNC_CHANGED)

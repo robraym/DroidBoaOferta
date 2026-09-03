@@ -11,7 +11,89 @@ import static org.junit.Assert.assertTrue;
 
 public class PropertyHistoryRepositoryTest {
     @Test
-    public void persistsMigrationAndRebuildsOnlyFromVerifiedObservations() throws Exception {
+    public void keepsWorkingLegacyHistoryIncludingGoPortugalDrop() throws Exception {
+        java.util.Map<String, String> stored = new java.util.HashMap<>();
+        JSONObject original = workingLegacyEntry();
+        String originalJson = new org.json.JSONArray().put(original).toString();
+        stored.put("entries", originalJson);
+        PropertyHistoryRepository repository = new PropertyHistoryRepository(memoryPreferences(stored));
+        PropertyHistoryEntry history = repository.getForOffer(goPortugalOffer());
+        assertEquals(15000d, history.getPriceDropAmount(), 0d);
+        assertEquals(3.623d, history.getPriceDropPercentage(), 0.001d);
+        assertEquals(100L, history.getFirstPublicationAt());
+        assertEquals(originalJson, stored.get("entries"));
+    }
+
+    @Test
+    public void restoresGoPortugalAlreadyValidatedAfterBroadMigrationWithoutDuplicatingPoints() throws Exception {
+        java.util.Map<String, String> stored = new java.util.HashMap<>();
+        JSONObject migrated = broadlyMigratedEntry();
+        migrated.put("validation_status", "available").put("points", new org.json.JSONArray()
+                .put(new JSONObject().put("observed_at", 3).put("price", 399000).put("area", 27)));
+        stored.put("entries", new org.json.JSONArray().put(migrated).toString());
+        android.content.SharedPreferences prefs = memoryPreferences(stored);
+        PropertyHistoryEntry restored = new PropertyHistoryRepository(prefs).getForOffer(goPortugalOffer());
+        assertEquals(2, restored.getPoints().size());
+        assertEquals(15000d, restored.getPriceDropAmount(), 0d);
+        assertEquals(100L, restored.getFirstPublicationAt());
+        assertFalse(restored.hasUnverifiedHistory());
+        assertEquals(2, new PropertyHistoryRepository(prefs).getForOffer(goPortugalOffer()).getPoints().size());
+        assertTrue(new org.json.JSONArray(stored.get("entries")).getJSONObject(0).has("legacy_unverified"));
+    }
+
+    @Test
+    public void restoresPendingMigrationOnlyWithCompatibleVerifiedListing() throws Exception {
+        java.util.Map<String, String> stored = new java.util.HashMap<>();
+        stored.put("entries", new org.json.JSONArray().put(broadlyMigratedEntry()).toString());
+        PropertyHistoryRepository repository = new PropertyHistoryRepository(memoryPreferences(stored));
+        PropertyPageListing listing = new PropertyPageListing("895590942", 27, 399000, "", goPortugalOffer().getLink());
+        repository.recordObservation(1, listing, 3, PropertyListingMetadata.empty());
+        assertTrue(repository.getForOffer(goPortugalOffer()).getPoints().isEmpty());
+        repository.recordObservation(1, listing, 4,
+                PropertyListingMetadata.verified("895590942", 399000, 27, 0, 0));
+        PropertyHistoryEntry restored = repository.getForOffer(goPortugalOffer());
+        assertEquals(2, restored.getPoints().size());
+        assertEquals(15000d, restored.getPriceDropAmount(), 0d);
+        assertFalse(restored.isPendingValidation());
+    }
+
+    @Test
+    public void doesNotRestoreMismatchedOrKnownUnavailableLegacyHistory() throws Exception {
+        JSONObject migrated = broadlyMigratedEntry();
+        assertFalse(PropertyHistoryRepository.restoreCompatibleLegacyHistory(migrated,
+                PropertyListingMetadata.verified("other", 399000, 27, 0, 0)));
+        assertFalse(PropertyHistoryRepository.restoreCompatibleLegacyHistory(migrated,
+                PropertyListingMetadata.verified("895590942", 320000, 53, 0, 0)));
+        migrated.put("validation_status", "unavailable");
+        assertTrue(PropertyHistoryRepository.restoreCompatibleLegacyHistory(migrated, null));
+        migrated.put("validation_status", "available");
+        assertFalse(PropertyHistoryRepository.restoreCompatibleLegacyHistory(migrated,
+                PropertyListingMetadata.verified("895590942", 399000, 27, 0, 0)));
+        assertEquals(0, migrated.getJSONArray("points").length());
+    }
+
+    private static ObservedOffer goPortugalOffer() {
+        return new ObservedOffer("property|1|895590942", 1, "Go Portugal", "QuintoAndar", 399000,
+                415000, 2, PropertyPageClient.buildListingUrl("895590942"), "");
+    }
+
+    private static JSONObject workingLegacyEntry() throws Exception {
+        return new JSONObject().put("interest_id", 1).put("listing_id", "895590942")
+                .put("url", goPortugalOffer().getLink()).put("first_publication_at", 100L)
+                .put("points", new org.json.JSONArray()
+                        .put(new JSONObject().put("observed_at", 1).put("price", 414000).put("area", 27))
+                        .put(new JSONObject().put("observed_at", 2).put("price", 399000).put("area", 27)));
+    }
+
+    private static JSONObject broadlyMigratedEntry() throws Exception {
+        JSONObject original = workingLegacyEntry();
+        return new JSONObject(original.toString()).put("legacy_unverified", original)
+                .put("points", new org.json.JSONArray()).put("first_publication_at", 0)
+                .put("identity_validation_version", 1).put("validation_status", "pending");
+    }
+
+    @Test
+    public void isolatesOldHistoryOnlyAfterUnavailabilityIsConfirmed() throws Exception {
         java.util.Map<String, String> stored = new java.util.HashMap<>();
         String url = PropertyPageClient.buildListingUrl("118413857", true);
         JSONObject old = new JSONObject().put("interest_id", 1).put("listing_id", "118413857")
@@ -24,10 +106,9 @@ public class PropertyHistoryRepositoryTest {
         ObservedOffer offer = new ObservedOffer("property|1|118413857", 1, "Princes", "QuintoAndar",
                 320000, 600000, 2, url, "");
         PropertyHistoryEntry pending = repository.getForOffer(offer);
-        assertTrue(pending.isPendingValidation());
-        assertTrue(pending.hasUnverifiedHistory());
-        assertTrue(pending.getPoints().isEmpty());
-        assertFalse(pending.hasPriceDrop());
+        assertFalse(pending.isPendingValidation());
+        assertFalse(pending.hasUnverifiedHistory());
+        assertEquals(2, pending.getPoints().size());
         assertEquals(1, repository.getTrackedListings(1).size());
         PropertyPageListing listing = repository.getTrackedListings(1).get(0);
         assertEquals("118413857", listing.getId());
@@ -35,6 +116,7 @@ public class PropertyHistoryRepositoryTest {
                 repository.recordObservation(1, listing, 3, PropertyListingMetadata.empty()));
         repository.markUnavailable(1, listing, 4);
         assertTrue(new PropertyHistoryRepository(prefs).getForOffer(offer).isUnavailable());
+        assertTrue(repository.getForOffer(offer).getPoints().isEmpty());
 
         PropertyListingMetadata verified = PropertyListingMetadata.verified("118413857", 520000, 40, 0, 0);
         PropertyPageListing available = PropertyPageMonitor.resolveCurrentListing(listing, verified);
