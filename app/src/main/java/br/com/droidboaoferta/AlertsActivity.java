@@ -43,6 +43,9 @@ public class AlertsActivity extends AlertouActivity {
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
     private static final String ALERTS_SORT_ORDER = "alerts_sort_order";
+    private static final String SECTION_COUPONS_EXPANDED = "alerts_section_coupons_expanded";
+    private static final String SECTION_PROPERTIES_EXPANDED = "alerts_section_properties_expanded";
+    private static final String SECTION_PRODUCTS_EXPANDED = "alerts_section_products_expanded";
     private static final int REQUEST_NOTIFICATIONS = 1202;
     private static final int SORT_RECENT = 0;
     private static final int SORT_NAME = 1;
@@ -55,6 +58,9 @@ public class AlertsActivity extends AlertouActivity {
     private LinearLayout couponInterestsContainer;
     private LinearLayout propertyInterestsContainer;
     private LinearLayout priceInterestsContainer;
+    private ImageButton couponAlertsToggle;
+    private ImageButton propertyAlertsToggle;
+    private ImageButton priceAlertsToggle;
     private EditText interestsSearchInput;
     private TextView couponAlertsCountText;
     private TextView propertyAlertsCountText;
@@ -82,6 +88,9 @@ public class AlertsActivity extends AlertouActivity {
         couponInterestsContainer = findViewById(R.id.container_coupon_interests);
         propertyInterestsContainer = findViewById(R.id.container_property_interests);
         priceInterestsContainer = findViewById(R.id.container_price_interests);
+        couponAlertsToggle = findViewById(R.id.button_toggle_coupon_alerts);
+        propertyAlertsToggle = findViewById(R.id.button_toggle_property_alerts);
+        priceAlertsToggle = findViewById(R.id.button_toggle_price_alerts);
         floatingSearchController = FloatingSearchController.attach(
                 this,
                 "alerts",
@@ -96,6 +105,24 @@ public class AlertsActivity extends AlertouActivity {
                 new Intent(this, ProfileActivity.class)
         ));
         findViewById(R.id.button_sort_alerts).setOnClickListener(view -> showSortDialog());
+        configureCollapsibleSection(
+                R.id.header_coupon_alerts,
+                couponAlertsToggle,
+                couponInterestsContainer,
+                SECTION_COUPONS_EXPANDED
+        );
+        configureCollapsibleSection(
+                R.id.header_property_alerts,
+                propertyAlertsToggle,
+                propertyInterestsContainer,
+                SECTION_PROPERTIES_EXPANDED
+        );
+        configureCollapsibleSection(
+                R.id.header_price_alerts,
+                priceAlertsToggle,
+                priceInterestsContainer,
+                SECTION_PRODUCTS_EXPANDED
+        );
         findViewById(R.id.button_add_price_interest).setOnClickListener(
                 view -> showInterestDialog(null, Interest.TYPE_PRICE));
         findViewById(R.id.button_add_coupon_interest).setOnClickListener(
@@ -192,16 +219,25 @@ public class AlertsActivity extends AlertouActivity {
             }
         }
         renderInterestSection(
-                coupons, couponInterestsContainer, couponCount > 0);
+                coupons, couponInterestsContainer, couponAlertsToggle,
+                SECTION_COUPONS_EXPANDED, couponCount > 0);
         renderInterestSection(
-                properties, propertyInterestsContainer, propertyCount > 0);
+                properties, propertyInterestsContainer, propertyAlertsToggle,
+                SECTION_PROPERTIES_EXPANDED, propertyCount > 0);
         renderInterestSection(
-                prices, priceInterestsContainer, priceCount > 0);
+                prices, priceInterestsContainer, priceAlertsToggle,
+                SECTION_PRODUCTS_EXPANDED, priceCount > 0);
     }
 
     private void renderInterestSection(List<Interest> interests, LinearLayout container,
+                                       ImageButton toggle, String preferenceKey,
                                        boolean hasRegisteredItems) {
         container.removeAllViews();
+        boolean expanded = isSectionExpanded(preferenceKey);
+        applySectionState(toggle, container, expanded, false);
+        if (!expanded) {
+            return;
+        }
         if (interests.isEmpty()) {
             if (hasRegisteredItems) {
                 container.addView(createEmptyText(R.string.alerts_search_no_results));
@@ -229,6 +265,66 @@ public class AlertsActivity extends AlertouActivity {
                 container.addView(createDivider());
             }
         }
+    }
+
+    private void configureCollapsibleSection(int headerId, ImageButton toggle,
+                                             LinearLayout container, String preferenceKey) {
+        View.OnClickListener listener = view -> toggleSection(toggle, container, preferenceKey);
+        findViewById(headerId).setOnClickListener(listener);
+        toggle.setOnClickListener(listener);
+        applySectionState(toggle, container, isSectionExpanded(preferenceKey), false);
+    }
+
+    private void toggleSection(ImageButton toggle, LinearLayout container, String preferenceKey) {
+        boolean expanded = !isSectionExpanded(preferenceKey);
+        getSharedPreferences(OFFER_PREFS, MODE_PRIVATE).edit()
+                .putBoolean(preferenceKey, expanded)
+                .apply();
+        if (expanded) {
+            renderInterests();
+            container.setAlpha(0f);
+            container.animate()
+                    .alpha(1f)
+                    .setDuration(140L)
+                    .setInterpolator(new LinearInterpolator())
+                    .start();
+        } else {
+            applySectionState(toggle, container, false, true);
+        }
+    }
+
+    private boolean isSectionExpanded(String preferenceKey) {
+        return getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                .getBoolean(preferenceKey, true);
+    }
+
+    private void applySectionState(ImageButton toggle, LinearLayout container,
+                                   boolean expanded, boolean animate) {
+        toggle.setContentDescription(getString(expanded
+                ? R.string.alerts_section_collapse
+                : R.string.alerts_section_expand));
+        if (animate) {
+            toggle.animate()
+                    .rotation(expanded ? 90f : 0f)
+                    .setDuration(160L)
+                    .setInterpolator(new LinearInterpolator())
+                    .start();
+            if (!expanded) {
+                container.animate()
+                        .alpha(0f)
+                        .setDuration(120L)
+                        .setInterpolator(new LinearInterpolator())
+                        .withEndAction(() -> {
+                            container.setVisibility(View.GONE);
+                            container.setAlpha(1f);
+                        })
+                        .start();
+            }
+            return;
+        }
+        toggle.setRotation(expanded ? 90f : 0f);
+        container.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        container.setAlpha(1f);
     }
 
     private List<Interest> filterInterests(List<Interest> interests, String query) {
