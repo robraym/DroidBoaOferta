@@ -54,7 +54,8 @@ final class MonitorServiceController {
         }
         return hasCouponAlert
                 || hasPropertyAlert
-                || (hasPriceAlert && selectedGroupCount(context) > 0);
+                || (hasPriceAlert && (selectedGroupCount(context) > 0
+                || VivoOutletSource.isConfigured(context)));
     }
 
     static boolean isEnabled(Context context) {

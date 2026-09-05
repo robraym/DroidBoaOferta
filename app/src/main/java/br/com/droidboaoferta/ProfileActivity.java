@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.method.ScrollingMovementMethod;
 import android.text.TextUtils;
+import android.text.format.Formatter;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -39,6 +40,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
 import java.text.SimpleDateFormat;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -1533,6 +1535,11 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 R.string.profile_telegram_details_compiled_at,
                 BuildConfig.BUILD_TIMESTAMP
         ));
+        details.addView(createTelegramDetailDivider());
+        details.addView(createTelegramDetailRow(
+                R.string.profile_telegram_details_app_size,
+                getInstalledAppSize()
+        ));
         content.addView(details);
 
         LinearLayout actions = new LinearLayout(this);
@@ -1567,6 +1574,17 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
             shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
+    }
+
+    private String getInstalledAppSize() {
+        String sourceDir = getApplicationInfo().sourceDir;
+        if (TextUtils.isEmpty(sourceDir)) {
+            return getString(R.string.profile_telegram_details_unavailable);
+        }
+        long bytes = new File(sourceDir).length();
+        return bytes > 0L
+                ? Formatter.formatFileSize(this, bytes)
+                : getString(R.string.profile_telegram_details_unavailable);
     }
 
     private LinearLayout createTelegramDetailRow(int labelResource, String value) {

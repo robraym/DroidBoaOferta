@@ -2,12 +2,15 @@ package br.com.droidboaoferta;
 
 import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -27,12 +30,15 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.Window;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -61,6 +67,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.text.Collator;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -98,6 +105,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private LinearLayout groupRankingContainer;
     private TextView groupsCountText;
     private TextView groupsEvaluationText;
+    private TextView vivoOutletSourceRow;
+    private TextView vivoOutletSourceState;
+    private ImageButton vivoOutletEditButton;
     private int groupEvaluationDay;
     private long groupEvaluationWeekStartedAt;
     private FrameLayout groupsSearchBar;
@@ -133,6 +143,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         @Override
         public void onReceive(Context context, Intent intent) {
             renderGroups(availableGroups, showingCachedGroups);
+            renderVivoOutletSource();
         }
     };
     private final BroadcastReceiver smsVerificationReceiver = new BroadcastReceiver() {
@@ -189,6 +200,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         groupsContainer = findViewById(R.id.container_groups);
         groupsCountText = findViewById(R.id.text_groups_count);
         groupsEvaluationText = findViewById(R.id.text_groups_evaluation);
+        vivoOutletSourceRow = findViewById(R.id.text_vivo_outlet_source_row);
+        vivoOutletSourceState = findViewById(R.id.text_vivo_outlet_source_state);
+        vivoOutletEditButton = findViewById(R.id.button_vivo_outlet_edit);
         groupsSearchBar = findViewById(R.id.search_groups_bar);
         groupsSearchIcon = findViewById(R.id.icon_search_groups);
         groupsSearchInput = findViewById(R.id.input_search_groups);
@@ -196,6 +210,8 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
         ));
+        vivoOutletEditButton.setOnClickListener(view -> showVivoOutletSourceDialog());
+        renderVivoOutletSource();
         continueButton.setOnClickListener(view -> submitAuthenticationValue());
         receiveSmsButton.setOnClickListener(view -> startSmsConsentListening(true));
         countryPickerButton.setOnClickListener(view -> showCountryPicker());
@@ -301,10 +317,14 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         super.onStart();
         registerSmsReceiver();
         if (!cloudSyncReceiverRegistered) {
+            IntentFilter sourceStatusFilter = new IntentFilter(
+                    TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED
+            );
+            sourceStatusFilter.addAction(VivoOutletMonitor.ACTION_STATUS_CHANGED);
             ContextCompat.registerReceiver(
                     this,
                     cloudSyncReceiver,
-                    new IntentFilter(TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED),
+                    sourceStatusFilter,
                     ContextCompat.RECEIVER_NOT_EXPORTED
             );
             cloudSyncReceiverRegistered = true;
@@ -1678,6 +1698,144 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         selectedGroupIds = selected;
         CloudSyncStore.rememberSelectedGroupsChanged(this, previous, selected);
         MonitorServiceController.update(this);
+    }
+
+    private void renderVivoOutletSource() {
+        String url = VivoOutletSource.getUrl(this);
+        boolean configured = VivoOutletSource.normalizeUrl(url) != null;
+        long lastSuccessfulCheck = VivoOutletSource.getLastSuccessfulCheckAt(this);
+        boolean offline = configured && VivoOutletSource.hasLastCheckFailed(this);
+        String sourceStatus = !configured
+                ? getString(R.string.vivo_outlet_source_not_configured)
+                : (offline
+                ? getString(R.string.vivo_outlet_source_check_failed,
+                formatVivoOutletCheckTime(lastSuccessfulCheck))
+                : (VivoOutletSource.hasSuccessfulCheck(this)
+                ? getString(R.string.vivo_outlet_source_check_succeeded,
+                formatVivoOutletCheckTime(lastSuccessfulCheck))
+                : getString(R.string.vivo_outlet_source_check_pending)));
+        vivoOutletSourceRow.setText(sourceStatus);
+        vivoOutletSourceState.setText(getString(offline
+                ? R.string.vivo_outlet_source_offline
+                : R.string.vivo_outlet_source_online));
+        vivoOutletSourceState.setTextColor(getColor(offline
+                ? R.color.danger
+                : R.color.action));
+        vivoOutletEditButton.setContentDescription(getString(configured
+                ? R.string.vivo_outlet_edit_link
+                : R.string.vivo_outlet_add_link));
+    }
+
+    private String formatVivoOutletCheckTime(long timestamp) {
+        if (timestamp <= 0L) {
+            return getString(R.string.profile_telegram_details_unavailable);
+        }
+        return new SimpleDateFormat("dd/MM HH:mm", new Locale("pt", "BR"))
+                .format(new java.util.Date(timestamp));
+    }
+
+    private void showVivoOutletSourceDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.vivo_outlet_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(22);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(R.string.vivo_outlet_dialog_summary);
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(6), 0, dp(16));
+        content.addView(message);
+
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setHint(R.string.vivo_outlet_link_hint);
+        input.setTextColor(getColor(R.color.text_primary));
+        input.setHintTextColor(getColor(R.color.text_secondary));
+        input.setTextSize(13);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setMaxLines(4);
+        input.setHorizontallyScrolling(false);
+        input.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        input.setPadding(dp(12), dp(6), dp(12), dp(6));
+        input.setBackgroundResource(R.drawable.bg_input);
+        String savedUrl = VivoOutletSource.getUrl(this);
+        input.setText(savedUrl.isEmpty() ? VivoOutletSource.DEFAULT_URL : savedUrl);
+        content.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        actions.setPadding(0, dp(14), 0, 0);
+        TextView cancel = createSourceDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        TextView save = createSourcePrimaryDialogAction(R.string.action_save);
+        save.setOnClickListener(view -> {
+            String rawUrl = input.getText().toString().trim();
+            if (VivoOutletSource.normalizeUrl(rawUrl) == null) {
+                input.setError(getString(R.string.vivo_outlet_link_unsupported));
+                return;
+            }
+            VivoOutletSource.save(this, rawUrl);
+            renderVivoOutletSource();
+            MonitorServiceController.update(this);
+            VivoOutletMonitor.getInstance().checkNow(this);
+            dialog.dismiss();
+        });
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(42)
+        );
+        saveParams.leftMargin = dp(10);
+        actions.addView(save, saveParams);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private TextView createSourceDialogAction(int textResource) {
+        TextView action = new TextView(this);
+        action.setText(textResource);
+        action.setTextColor(getColor(R.color.action));
+        action.setTextSize(15);
+        action.setGravity(Gravity.CENTER);
+        action.setPadding(dp(18), dp(10), 0, dp(10));
+        return action;
+    }
+
+    private TextView createSourcePrimaryDialogAction(int textResource) {
+        TextView action = createSourceDialogAction(textResource);
+        action.setTextColor(getColor(R.color.button_text));
+        action.setPadding(dp(18), 0, dp(18), 0);
+        action.setBackgroundResource(R.drawable.bg_button_primary);
+        return action;
     }
 
     private void loadSelectedGroupsFromPreferences() {

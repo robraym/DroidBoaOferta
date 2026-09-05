@@ -41,6 +41,7 @@ public class OfferMonitorService extends Service {
     public void onDestroy() {
         CouponPageMonitor.getInstance().stop();
         PropertyPageMonitor.getInstance().stop();
+        VivoOutletMonitor.getInstance().stop();
         MonitorStatusStore.setServiceRunning(this, false);
         super.onDestroy();
     }
@@ -61,6 +62,11 @@ public class OfferMonitorService extends Service {
         if (hasPriceAlert && MonitorServiceController.selectedGroupCount(this) > 0) {
             OfferMonitor.getInstance().start(this);
             TelegramClientManager.getInstance().requestMissedMessageRecovery();
+        }
+        if (hasPriceAlert && VivoOutletSource.isConfigured(this)) {
+            VivoOutletMonitor.getInstance().start(this);
+        } else {
+            VivoOutletMonitor.getInstance().stop();
         }
         if (hasCouponAlert) {
             CouponPageMonitor.getInstance().start(this);
