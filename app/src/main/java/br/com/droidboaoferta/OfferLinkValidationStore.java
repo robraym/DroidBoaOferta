@@ -16,7 +16,8 @@ final class OfferLinkValidationStore {
 
     static boolean requiresValidation(ObservedOffer offer) {
         return offer != null && !offer.getId().startsWith("property|")
-                && !offer.getId().startsWith("coupon|");
+                && !offer.getId().startsWith("coupon|")
+                && !offer.getId().startsWith("vivo|");
     }
 
     boolean canDisplay(ObservedOffer offer) {

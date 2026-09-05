@@ -168,6 +168,14 @@
     <string name="theme_dark">Escuro</string>
     <string name="theme_selected_format">%1$s ✓</string>
     <string name="alert_sound_title">Som dos alertas</string>
+    <string name="vivo_outlet_interval_title">Consulta do Outlet Vivo</string>
+    <string name="vivo_outlet_interval_dialog_title">Intervalo de consulta</string>
+    <string name="vivo_outlet_interval_summary">A cada %1$d minutos</string>
+    <string name="vivo_outlet_interval_default">A cada 15 minutos</string>
+    <string name="vivo_outlet_interval_five">A cada 5 minutos</string>
+    <string name="vivo_outlet_interval_fifteen">A cada 15 minutos</string>
+    <string name="vivo_outlet_interval_thirty">A cada 30 minutos</string>
+    <string name="vivo_outlet_interval_sixty">A cada 60 minutos</string>
     <string name="alert_sound_dialog_title">Som dos alertas</string>
     <string name="alert_sound_custom_section">Seus sons</string>
     <string name="alert_sound_builtin_section">Sons do Alertou</string>

@@ -161,6 +161,15 @@
                 android:layout_marginEnd="8dp"
                 android:background="@color/divider" />
 
+            <include layout="@layout/row_profile_vivo_outlet_interval" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginStart="60dp"
+                android:layout_marginEnd="8dp"
+                android:background="@color/divider" />
+
             <include layout="@layout/row_profile_sync" />
 
             <View
@@ -180,15 +189,6 @@
                 android:background="@color/divider" />
 
             <include layout="@layout/row_profile_restore" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginStart="60dp"
-                android:layout_marginEnd="8dp"
-                android:background="@color/divider" />
-
-            <include layout="@layout/row_profile_errors" />
 
             <View
                 android:layout_width="match_parent"

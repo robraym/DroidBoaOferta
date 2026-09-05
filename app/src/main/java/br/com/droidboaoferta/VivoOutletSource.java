@@ -12,6 +12,8 @@ final class VivoOutletSource {
     private static final String KEY_URL = "vivo_outlet_url";
     private static final String KEY_LAST_SUCCESS = "vivo_outlet_last_success";
     private static final String KEY_LAST_FAILURE = "vivo_outlet_last_failure";
+    private static final String KEY_CHECK_INTERVAL_MINUTES = "vivo_outlet_check_interval_minutes";
+    static final int DEFAULT_CHECK_INTERVAL_MINUTES = 15;
 
     private VivoOutletSource() {
     }
@@ -96,5 +98,25 @@ final class VivoOutletSource {
     static long getLastSuccessfulCheckAt(Context context) {
         return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getLong(KEY_LAST_SUCCESS, 0L);
+    }
+
+    static int getCheckIntervalMinutes(Context context) {
+        int saved = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getInt(KEY_CHECK_INTERVAL_MINUTES, DEFAULT_CHECK_INTERVAL_MINUTES);
+        return isSupportedCheckInterval(saved) ? saved : DEFAULT_CHECK_INTERVAL_MINUTES;
+    }
+
+    static void saveCheckIntervalMinutes(Context context, int minutes) {
+        if (!isSupportedCheckInterval(minutes)) {
+            throw new IllegalArgumentException("Unsupported Vivo outlet check interval");
+        }
+        context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_CHECK_INTERVAL_MINUTES, minutes)
+                .apply();
+    }
+
+    private static boolean isSupportedCheckInterval(int minutes) {
+        return minutes == 5 || minutes == 15 || minutes == 30 || minutes == 60;
     }
 }

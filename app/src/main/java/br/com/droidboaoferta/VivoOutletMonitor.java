@@ -1,10 +1,17 @@
 package br.com.droidboaoferta;
 
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 
+import androidx.core.app.NotificationCompat;
+
+import java.text.NumberFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -14,7 +21,6 @@ final class VivoOutletMonitor {
             "br.com.droidboaoferta.VIVO_OUTLET_STATUS_CHANGED";
     private static final String PREFS = "vivo_outlet_monitor";
     private static final String LAST_PRICE_PREFIX = "last_price_";
-    private static final long CHECK_INTERVAL_MINUTES = 15L;
     private static final VivoOutletMonitor INSTANCE = new VivoOutletMonitor();
 
     private Context appContext;
@@ -33,7 +39,8 @@ final class VivoOutletMonitor {
             return;
         }
         executor = Executors.newSingleThreadScheduledExecutor();
-        executor.scheduleWithFixedDelay(this::checkAllSafely, 0L, CHECK_INTERVAL_MINUTES,
+        executor.scheduleWithFixedDelay(this::checkAllSafely, 0L,
+                VivoOutletSource.getCheckIntervalMinutes(appContext),
                 TimeUnit.MINUTES);
     }
 
@@ -50,6 +57,27 @@ final class VivoOutletMonitor {
         if (alreadyRunning) {
             executor.execute(this::checkAllSafely);
         }
+    }
+
+    void clearState(Context context, long interestId) {
+        String prefix = LAST_PRICE_PREFIX + interestId + "_";
+        SharedPreferences preferences = context.getApplicationContext()
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        for (String key : preferences.getAll().keySet()) {
+            if (key.startsWith(prefix)) {
+                editor.remove(key);
+            }
+        }
+        editor.apply();
+    }
+
+    synchronized void rescheduleIfRunning(Context context) {
+        if (executor == null || executor.isShutdown()) {
+            return;
+        }
+        stop();
+        start(context);
     }
 
     private void checkAllSafely() {
@@ -87,7 +115,7 @@ final class VivoOutletMonitor {
                     }
                     preferences.edit().putLong(key, Double.doubleToRawLongBits(product.getPixPrice()))
                             .apply();
-                    repository.add(new ObservedOffer(
+                    ObservedOffer offer = new ObservedOffer(
                             "vivo|" + interest.getId() + "|" + product.getCode(),
                             interest.getId(),
                             interest.getTerm(),
@@ -97,7 +125,9 @@ final class VivoOutletMonitor {
                             observedAt,
                             product.getLink(),
                             ""
-                    ));
+                    );
+                    repository.add(offer);
+                    showNotification(context, offer);
                     found = true;
                 }
             }
@@ -112,5 +142,43 @@ final class VivoOutletMonitor {
             context.sendBroadcast(new Intent(ACTION_STATUS_CHANGED)
                     .setPackage(context.getPackageName()));
         }
+    }
+
+    private void showNotification(Context context, ObservedOffer offer) {
+        Intent openPage = new Intent(Intent.ACTION_VIEW, Uri.parse(offer.getLink()));
+        int notificationId = offer.getId().hashCode();
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                context,
+                notificationId,
+                openPage,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
+        String explanation = context.getString(
+                R.string.offer_notification_explanation,
+                currency.format(offer.getPrice()),
+                currency.format(offer.getMaximumPrice()),
+                offer.getSource()
+        );
+        AlertSoundController.configureNotificationChannel(context);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(
+                context,
+                AlertSoundController.getChannelId(context)
+        )
+                .setSmallIcon(R.drawable.ic_notification_offer)
+                .setContentTitle(offer.getInterest())
+                .setContentText(explanation)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(explanation))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setSound(AlertSoundController.getSoundUri(context))
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent);
+        NotificationManager manager = (NotificationManager) context.getSystemService(
+                Context.NOTIFICATION_SERVICE
+        );
+        if (manager != null) {
+            manager.notify(notificationId, builder.build());
+        }
+        AlertSoundController.playSelectedSound(context);
     }
 }

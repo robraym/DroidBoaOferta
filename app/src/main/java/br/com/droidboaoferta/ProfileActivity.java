@@ -14,7 +14,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.method.ScrollingMovementMethod;
 import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.view.Gravity;
@@ -56,7 +55,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         @Override
         public void onReceive(Context context, Intent intent) {
             refreshSettingsControls();
-            refreshErrorSummary();
             refreshSyncSummary();
         }
     };
@@ -86,8 +84,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     private TextView accentColorSummary;
     private TextView alertSoundSummary;
     private TextView navigationAnimationSummary;
-    private TextView errorTitle;
-    private TextView errorSummary;
+    private TextView vivoOutletIntervalSummary;
     private LinearLayout accountCard;
     private LinearLayout syncRow;
     private View accountChevron;
@@ -119,8 +116,7 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         accentColorSummary = findViewById(R.id.text_accent_color_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
         navigationAnimationSummary = findViewById(R.id.text_navigation_animation_summary);
-        errorTitle = findViewById(R.id.text_error_title);
-        errorSummary = findViewById(R.id.text_error_summary);
+        vivoOutletIntervalSummary = findViewById(R.id.text_vivo_outlet_interval_summary);
         accountCard = findViewById(R.id.card_telegram_account);
         syncRow = findViewById(R.id.row_sync);
         accountChevron = findViewById(R.id.image_account_chevron);
@@ -154,7 +150,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                                 getString(R.string.alert_sound_title),
                                 getString(R.string.alert_sound_custom_error)
                         );
-                        refreshErrorSummary();
                     }
                 }
         );
@@ -172,6 +167,9 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 view -> showAccentColorDialog()
         );
         findViewById(R.id.row_alert_sound).setOnClickListener(view -> showAlertSoundDialog());
+        findViewById(R.id.row_vivo_outlet_interval).setOnClickListener(
+                view -> showVivoOutletIntervalDialog()
+        );
         findViewById(R.id.row_navigation_animation).setOnClickListener(
                 view -> showNavigationAnimationDialog()
         );
@@ -187,7 +185,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         });
         findViewById(R.id.row_ranking_rules).setOnClickListener(view -> showRankingRulesDialog());
         findViewById(R.id.row_terms).setOnClickListener(view -> showTermsDialog());
-        findViewById(R.id.row_errors).setOnClickListener(view -> showErrorHistoryDialog());
     }
 
     @Override
@@ -272,7 +269,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         accountChevron.setVisibility(View.VISIBLE);
         syncRow.setVisibility(connected ? View.VISIBLE : View.GONE);
         refreshSyncSummary();
-        refreshErrorSummary();
         refreshSettingsControls();
     }
 
@@ -286,6 +282,72 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         navigationAnimationSummary.setText(NavigationAnimationController.getSummaryResource(
                 NavigationAnimationController.getSavedMode(this)
         ));
+        vivoOutletIntervalSummary.setText(getString(R.string.vivo_outlet_interval_summary,
+                VivoOutletSource.getCheckIntervalMinutes(this)));
+    }
+
+    private void showVivoOutletIntervalDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.vivo_outlet_interval_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        int savedInterval = VivoOutletSource.getCheckIntervalMinutes(this);
+        int[] intervals = {5, 15, 30, 60};
+        int[] labels = {
+                R.string.vivo_outlet_interval_five,
+                R.string.vivo_outlet_interval_fifteen,
+                R.string.vivo_outlet_interval_thirty,
+                R.string.vivo_outlet_interval_sixty
+        };
+        LinearLayout options = new LinearLayout(this);
+        options.setOrientation(LinearLayout.VERTICAL);
+        options.setPadding(0, dp(10), 0, dp(10));
+        for (int index = 0; index < intervals.length; index++) {
+            int interval = intervals[index];
+            TextView option = createThemeOption(labels[index], interval == savedInterval);
+            option.setOnClickListener(view -> {
+                VivoOutletSource.saveCheckIntervalMinutes(this, interval);
+                vivoOutletIntervalSummary.setText(getString(R.string.vivo_outlet_interval_summary,
+                        interval));
+                VivoOutletMonitor.getInstance().rescheduleIfRunning(this);
+                dialog.dismiss();
+            });
+            options.addView(option);
+        }
+        content.addView(options);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
     }
 
     private void showThemeDialog() {
@@ -1785,95 +1847,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 R.string.profile_ranking_rules_message,
                 true
         );
-    }
-
-    private void refreshErrorSummary() {
-        if (errorTitle == null || errorSummary == null) {
-            return;
-        }
-        int count = AppErrorStore.getAll(this).size();
-        int textColor = getColor(count == 0 ? R.color.text_primary : R.color.danger);
-        int summaryColor = getColor(count == 0 ? R.color.text_secondary : R.color.danger);
-        errorTitle.setTextColor(textColor);
-        errorSummary.setTextColor(summaryColor);
-        errorSummary.setText(count == 0
-                ? getString(R.string.profile_errors_none)
-                : getString(R.string.profile_errors_count, count));
-    }
-
-    private void showErrorHistoryDialog() {
-        List<AppErrorStore.Entry> errors = AppErrorStore.getAll(this);
-        Dialog dialog = new Dialog(this);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(24), dp(22), dp(24), dp(16));
-        content.setBackgroundResource(R.drawable.bg_dialog);
-
-        TextView title = new TextView(this);
-        title.setText(R.string.profile_errors_title);
-        title.setTextColor(getColor(R.color.text_primary));
-        title.setTextSize(21);
-        content.addView(title);
-
-        TextView message = new TextView(this);
-        message.setText(errors.isEmpty()
-                ? getString(R.string.profile_errors_dialog_empty)
-                : formatErrorHistory(errors));
-        message.setTextColor(getColor(R.color.text_secondary));
-        message.setTextSize(14);
-        message.setPadding(0, dp(10), 0, dp(12));
-        message.setMaxLines(12);
-        message.setVerticalScrollBarEnabled(true);
-        message.setMovementMethod(new ScrollingMovementMethod());
-        content.addView(message);
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.END);
-        if (!errors.isEmpty()) {
-            TextView clear = createDialogAction(R.string.profile_errors_clear);
-            clear.setTextColor(getColor(R.color.danger));
-            clear.setOnClickListener(view -> {
-                AppErrorStore.clear(this);
-                dialog.dismiss();
-                refreshErrorSummary();
-            });
-            actions.addView(clear);
-        }
-        TextView close = createDialogAction(R.string.action_close);
-        close.setOnClickListener(view -> dialog.dismiss());
-        actions.addView(close);
-        content.addView(actions);
-
-        dialog.setContentView(content);
-        dialog.show();
-        Window window = dialog.getWindow();
-        if (window != null) {
-            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
-            params.copyFrom(window.getAttributes());
-            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
-            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
-            params.dimAmount = 0.65f;
-            window.setAttributes(params);
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-    }
-
-    private String formatErrorHistory(List<AppErrorStore.Entry> errors) {
-        SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm", new Locale("pt", "BR"));
-        StringBuilder history = new StringBuilder();
-        for (int index = 0; index < errors.size(); index++) {
-            AppErrorStore.Entry error = errors.get(index);
-            if (index > 0) {
-                history.append("\n\n");
-            }
-            history.append(formatter.format(new Date(error.timestamp)))
-                    .append(" · ")
-                    .append(error.source)
-                    .append("\n")
-                    .append(error.message);
-        }
-        return history.toString();
     }
 
     private void showInformationDialog(int titleResource, int messageResource) {
