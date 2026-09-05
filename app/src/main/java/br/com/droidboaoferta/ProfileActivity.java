@@ -83,7 +83,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     private TextView themeSummary;
     private TextView accentColorSummary;
     private TextView alertSoundSummary;
-    private TextView navigationAnimationSummary;
     private TextView vivoOutletIntervalSummary;
     private TextView pelandoIntervalSummary;
     private LinearLayout accountCard;
@@ -116,7 +115,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         themeSummary = findViewById(R.id.text_theme_summary);
         accentColorSummary = findViewById(R.id.text_accent_color_summary);
         alertSoundSummary = findViewById(R.id.text_alert_sound_summary);
-        navigationAnimationSummary = findViewById(R.id.text_navigation_animation_summary);
         vivoOutletIntervalSummary = findViewById(R.id.text_vivo_outlet_interval_summary);
         pelandoIntervalSummary = findViewById(R.id.text_pelando_interval_summary);
         accountCard = findViewById(R.id.card_telegram_account);
@@ -174,9 +172,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         );
         findViewById(R.id.row_pelando_interval).setOnClickListener(
                 view -> showPelandoIntervalDialog()
-        );
-        findViewById(R.id.row_navigation_animation).setOnClickListener(
-                view -> showNavigationAnimationDialog()
         );
         findViewById(R.id.row_backup).setOnClickListener(view -> clientManager.backupCloudNow());
         findViewById(R.id.row_restore_backup).setOnClickListener(view -> {
@@ -284,9 +279,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 AccentColorController.getSavedMode(this)
         ));
         alertSoundSummary.setText(AlertSoundController.getProfileSummary(this));
-        navigationAnimationSummary.setText(NavigationAnimationController.getSummaryResource(
-                NavigationAnimationController.getSavedMode(this)
-        ));
         vivoOutletIntervalSummary.setText(getString(R.string.vivo_outlet_interval_summary,
                 VivoOutletSource.getCheckIntervalMinutes(this)));
         pelandoIntervalSummary.setText(formatPelandoInterval(
@@ -846,9 +838,6 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
             option.setOnClickListener(view -> {
                 String selectedMode = modes[optionIndex];
                 NavigationAnimationController.saveMode(this, selectedMode);
-                navigationAnimationSummary.setText(
-                        NavigationAnimationController.getSummaryResource(selectedMode)
-                );
                 for (int current = 0; current < optionViews.size(); current++) {
                     updateNavigationAnimationOption(
                             optionViews.get(current),
