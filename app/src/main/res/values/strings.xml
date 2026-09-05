@@ -346,6 +346,10 @@
     <string name="offer_group_yesterday">Ontem</string>
     <string name="dashboard_offer_single_line">%1$s • %2$s • %3$s</string>
     <string name="dashboard_offer_meta">%1$s • %2$s</string>
+    <plurals name="dashboard_offer_section_count">
+        <item quantity="one">• %d oferta</item>
+        <item quantity="other">• %d ofertas</item>
+    </plurals>
     <string name="archived_screen_title">Salvas</string>
     <string name="archived_card_title">Ofertas salvas</string>
     <string name="archived_empty">Nenhuma oferta salva.</string>

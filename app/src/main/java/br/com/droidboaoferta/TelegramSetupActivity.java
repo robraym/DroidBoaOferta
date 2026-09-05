@@ -87,6 +87,8 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private static final String PREF_LAST_PHONE = "last_phone";
     private static final String PREF_SEARCH_POSITION_X = "groups_search_position_x";
     private static final String PREF_SEARCH_POSITION_Y = "groups_search_position_y";
+    private static final String PREF_STORE_SOURCES_EXPANDED = "store_sources_expanded";
+    private static final String PREF_TELEGRAM_GROUPS_EXPANDED = "telegram_groups_expanded";
 
     private TelegramClientManager clientManager;
     private TextView statusText;
@@ -105,6 +107,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private LinearLayout groupRankingContainer;
     private TextView groupsCountText;
     private TextView groupsEvaluationText;
+    private LinearLayout storeSourcesContainer;
+    private ImageButton storeSourcesToggle;
+    private ImageButton telegramGroupsToggle;
     private TextView vivoOutletSourceRow;
     private TextView vivoOutletSourceState;
     private ImageButton vivoOutletEditButton;
@@ -204,6 +209,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         groupsContainer = findViewById(R.id.container_groups);
         groupsCountText = findViewById(R.id.text_groups_count);
         groupsEvaluationText = findViewById(R.id.text_groups_evaluation);
+        storeSourcesContainer = findViewById(R.id.container_store_sources);
+        storeSourcesToggle = findViewById(R.id.button_toggle_store_sources);
+        telegramGroupsToggle = findViewById(R.id.button_toggle_telegram_groups);
         vivoOutletSourceRow = findViewById(R.id.text_vivo_outlet_source_row);
         vivoOutletSourceState = findViewById(R.id.text_vivo_outlet_source_state);
         vivoOutletEditButton = findViewById(R.id.button_vivo_outlet_edit);
@@ -217,6 +225,21 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         findViewById(R.id.button_profile).setOnClickListener(view -> startActivity(
                 new Intent(this, ProfileActivity.class)
         ));
+        configureSourceSection(
+                R.id.header_store_sources,
+                storeSourcesToggle,
+                storeSourcesContainer,
+                PREF_STORE_SOURCES_EXPANDED
+        );
+        View.OnClickListener groupsToggleListener = view -> toggleTelegramGroupsSection();
+        findViewById(R.id.header_telegram_groups).setOnClickListener(groupsToggleListener);
+        telegramGroupsToggle.setOnClickListener(groupsToggleListener);
+        applySourceSectionState(
+                telegramGroupsToggle,
+                groupsContainer,
+                isSourceSectionExpanded(PREF_TELEGRAM_GROUPS_EXPANDED),
+                false
+        );
         vivoOutletEditButton.setOnClickListener(view -> showVivoOutletSourceDialog());
         pelandoEditButton.setOnClickListener(view -> showPelandoSourceDialog());
         renderVivoOutletSource();
@@ -790,6 +813,13 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         });
         availableGroups = displayGroups;
         updateGroupsCountSummary();
+        boolean groupsExpanded = isSourceSectionExpanded(PREF_TELEGRAM_GROUPS_EXPANDED);
+        applySourceSectionState(telegramGroupsToggle, groupsContainer, groupsExpanded, false);
+        groupsSearchBar.setVisibility(groupsExpanded ? View.VISIBLE : View.GONE);
+        if (!groupsExpanded) {
+            groupsContainer.removeAllViews();
+            return;
+        }
         List<TelegramGroup> visibleGroups = filterGroups(displayGroups, groupsSearchInput.getText().toString());
         groupsContainer.removeAllViews();
         if (visibleGroups.isEmpty()) {
@@ -914,6 +944,70 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 groupsContainer.addView(createDivider());
             }
         }
+    }
+
+    private void configureSourceSection(int headerId, ImageButton toggle,
+                                        LinearLayout container, String preferenceKey) {
+        View.OnClickListener listener = view -> {
+            boolean expanded = !isSourceSectionExpanded(preferenceKey);
+            getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .putBoolean(preferenceKey, expanded)
+                    .apply();
+            applySourceSectionState(toggle, container, expanded, true);
+        };
+        findViewById(headerId).setOnClickListener(listener);
+        toggle.setOnClickListener(listener);
+        applySourceSectionState(toggle, container, isSourceSectionExpanded(preferenceKey), false);
+    }
+
+    private void toggleTelegramGroupsSection() {
+        boolean expanded = !isSourceSectionExpanded(PREF_TELEGRAM_GROUPS_EXPANDED);
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean(PREF_TELEGRAM_GROUPS_EXPANDED, expanded)
+                .apply();
+        if (expanded) {
+            groupsSearchBar.setVisibility(View.VISIBLE);
+            renderGroups(availableGroups, showingCachedGroups);
+            groupsContainer.setAlpha(0f);
+            groupsContainer.animate().alpha(1f).setDuration(140L).start();
+            groupsContentArea.post(this::positionCollapsedGroupsSearch);
+        } else {
+            collapseGroupsSearch(false);
+            groupsSearchBar.setVisibility(View.GONE);
+            applySourceSectionState(telegramGroupsToggle, groupsContainer, false, true);
+        }
+    }
+
+    private boolean isSourceSectionExpanded(String preferenceKey) {
+        return getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(preferenceKey, true);
+    }
+
+    private void applySourceSectionState(ImageButton toggle, LinearLayout container,
+                                         boolean expanded, boolean animate) {
+        toggle.setContentDescription(getString(expanded
+                ? R.string.alerts_section_collapse
+                : R.string.alerts_section_expand));
+        if (animate) {
+            toggle.animate().rotation(expanded ? 90f : 0f).setDuration(160L).start();
+            if (expanded) {
+                container.setVisibility(View.VISIBLE);
+                container.setAlpha(0f);
+                container.animate().alpha(1f).setDuration(140L).start();
+            } else {
+                container.animate()
+                        .alpha(0f)
+                        .setDuration(120L)
+                        .withEndAction(() -> {
+                            container.setVisibility(View.GONE);
+                            container.setAlpha(1f);
+                        })
+                        .start();
+            }
+            return;
+        }
+        toggle.setRotation(expanded ? 90f : 0f);
+        container.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        container.setAlpha(1f);
     }
 
     private List<GroupSpeedRepository.Ranking> loadGroupRanking(List<TelegramGroup> groups) {

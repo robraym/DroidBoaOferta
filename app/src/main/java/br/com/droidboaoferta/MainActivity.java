@@ -49,6 +49,9 @@ import java.util.Locale;
 public class MainActivity extends AlertouActivity {
     private static final String OFFER_PREFS = "offer_preferences";
     private static final String MONITOR_ENABLED = "monitor_enabled";
+    private static final String SECTION_COUPONS_EXPANDED = "home_section_coupons_expanded";
+    private static final String SECTION_PROPERTIES_EXPANDED = "home_section_properties_expanded";
+    private static final String SECTION_PRODUCTS_EXPANDED = "home_section_products_expanded";
     private static final String STARTUP_PREFS = "startup_preferences";
     private static final String BATTERY_NOTICE_SHOWN = "battery_notice_shown";
     private static final int REQUEST_NOTIFICATIONS = 1201;
@@ -526,19 +529,21 @@ public class MainActivity extends AlertouActivity {
             }
         }
         addOfferSection(R.string.coupon_alerts_list_title, couponOffers, currency,
-                propertyHistoryRepository);
+                propertyHistoryRepository, SECTION_COUPONS_EXPANDED);
         addOfferSection(R.string.property_alerts_list_title, propertyOffers, currency,
-                propertyHistoryRepository);
+                propertyHistoryRepository, SECTION_PROPERTIES_EXPANDED);
         addOfferSection(R.string.product_alerts_list_title, productOffers, currency,
-                propertyHistoryRepository);
+                propertyHistoryRepository, SECTION_PRODUCTS_EXPANDED);
     }
 
     private void addOfferSection(int titleResource, List<ObservedOffer> offers,
                                  NumberFormat currency,
-                                 PropertyHistoryRepository propertyHistoryRepository) {
+                                 PropertyHistoryRepository propertyHistoryRepository,
+                                 String preferenceKey) {
         if (offers.isEmpty()) {
             return;
         }
+        boolean expanded = isOfferSectionExpanded(preferenceKey);
 
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -548,6 +553,9 @@ public class MainActivity extends AlertouActivity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setBackgroundResource(R.drawable.bg_row_pressed);
+        header.setClickable(true);
+        header.setFocusable(true);
         header.setPadding(dp(6), dp(2), 0, dp(3));
 
         TextView title = new TextView(this);
@@ -555,10 +563,38 @@ public class MainActivity extends AlertouActivity {
         title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(18);
         header.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView count = new TextView(this);
+        count.setText(getResources().getQuantityString(
+                R.plurals.dashboard_offer_section_count,
+                offers.size(),
+                offers.size()
+        ));
+        count.setTextColor(getColor(R.color.text_secondary));
+        count.setTextSize(14);
+        LinearLayout.LayoutParams countParams = new LinearLayout.LayoutParams(
                 0,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 1
-        ));
+        );
+        countParams.leftMargin = dp(6);
+        header.addView(count, countParams);
+
+        ImageButton toggle = new ImageButton(this);
+        toggle.setImageResource(R.drawable.ic_chevron_right);
+        toggle.setBackgroundResource(R.drawable.bg_icon_circle);
+        toggle.setContentDescription(getString(expanded
+                ? R.string.alerts_section_collapse
+                : R.string.alerts_section_expand));
+        toggle.setPadding(dp(7), dp(7), dp(7), dp(7));
+        toggle.setScaleType(ImageView.ScaleType.CENTER);
+        toggle.setRotation(expanded ? 90f : 0f);
+        LinearLayout.LayoutParams toggleParams = new LinearLayout.LayoutParams(dp(32), dp(32));
+        toggleParams.rightMargin = dp(6);
+        header.addView(toggle, toggleParams);
 
         ImageButton trash = new ImageButton(this);
         trash.setImageResource(R.drawable.ic_trash_outline);
@@ -569,6 +605,16 @@ public class MainActivity extends AlertouActivity {
         trash.setOnClickListener(view -> trashOfferSection(offers));
         header.addView(trash, new LinearLayout.LayoutParams(dp(36), dp(36)));
         card.addView(header);
+        header.setOnClickListener(view -> toggleOfferSection(preferenceKey));
+        toggle.setOnClickListener(view -> toggleOfferSection(preferenceKey));
+
+        if (!expanded) {
+            addOfferSectionCard(card);
+            return;
+        }
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
 
         String previousGroup = null;
         for (int index = 0; index < offers.size(); index++) {
@@ -577,12 +623,12 @@ public class MainActivity extends AlertouActivity {
             String groupLabel = OfferDateFormatter.formatGroupLabel(this, offer.getObservedAt());
             if (!group.equals(previousGroup)) {
                 if (previousGroup != null) {
-                    card.addView(createDateGroupDivider());
+                    content.addView(createDateGroupDivider());
                 }
-                card.addView(createOfferGroupHeader(groupLabel, previousGroup != null));
+                content.addView(createOfferGroupHeader(groupLabel, previousGroup != null));
                 previousGroup = group;
             } else {
-                card.addView(createOfferDivider());
+                content.addView(createOfferDivider());
             }
             String displayedTime = OfferDateFormatter.formatTime(offer.getObservedAt());
             PropertyHistoryEntry propertyHistory = propertyHistoryRepository.getForOffer(offer);
@@ -615,15 +661,32 @@ public class MainActivity extends AlertouActivity {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
             );
-            card.addView(swipeContainer, rowParams);
+            content.addView(swipeContainer, rowParams);
         }
+        card.addView(content);
 
+        addOfferSectionCard(card);
+    }
+
+    private void addOfferSectionCard(LinearLayout card) {
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
         cardParams.bottomMargin = dp(12);
         offersContainer.addView(card, cardParams);
+    }
+
+    private boolean isOfferSectionExpanded(String preferenceKey) {
+        return getSharedPreferences(OFFER_PREFS, MODE_PRIVATE)
+                .getBoolean(preferenceKey, true);
+    }
+
+    private void toggleOfferSection(String preferenceKey) {
+        getSharedPreferences(OFFER_PREFS, MODE_PRIVATE).edit()
+                .putBoolean(preferenceKey, !isOfferSectionExpanded(preferenceKey))
+                .apply();
+        renderOffers(displayedOffers);
     }
 
     private TextView createOfferGroupHeader(String label, boolean hasPreviousGroup) {

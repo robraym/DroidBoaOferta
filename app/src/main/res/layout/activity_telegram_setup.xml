@@ -168,8 +168,12 @@
         android:padding="4dp">
 
         <LinearLayout
+            android:id="@+id/header_store_sources"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_row_pressed"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
             android:minHeight="48dp"
             android:orientation="horizontal"
@@ -195,7 +199,24 @@
                 android:text="@string/vivo_outlet_sources_count"
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
+
+            <ImageButton
+                android:id="@+id/button_toggle_store_sources"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_icon_circle"
+                android:contentDescription="@string/alerts_section_collapse"
+                android:padding="7dp"
+                android:rotation="90"
+                android:scaleType="center"
+                android:src="@drawable/ic_chevron_right" />
         </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/container_store_sources"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -335,6 +356,7 @@
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
     <View
@@ -371,39 +393,62 @@
                 android:orientation="vertical">
 
                 <LinearLayout
+                    android:id="@+id/header_telegram_groups"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_row_pressed"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:gravity="center_vertical"
-                    android:orientation="vertical"
+                    android:orientation="horizontal"
                     android:paddingStart="6dp"
                     android:paddingTop="5dp"
                     android:paddingEnd="8dp"
                     android:paddingBottom="5dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
+                    <LinearLayout
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:text="@string/telegram_groups_card_title"
-                        android:textColor="@color/text_primary"
-                        android:textSize="18sp" />
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/text_groups_count"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/telegram_groups_count_empty"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/telegram_groups_card_title"
+                            android:textColor="@color/text_primary"
+                            android:textSize="18sp" />
 
-                    <TextView
-                        android:id="@+id/text_groups_evaluation"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
-                        android:visibility="gone" />
+                        <TextView
+                            android:id="@+id/text_groups_count"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/telegram_groups_count_empty"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/text_groups_evaluation"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <ImageButton
+                        android:id="@+id/button_toggle_telegram_groups"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_icon_circle"
+                        android:contentDescription="@string/alerts_section_collapse"
+                        android:padding="7dp"
+                        android:rotation="90"
+                        android:scaleType="center"
+                        android:src="@drawable/ic_chevron_right" />
                 </LinearLayout>
 
                 <LinearLayout
