@@ -86,6 +86,8 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     private TextView navigationAnimationSummary;
     private TextView vivoOutletIntervalSummary;
     private TextView pelandoIntervalSummary;
+    private TextView promobitIntervalSummary;
+    private TextView kabumOfferIntervalSummary;
     private LinearLayout accountCard;
     private LinearLayout syncRow;
     private View accountChevron;
@@ -119,6 +121,8 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         navigationAnimationSummary = findViewById(R.id.text_navigation_animation_summary);
         vivoOutletIntervalSummary = findViewById(R.id.text_vivo_outlet_interval_summary);
         pelandoIntervalSummary = findViewById(R.id.text_pelando_interval_summary);
+        promobitIntervalSummary = findViewById(R.id.text_promobit_interval_summary);
+        kabumOfferIntervalSummary = findViewById(R.id.text_kabum_offer_interval_summary);
         accountCard = findViewById(R.id.card_telegram_account);
         syncRow = findViewById(R.id.row_sync);
         accountChevron = findViewById(R.id.image_account_chevron);
@@ -177,6 +181,12 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
         );
         findViewById(R.id.row_pelando_interval).setOnClickListener(
                 view -> showPelandoIntervalDialog()
+        );
+        findViewById(R.id.row_promobit_interval).setOnClickListener(
+                view -> showPromobitIntervalDialog()
+        );
+        findViewById(R.id.row_kabum_offer_interval).setOnClickListener(
+                view -> showKabumOfferIntervalDialog()
         );
         findViewById(R.id.row_backup).setOnClickListener(view -> clientManager.backupCloudNow());
         findViewById(R.id.row_restore_backup).setOnClickListener(view -> {
@@ -291,6 +301,12 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
                 VivoOutletSource.getCheckIntervalMinutes(this)));
         pelandoIntervalSummary.setText(formatPelandoInterval(
                 PelandoSource.getCheckIntervalSeconds(this)
+        ));
+        promobitIntervalSummary.setText(formatShortInterval(
+                PromobitSource.getCheckIntervalSeconds(this)
+        ));
+        kabumOfferIntervalSummary.setText(formatShortInterval(
+                KabumOfferSource.getCheckIntervalSeconds(this)
         ));
     }
 
@@ -422,6 +438,136 @@ public class ProfileActivity extends AlertouActivity implements TelegramClientMa
     }
 
     private String formatPelandoInterval(int seconds) {
+        return formatShortInterval(seconds);
+    }
+
+    private void showPromobitIntervalDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.promobit_interval_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        int savedInterval = PromobitSource.getCheckIntervalSeconds(this);
+        int[] intervals = {30, 60, 120, 300};
+        int[] labels = {
+                R.string.pelando_interval_thirty_seconds,
+                R.string.pelando_interval_one_minute,
+                R.string.pelando_interval_two_minutes,
+                R.string.pelando_interval_five_minutes
+        };
+        LinearLayout options = new LinearLayout(this);
+        options.setOrientation(LinearLayout.VERTICAL);
+        options.setPadding(0, dp(10), 0, dp(10));
+        for (int index = 0; index < intervals.length; index++) {
+            int interval = intervals[index];
+            TextView option = createThemeOption(labels[index], interval == savedInterval);
+            option.setOnClickListener(view -> {
+                PromobitSource.saveCheckIntervalSeconds(this, interval);
+                promobitIntervalSummary.setText(formatShortInterval(interval));
+                PromobitMonitor.getInstance().rescheduleIfRunning(this);
+                dialog.dismiss();
+            });
+            options.addView(option);
+        }
+        content.addView(options);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private void showKabumOfferIntervalDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.kabum_offer_interval_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(21);
+        content.addView(title);
+
+        int savedInterval = KabumOfferSource.getCheckIntervalSeconds(this);
+        int[] intervals = {60, 120, 300, 900};
+        int[] labels = {
+                R.string.pelando_interval_one_minute,
+                R.string.pelando_interval_two_minutes,
+                R.string.pelando_interval_five_minutes,
+                R.string.vivo_outlet_interval_fifteen
+        };
+        LinearLayout options = new LinearLayout(this);
+        options.setOrientation(LinearLayout.VERTICAL);
+        options.setPadding(0, dp(10), 0, dp(10));
+        for (int index = 0; index < intervals.length; index++) {
+            int interval = intervals[index];
+            TextView option = createThemeOption(labels[index], interval == savedInterval);
+            option.setOnClickListener(view -> {
+                KabumOfferSource.saveCheckIntervalSeconds(this, interval);
+                kabumOfferIntervalSummary.setText(formatShortInterval(interval));
+                KabumOfferMonitor.getInstance().rescheduleIfRunning(this);
+                dialog.dismiss();
+            });
+            options.addView(option);
+        }
+        content.addView(options);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END);
+        TextView close = createDialogAction(R.string.action_close);
+        close.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(close);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private String formatShortInterval(int seconds) {
         if (seconds < 60) {
             return getString(R.string.pelando_interval_summary_seconds, seconds);
         }

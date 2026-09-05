@@ -18,7 +18,9 @@ final class OfferLinkValidationStore {
         return offer != null && !offer.getId().startsWith("property|")
                 && !offer.getId().startsWith("coupon|")
                 && !offer.getId().startsWith("vivo|")
-                && !offer.getId().startsWith("pelando|");
+                && !offer.getId().startsWith("pelando|")
+                && !offer.getId().startsWith("promobit|")
+                && !offer.getId().startsWith("kabum|");
     }
 
     boolean canDisplay(ObservedOffer offer) {

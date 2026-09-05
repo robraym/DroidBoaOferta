@@ -1064,6 +1064,8 @@ public class AlertsActivity extends AlertouActivity {
                     CouponPageMonitor.getInstance().clearState(this, interestToEdit.getId());
                     VivoOutletMonitor.getInstance().clearState(this, interestToEdit.getId());
                     PelandoMonitor.getInstance().clearState(this, interestToEdit.getId());
+                    PromobitMonitor.getInstance().clearState(this, interestToEdit.getId());
+                    KabumOfferMonitor.getInstance().clearState(this, interestToEdit.getId());
                     offerRepository.clearProcessedForInterest(interestToEdit.getId());
                     offerRepository.clearRecentForInterest(interestToEdit.getId());
                 } else {
@@ -1105,6 +1107,8 @@ public class AlertsActivity extends AlertouActivity {
                         );
                         VivoOutletMonitor.getInstance().checkNow(this);
                         PelandoMonitor.getInstance().checkNow(this);
+                        PromobitMonitor.getInstance().checkNow(this);
+                        KabumOfferMonitor.getInstance().checkNow(this);
                     }
                 }
                 long remaining = Math.max(

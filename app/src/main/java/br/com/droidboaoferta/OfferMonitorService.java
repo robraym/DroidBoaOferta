@@ -43,6 +43,8 @@ public class OfferMonitorService extends Service {
         PropertyPageMonitor.getInstance().stop();
         VivoOutletMonitor.getInstance().stop();
         PelandoMonitor.getInstance().stop();
+        PromobitMonitor.getInstance().stop();
+        KabumOfferMonitor.getInstance().stop();
         MonitorStatusStore.setServiceRunning(this, false);
         super.onDestroy();
     }
@@ -73,6 +75,16 @@ public class OfferMonitorService extends Service {
             PelandoMonitor.getInstance().start(this);
         } else {
             PelandoMonitor.getInstance().stop();
+        }
+        if (hasPriceAlert && PromobitSource.isConfigured(this)) {
+            PromobitMonitor.getInstance().start(this);
+        } else {
+            PromobitMonitor.getInstance().stop();
+        }
+        if (hasPriceAlert && KabumOfferSource.isConfigured(this)) {
+            KabumOfferMonitor.getInstance().start(this);
+        } else {
+            KabumOfferMonitor.getInstance().stop();
         }
         if (hasCouponAlert) {
             CouponPageMonitor.getInstance().start(this);
