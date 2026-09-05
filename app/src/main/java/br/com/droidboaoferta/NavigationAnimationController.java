@@ -32,7 +32,7 @@ final class NavigationAnimationController {
     }
 
     static String getSavedMode(Context context) {
-        return MODE_NONE;
+        return prefs(context).getString(NAVIGATION_ANIMATION, MODE_NONE);
     }
 
     static void saveMode(Context context, String mode) {

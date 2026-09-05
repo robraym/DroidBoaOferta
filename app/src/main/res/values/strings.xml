@@ -226,6 +226,10 @@
     <string name="alert_sound_custom_default_name">Som escolhido</string>
     <string name="alert_sound_custom_error">Não foi possível usar o som selecionado.</string>
     <string name="profile_screen_title">Perfil</string>
+    <string name="profile_section_appearance">Aparência</string>
+    <string name="profile_section_external_sources">Fontes externas</string>
+    <string name="profile_section_sync">Sincronização</string>
+    <string name="profile_section_info">Informações</string>
     <string name="profile_telegram_connected">Telegram conectado</string>
     <string name="profile_telegram_account_summary">Conta conectada ao Telegram</string>
     <string name="profile_telegram_phone">+%1$s</string>

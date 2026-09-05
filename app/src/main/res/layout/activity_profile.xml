@@ -117,10 +117,20 @@
                 android:src="@drawable/ic_chevron_right" />
         </LinearLayout>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/profile_section_appearance"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:background="@drawable/bg_card_compact"
             android:orientation="vertical"
             android:padding="6dp">
@@ -152,6 +162,27 @@
                 android:layout_marginEnd="8dp"
                 android:background="@color/divider" />
 
+            <include layout="@layout/row_profile_navigation_animation" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/profile_section_external_sources"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_card_compact"
+            android:orientation="vertical"
+            android:padding="6dp">
+
             <include layout="@layout/row_profile_vivo_outlet_interval" />
 
             <View
@@ -162,13 +193,25 @@
                 android:background="@color/divider" />
 
             <include layout="@layout/row_profile_pelando_interval" />
+        </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginStart="60dp"
-                android:layout_marginEnd="8dp"
-                android:background="@color/divider" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/profile_section_sync"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_card_compact"
+            android:orientation="vertical"
+            android:padding="6dp">
 
             <include layout="@layout/row_profile_sync" />
 
@@ -189,13 +232,25 @@
                 android:background="@color/divider" />
 
             <include layout="@layout/row_profile_restore" />
+        </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginStart="60dp"
-                android:layout_marginEnd="8dp"
-                android:background="@color/divider" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/profile_section_info"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_card_compact"
+            android:orientation="vertical"
+            android:padding="6dp">
 
             <include layout="@layout/row_profile_ranking_rules" />
 
