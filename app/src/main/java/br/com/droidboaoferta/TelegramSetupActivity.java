@@ -108,6 +108,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
     private TextView vivoOutletSourceRow;
     private TextView vivoOutletSourceState;
     private ImageButton vivoOutletEditButton;
+    private TextView pelandoSourceRow;
+    private TextView pelandoSourceState;
+    private ImageButton pelandoEditButton;
     private int groupEvaluationDay;
     private long groupEvaluationWeekStartedAt;
     private FrameLayout groupsSearchBar;
@@ -144,6 +147,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         public void onReceive(Context context, Intent intent) {
             renderGroups(availableGroups, showingCachedGroups);
             renderVivoOutletSource();
+            renderPelandoSource();
         }
     };
     private final BroadcastReceiver smsVerificationReceiver = new BroadcastReceiver() {
@@ -203,6 +207,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
         vivoOutletSourceRow = findViewById(R.id.text_vivo_outlet_source_row);
         vivoOutletSourceState = findViewById(R.id.text_vivo_outlet_source_state);
         vivoOutletEditButton = findViewById(R.id.button_vivo_outlet_edit);
+        pelandoSourceRow = findViewById(R.id.text_pelando_source_row);
+        pelandoSourceState = findViewById(R.id.text_pelando_source_state);
+        pelandoEditButton = findViewById(R.id.button_pelando_edit);
         groupsSearchBar = findViewById(R.id.search_groups_bar);
         groupsSearchIcon = findViewById(R.id.icon_search_groups);
         groupsSearchInput = findViewById(R.id.input_search_groups);
@@ -211,7 +218,9 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 new Intent(this, ProfileActivity.class)
         ));
         vivoOutletEditButton.setOnClickListener(view -> showVivoOutletSourceDialog());
+        pelandoEditButton.setOnClickListener(view -> showPelandoSourceDialog());
         renderVivoOutletSource();
+        renderPelandoSource();
         continueButton.setOnClickListener(view -> submitAuthenticationValue());
         receiveSmsButton.setOnClickListener(view -> startSmsConsentListening(true));
         countryPickerButton.setOnClickListener(view -> showCountryPicker());
@@ -321,6 +330,7 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                     TelegramClientManager.ACTION_CLOUD_SYNC_CHANGED
             );
             sourceStatusFilter.addAction(VivoOutletMonitor.ACTION_STATUS_CHANGED);
+            sourceStatusFilter.addAction(PelandoMonitor.ACTION_STATUS_CHANGED);
             ContextCompat.registerReceiver(
                     this,
                     cloudSyncReceiver,
@@ -1709,10 +1719,10 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 ? getString(R.string.vivo_outlet_source_not_configured)
                 : (offline
                 ? getString(R.string.vivo_outlet_source_check_failed,
-                formatVivoOutletCheckTime(lastSuccessfulCheck))
+                formatSourceCheckTime(lastSuccessfulCheck))
                 : (VivoOutletSource.hasSuccessfulCheck(this)
                 ? getString(R.string.vivo_outlet_source_check_succeeded,
-                formatVivoOutletCheckTime(lastSuccessfulCheck))
+                formatSourceCheckTime(lastSuccessfulCheck))
                 : getString(R.string.vivo_outlet_source_check_pending)));
         vivoOutletSourceRow.setText(sourceStatus);
         vivoOutletSourceState.setText(getString(offline
@@ -1726,7 +1736,33 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
                 : R.string.vivo_outlet_add_link));
     }
 
-    private String formatVivoOutletCheckTime(long timestamp) {
+    private void renderPelandoSource() {
+        String url = PelandoSource.getUrl(this);
+        boolean configured = PelandoSource.normalizeUrl(url) != null;
+        long lastSuccessfulCheck = PelandoSource.getLastSuccessfulCheckAt(this);
+        boolean offline = configured && PelandoSource.hasLastCheckFailed(this);
+        String sourceStatus = !configured
+                ? getString(R.string.pelando_source_not_configured)
+                : (offline
+                ? getString(R.string.pelando_source_check_failed,
+                formatSourceCheckTime(lastSuccessfulCheck))
+                : (PelandoSource.hasSuccessfulCheck(this)
+                ? getString(R.string.pelando_source_check_succeeded,
+                formatSourceCheckTime(lastSuccessfulCheck))
+                : getString(R.string.pelando_source_check_pending)));
+        pelandoSourceRow.setText(sourceStatus);
+        pelandoSourceState.setText(getString(offline
+                ? R.string.vivo_outlet_source_offline
+                : R.string.vivo_outlet_source_online));
+        pelandoSourceState.setTextColor(getColor(offline
+                ? R.color.danger
+                : R.color.action));
+        pelandoEditButton.setContentDescription(getString(configured
+                ? R.string.pelando_edit_link
+                : R.string.pelando_add_link));
+    }
+
+    private String formatSourceCheckTime(long timestamp) {
         if (timestamp <= 0L) {
             return getString(R.string.profile_telegram_details_unavailable);
         }
@@ -1791,6 +1827,92 @@ public class TelegramSetupActivity extends AlertouActivity implements TelegramCl
             renderVivoOutletSource();
             MonitorServiceController.update(this);
             VivoOutletMonitor.getInstance().checkNow(this);
+            dialog.dismiss();
+        });
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(42)
+        );
+        saveParams.leftMargin = dp(10);
+        actions.addView(save, saveParams);
+        content.addView(actions);
+
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        dialog.show();
+        Window shownWindow = dialog.getWindow();
+        if (shownWindow != null) {
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams();
+            params.copyFrom(shownWindow.getAttributes());
+            params.width = getResources().getDisplayMetrics().widthPixels - dp(44);
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT;
+            params.dimAmount = 0.65f;
+            shownWindow.setAttributes(params);
+            shownWindow.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            shownWindow.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+    }
+
+    private void showPelandoSourceDialog() {
+        Dialog dialog = new Dialog(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(22), dp(24), dp(16));
+        content.setBackgroundResource(R.drawable.bg_dialog);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.pelando_dialog_title);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(22);
+        content.addView(title);
+
+        TextView message = new TextView(this);
+        message.setText(R.string.pelando_dialog_summary);
+        message.setTextColor(getColor(R.color.text_secondary));
+        message.setTextSize(15);
+        message.setPadding(0, dp(6), 0, dp(16));
+        content.addView(message);
+
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setHint(R.string.pelando_link_hint);
+        input.setTextColor(getColor(R.color.text_primary));
+        input.setHintTextColor(getColor(R.color.text_secondary));
+        input.setTextSize(13);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setMaxLines(4);
+        input.setHorizontallyScrolling(false);
+        input.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        input.setPadding(dp(12), dp(6), dp(12), dp(6));
+        input.setBackgroundResource(R.drawable.bg_input);
+        String savedUrl = PelandoSource.getUrl(this);
+        input.setText(savedUrl.isEmpty() ? PelandoSource.DEFAULT_URL : savedUrl);
+        content.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        actions.setPadding(0, dp(14), 0, 0);
+        TextView cancel = createSourceDialogAction(R.string.action_cancel);
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        actions.addView(cancel);
+        TextView save = createSourcePrimaryDialogAction(R.string.action_save);
+        save.setOnClickListener(view -> {
+            String rawUrl = input.getText().toString().trim();
+            if (PelandoSource.normalizeUrl(rawUrl) == null) {
+                input.setError(getString(R.string.pelando_link_unsupported));
+                return;
+            }
+            PelandoSource.save(this, rawUrl);
+            renderPelandoSource();
+            MonitorServiceController.update(this);
+            PelandoMonitor.getInstance().checkNow(this);
             dialog.dismiss();
         });
         LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(

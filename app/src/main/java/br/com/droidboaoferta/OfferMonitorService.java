@@ -42,6 +42,7 @@ public class OfferMonitorService extends Service {
         CouponPageMonitor.getInstance().stop();
         PropertyPageMonitor.getInstance().stop();
         VivoOutletMonitor.getInstance().stop();
+        PelandoMonitor.getInstance().stop();
         MonitorStatusStore.setServiceRunning(this, false);
         super.onDestroy();
     }
@@ -67,6 +68,11 @@ public class OfferMonitorService extends Service {
             VivoOutletMonitor.getInstance().start(this);
         } else {
             VivoOutletMonitor.getInstance().stop();
+        }
+        if (hasPriceAlert && PelandoSource.isConfigured(this)) {
+            PelandoMonitor.getInstance().start(this);
+        } else {
+            PelandoMonitor.getInstance().stop();
         }
         if (hasCouponAlert) {
             CouponPageMonitor.getInstance().start(this);

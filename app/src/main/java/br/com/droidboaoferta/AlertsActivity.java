@@ -967,6 +967,7 @@ public class AlertsActivity extends AlertouActivity {
                     interestRepository.update(interestToEdit.getId(), term, maximumPrice);
                     CouponPageMonitor.getInstance().clearState(this, interestToEdit.getId());
                     VivoOutletMonitor.getInstance().clearState(this, interestToEdit.getId());
+                    PelandoMonitor.getInstance().clearState(this, interestToEdit.getId());
                     offerRepository.clearProcessedForInterest(interestToEdit.getId());
                     offerRepository.clearRecentForInterest(interestToEdit.getId());
                 } else {
@@ -1007,6 +1008,7 @@ public class AlertsActivity extends AlertouActivity {
                                 maximumPrice
                         );
                         VivoOutletMonitor.getInstance().checkNow(this);
+                        PelandoMonitor.getInstance().checkNow(this);
                     }
                 }
                 long remaining = Math.max(
